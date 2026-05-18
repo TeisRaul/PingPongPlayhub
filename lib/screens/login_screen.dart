@@ -1,0 +1,267 @@
+import 'package:flutter/material.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'signup_screen.dart';
+import 'google_login_stub.dart' if (dart.library.io) 'google_login_mobile.dart';
+// import 'home_screen.dart'; // Aici vei importa ecranul principal al aplicației
+
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key});
+
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  bool _obscurePassword = true;
+  bool _isLoading = false;
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  // --- Funcția pentru Autentificare cu Google ---
+  Future<void> _signInWithGoogle() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      UserCredential? userCredential;
+
+      if (kIsWeb) {
+        // Metoda recomandată pentru Firebase pe Web (Chrome)
+        final GoogleAuthProvider googleProvider = GoogleAuthProvider();
+        userCredential = await FirebaseAuth.instance.signInWithPopup(googleProvider);
+      } else {
+        // Metoda pentru Mobile (Android / iOS)
+        userCredential = await signInWithGoogleMobile();
+        if (userCredential == null) {
+          setState(() => _isLoading = false);
+          return; // Anulat
+        }
+      }
+
+      final User? user = userCredential?.user;
+
+      if (user != null) {
+        // 5. Verificăm dacă utilizatorul are deja profil în baza noastră de date
+        final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+
+        if (mounted) {
+          if (userDoc.exists) {
+            // Caz A: Are deja cont complet. Îl trimitem direct în aplicație.
+            print("Utilizator existent. Navigare către Home.");
+            // Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomeScreen()));
+          } else {
+            // Caz B: Este prima dată. Extragem datele și îl trimitem la Signup
+            
+            // Spargem "John Doe" în "John" și "Doe"
+            List<String> nameParts = (user.displayName ?? '').split(' ');
+            String prefilledFirstName = nameParts.isNotEmpty ? nameParts.first : '';
+            String prefilledLastName = nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '';
+            String prefilledEmail = user.email ?? '';
+
+            // Trimitem datele către SignupScreen
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => SignupScreen(
+                  initialFirstName: prefilledFirstName,
+                  initialLastName: prefilledLastName,
+                  initialEmail: prefilledEmail,
+                ),
+              ),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Eroare la logarea cu Google: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  // --- Funcția pentru Autentificare Email/Parolă (de bază) ---
+  Future<void> _handleEmailLogin() async {
+    // Aici adaugi FirebaseAuth.instance.signInWithEmailAndPassword
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const SizedBox(height: 60),
+              // App Logo / Title
+              const Icon(
+                Icons.sports_tennis,
+                size: 80,
+                color: Color(0xFF00E5FF),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'PingPong Playhub',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  letterSpacing: 1.5,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Bun venit! Autentifică-te pentru a juca.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey,
+                ),
+              ),
+              const SizedBox(height: 48),
+
+              // Email Input
+              TextField(
+                controller: _emailController,
+                keyboardType: TextInputType.emailAddress,
+                decoration: const InputDecoration(
+                  labelText: 'Email',
+                  prefixIcon: Icon(Icons.email_outlined),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Password Input
+              TextField(
+                controller: _passwordController,
+                obscureText: _obscurePassword,
+                decoration: InputDecoration(
+                  labelText: 'Parolă',
+                  prefixIcon: const Icon(Icons.lock_outline),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                      color: Colors.grey,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _obscurePassword = !_obscurePassword;
+                      });
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // Login Button
+              ElevatedButton(
+                onPressed: _isLoading ? null : _handleEmailLogin,
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
+                child: _isLoading 
+                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white)) 
+                    : const Text('LOG IN'),
+              ),
+              const SizedBox(height: 24),
+
+              // Divider
+              Row(
+                children: [
+                  Expanded(child: Divider(color: Colors.grey[800])),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16.0),
+                    child: Text(
+                      'SAU',
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                  ),
+                  Expanded(child: Divider(color: Colors.grey[800])),
+                ],
+              ),
+              const SizedBox(height: 24),
+
+              // Social Login Buttons
+              OutlinedButton.icon(
+                onPressed: _isLoading ? null : _signInWithGoogle,
+                icon: const FaIcon(FontAwesomeIcons.google, color: Colors.white),
+                label: const Text('Logează-te cu Google'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  side: const BorderSide(color: Colors.grey),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: _isLoading ? null : () {
+                  // TODO: Implement Facebook login (Logica este 99% identică cu cea de la Google)
+                },
+                icon: const FaIcon(FontAwesomeIcons.facebook, color: Color(0xFF1877F2)),
+                label: const Text('Logează-te cu Facebook'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  side: const BorderSide(color: Colors.grey),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 32),
+
+              // Sign Up Link
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text(
+                    'Nu ai un cont? ',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const SignupScreen(), // Fără parametri inițiali pentru fluxul manual
+                        ),
+                      );
+                    },
+                    style: TextButton.styleFrom(
+                      foregroundColor: const Color(0xFF00E5FF),
+                    ),
+                    child: const Text('Creează cont nou'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
