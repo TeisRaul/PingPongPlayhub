@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl_phone_field/intl_phone_field.dart';
 import 'avatar_screen.dart';
 
 class SignupScreen extends StatefulWidget {
@@ -34,6 +35,57 @@ class _SignupScreenState extends State<SignupScreen> {
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _isLoading = false;
+
+  String _fullPhoneNumber = '';
+  double _passwordStrength = 0.0;
+  String _passwordStrengthText = '';
+  Color _passwordStrengthColor = Colors.transparent;
+
+  @override
+  void initState() {
+    super.initState();
+    _passwordController.addListener(_updatePasswordStrength);
+  }
+
+  void _updatePasswordStrength() {
+    String pass = _passwordController.text;
+    if (pass.isEmpty) {
+      setState(() {
+        _passwordStrength = 0.0;
+        _passwordStrengthText = '';
+        _passwordStrengthColor = Colors.transparent;
+      });
+      return;
+    }
+    
+    double strength = 0.0;
+    if (pass.length >= 8) strength += 0.25;
+    if (pass.contains(RegExp(r'[a-z]'))) strength += 0.25;
+    if (pass.contains(RegExp(r'[A-Z]'))) strength += 0.25;
+    if (pass.contains(RegExp(r'[0-9]')) || pass.contains(RegExp(r'[!@#\$%^&*(),.?":{}|<>]'))) strength += 0.25;
+    
+    String text;
+    Color color;
+    if (strength <= 0.25) {
+      text = 'Slabă';
+      color = Colors.red;
+    } else if (strength <= 0.5) {
+      text = 'Acceptabilă';
+      color = Colors.orange;
+    } else if (strength <= 0.75) {
+      text = 'Bună';
+      color = Colors.lightGreen;
+    } else {
+      text = 'Puternică';
+      color = Colors.green;
+    }
+    
+    setState(() {
+      _passwordStrength = strength;
+      _passwordStrengthText = text;
+      _passwordStrengthColor = color;
+    });
+  }
 
   @override
   void dispose() {
@@ -113,7 +165,7 @@ class _SignupScreenState extends State<SignupScreen> {
             'firstName': _firstNameController.text.trim(),
             'lastName': _lastNameController.text.trim(),
             'email': _emailController.text.trim(),
-            'phone': _phoneController.text.trim(),
+            'phone': _fullPhoneNumber,
             'dob': _dobController.text.trim(),
             'pingPongLevel': 'Începător', // Valoare default pentru matchmaking
             'matchesPlayed': 0,
@@ -121,14 +173,15 @@ class _SignupScreenState extends State<SignupScreen> {
             'createdAt': FieldValue.serverTimestamp(),
           });
 
-          // 3. Dacă totul e ok, navigăm către ecranul următor
+          // 3. Dacă totul e ok, navigăm către ecranul de login
           if (mounted) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const AvatarScreen(),
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Cont creat cu succes! Te poți autentifica acum.'),
+                backgroundColor: Colors.green,
               ),
             );
+            Navigator.pop(context); // Ne întoarcem la LoginScreen
           }
         }
       } on FirebaseAuthException catch (e) {
@@ -140,6 +193,10 @@ class _SignupScreenState extends State<SignupScreen> {
           errorMessage = 'Formatul email-ului este invalid.';
         }
 
+        print('====================================');
+        print('EROARE REALA FIREBASE: $e');
+        print('====================================');
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text(errorMessage), backgroundColor: Colors.red),
@@ -147,6 +204,9 @@ class _SignupScreenState extends State<SignupScreen> {
         }
       } catch (e) {
         // Prindem orice altă eroare
+        print('====================================');
+        print('EROARE GENERALA: $e');
+        print('====================================');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Eroare: ${e.toString()}'), backgroundColor: Colors.red),
@@ -239,14 +299,15 @@ class _SignupScreenState extends State<SignupScreen> {
                 const SizedBox(height: 16),
 
                 // Telefon
-                TextFormField(
-                  controller: _phoneController,
-                  keyboardType: TextInputType.phone,
+                IntlPhoneField(
                   decoration: const InputDecoration(
                     labelText: 'Număr de telefon',
                     prefixIcon: Icon(Icons.phone_outlined),
                   ),
-                  validator: (value) => value!.isEmpty ? 'Necesar' : null,
+                  initialCountryCode: 'RO',
+                  onChanged: (phone) {
+                    _fullPhoneNumber = phone.completeNumber;
+                  },
                 ),
                 const SizedBox(height: 16),
 
@@ -280,6 +341,33 @@ class _SignupScreenState extends State<SignupScreen> {
                   ),
                   validator: _validatePassword,
                 ),
+                if (_passwordStrengthText.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: LinearProgressIndicator(
+                            value: _passwordStrength,
+                            backgroundColor: Colors.grey[800],
+                            color: _passwordStrengthColor,
+                            minHeight: 6,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        _passwordStrengthText,
+                        style: TextStyle(
+                          color: _passwordStrengthColor,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
                 const SizedBox(height: 16),
 
                 // Confirmare Parola

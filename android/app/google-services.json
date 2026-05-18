@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "801794099668",
-    "project_id": "pingpongplayhub",
-    "storage_bucket": "pingpongplayhub.firebasestorage.app"
+    "project_number": "265197532784",
+    "project_id": "pingpongplayhub1",
+    "storage_bucket": "pingpongplayhub1.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:801794099668:android:3cbc86af7c5c2a435aae41",
+        "mobilesdk_app_id": "1:265197532784:android:9e57a54d40bd194f8726b5",
         "android_client_info": {
           "package_name": "com.pingpongplayhub.pingpong_playhub"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyC_cgV9ngxcpPcOxpz-kPo1aozvTStRjVU"
+          "current_key": "AIzaSyA30kg_rmxjv_b9NVhBskAsrDHi3bVqCIY"
         }
       ],
       "services": {

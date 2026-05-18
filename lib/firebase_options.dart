@@ -41,49 +41,49 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyCtM7RTSF-NGH3MBd45wWPyMuLczK9UNTo',
-    appId: '1:801794099668:web:586965130c52ef465aae41',
-    messagingSenderId: '801794099668',
-    projectId: 'pingpongplayhub',
-    authDomain: 'pingpongplayhub.firebaseapp.com',
-    storageBucket: 'pingpongplayhub.firebasestorage.app',
-    measurementId: 'G-EHCK25FK0T',
+    apiKey: 'AIzaSyDS0KVNyhW5-3y72ojQo0SciuWp-iFPwTk',
+    appId: '1:265197532784:web:af8400b9d9849a058726b5',
+    messagingSenderId: '265197532784',
+    projectId: 'pingpongplayhub1',
+    authDomain: 'pingpongplayhub1.firebaseapp.com',
+    storageBucket: 'pingpongplayhub1.firebasestorage.app',
+    measurementId: 'G-GNXGBESLY2',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyC_cgV9ngxcpPcOxpz-kPo1aozvTStRjVU',
-    appId: '1:801794099668:android:3cbc86af7c5c2a435aae41',
-    messagingSenderId: '801794099668',
-    projectId: 'pingpongplayhub',
-    storageBucket: 'pingpongplayhub.firebasestorage.app',
+    apiKey: 'AIzaSyA30kg_rmxjv_b9NVhBskAsrDHi3bVqCIY',
+    appId: '1:265197532784:android:9e57a54d40bd194f8726b5',
+    messagingSenderId: '265197532784',
+    projectId: 'pingpongplayhub1',
+    storageBucket: 'pingpongplayhub1.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyD0ef1cNtceS9xLwPKobLSC4rO1O14sb7E',
-    appId: '1:801794099668:ios:9c14edd21dac27035aae41',
-    messagingSenderId: '801794099668',
-    projectId: 'pingpongplayhub',
-    storageBucket: 'pingpongplayhub.firebasestorage.app',
+    apiKey: 'AIzaSyAcyKh_7JPPSBpt568mka7sb_S6nj2vlIA',
+    appId: '1:265197532784:ios:f512872ff979f6b88726b5',
+    messagingSenderId: '265197532784',
+    projectId: 'pingpongplayhub1',
+    storageBucket: 'pingpongplayhub1.firebasestorage.app',
     iosBundleId: 'com.pingpongplayhub.pingpongPlayhub',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'AIzaSyD0ef1cNtceS9xLwPKobLSC4rO1O14sb7E',
-    appId: '1:801794099668:ios:9c14edd21dac27035aae41',
-    messagingSenderId: '801794099668',
-    projectId: 'pingpongplayhub',
-    storageBucket: 'pingpongplayhub.firebasestorage.app',
+    apiKey: 'AIzaSyAcyKh_7JPPSBpt568mka7sb_S6nj2vlIA',
+    appId: '1:265197532784:ios:f512872ff979f6b88726b5',
+    messagingSenderId: '265197532784',
+    projectId: 'pingpongplayhub1',
+    storageBucket: 'pingpongplayhub1.firebasestorage.app',
     iosBundleId: 'com.pingpongplayhub.pingpongPlayhub',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'AIzaSyCtM7RTSF-NGH3MBd45wWPyMuLczK9UNTo',
-    appId: '1:801794099668:web:13b389cd7d69edfd5aae41',
-    messagingSenderId: '801794099668',
-    projectId: 'pingpongplayhub',
-    authDomain: 'pingpongplayhub.firebaseapp.com',
-    storageBucket: 'pingpongplayhub.firebasestorage.app',
-    measurementId: 'G-5CJ95M8HJ0',
+    apiKey: 'AIzaSyDS0KVNyhW5-3y72ojQo0SciuWp-iFPwTk',
+    appId: '1:265197532784:web:e30c4ea2a7aaf4c88726b5',
+    messagingSenderId: '265197532784',
+    projectId: 'pingpongplayhub1',
+    authDomain: 'pingpongplayhub1.firebaseapp.com',
+    storageBucket: 'pingpongplayhub1.firebasestorage.app',
+    measurementId: 'G-D2RPHY3K4M',
   );
 
 }

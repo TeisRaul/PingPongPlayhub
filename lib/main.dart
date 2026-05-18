@@ -1,17 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'screens/login_screen.dart';
+import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
   // NOTE: You must have Firebase configured (firebase_options.dart / google-services.json).
   // I am disabling this temporarily so you can see the UI without white screens!
-  // try {
-  //   await Firebase.initializeApp();
-  // } catch (e) {
-  //   print("Eroare Firebase: $e");
-  // }
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } catch (e) {
+    print("Eroare Firebase: $e");
+  }
   
   runApp(const PingPongPlayhubApp());
 }

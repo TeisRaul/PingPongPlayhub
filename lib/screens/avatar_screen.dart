@@ -21,6 +21,15 @@ class _AvatarScreenState extends State<AvatarScreen> {
     'Rookie',
   ];
 
+  final List<String> _avatarPaths = [
+    'assets/images/avatars/pro_player.png',
+    'assets/images/avatars/speedster.png',
+    'assets/images/avatars/smash_king.png',
+    'assets/images/avatars/spin_master.png',
+    'assets/images/avatars/defender.png',
+    'assets/images/avatars/rookie.png',
+  ];
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -90,15 +99,11 @@ class _AvatarScreenState extends State<AvatarScreen> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            // Placeholder pentru un Avatar 3D
+                            // Imaginea Avatarului 3D
                             CircleAvatar(
                               radius: 45,
                               backgroundColor: const Color(0xFF1E293B),
-                              child: Icon(
-                                Icons.face_retouching_natural,
-                                size: 50,
-                                color: isSelected ? const Color(0xFF00E5FF) : Colors.grey,
-                              ),
+                              backgroundImage: AssetImage(_avatarPaths[index]),
                             ),
                             const SizedBox(height: 16),
                             Text(
