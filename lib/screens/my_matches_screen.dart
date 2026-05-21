@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../utils/level_utils.dart';
+import 'chat_screen.dart';
 
 class MyMatchesScreen extends StatefulWidget {
   const MyMatchesScreen({super.key});
@@ -11,6 +12,101 @@ class MyMatchesScreen extends StatefulWidget {
 }
 
 class _MyMatchesScreenState extends State<MyMatchesScreen> {
+  Future<void> _sendFriendRequestFromTable(Map<String, dynamic> player) async {
+    final currentUserUid = FirebaseAuth.instance.currentUser?.uid;
+    if (currentUserUid == null) return;
+
+    final targetUid = player['uid'];
+    final targetUsername = player['username'] ?? 'Utilizator';
+    final targetAvatarUrl = player['avatarUrl'] ?? '';
+
+    try {
+      // 1. Verificare anti-spam: sunt deja prieteni?
+      final String friendshipId = currentUserUid.compareTo(targetUid) < 0
+          ? '${currentUserUid}_$targetUid'
+          : '${targetUid}_$currentUserUid';
+
+      final friendshipDoc = await FirebaseFirestore.instance.collection('friendships').doc(friendshipId).get();
+      if (friendshipDoc.exists) {
+        _showDialogMessage('Sunteți deja prieteni!', 'Acest utilizator face deja parte din lista ta de prieteni.');
+        return;
+      }
+
+      // 2. Verificare anti-spam: există deja o cerere pending de la mine la ei?
+      final sentRequestQuery = await FirebaseFirestore.instance
+          .collection('friend_requests')
+          .where('fromUid', isEqualTo: currentUserUid)
+          .where('toUid', isEqualTo: targetUid)
+          .where('status', isEqualTo: 'pending')
+          .get();
+
+      if (sentRequestQuery.docs.isNotEmpty) {
+        _showDialogMessage('Cerere deja trimisă!', 'Ai trimis deja o cerere de prietenie către acest utilizator. Cererea este în așteptare.');
+        return;
+      }
+
+      // 3. Verificare anti-spam: există deja o cerere pending de la ei la mine?
+      final receivedRequestQuery = await FirebaseFirestore.instance
+          .collection('friend_requests')
+          .where('fromUid', isEqualTo: targetUid)
+          .where('toUid', isEqualTo: currentUserUid)
+          .where('status', isEqualTo: 'pending')
+          .get();
+
+      if (receivedRequestQuery.docs.isNotEmpty) {
+        _showDialogMessage('Cerere în așteptare!', 'Acest utilizator ți-a trimis deja o cerere de prietenie! O poți accepta din ecranul Prieteni.');
+        return;
+      }
+
+      // Get my details for the request
+      final myDoc = await FirebaseFirestore.instance.collection('users').doc(currentUserUid).get();
+      final myData = myDoc.data() ?? {};
+      final myUsername = myData['username'] ?? 'Utilizator';
+      final myAvatarUrl = myData['avatarUrl'] ?? '';
+
+      // Save friend request doc
+      await FirebaseFirestore.instance.collection('friend_requests').add({
+        'fromUid': currentUserUid,
+        'fromUsername': myUsername,
+        'fromAvatarUrl': myAvatarUrl,
+        'toUid': targetUid,
+        'toUsername': targetUsername,
+        'toAvatarUrl': targetAvatarUrl,
+        'status': 'pending',
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Cerere de prietenie trimisă către $targetUsername!'), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Eroare: $e'), backgroundColor: Colors.redAccent),
+        );
+      }
+    }
+  }
+
+  void _showDialogMessage(String title, String message) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF131A2A),
+        title: Text(title, style: const TextStyle(color: Colors.white)),
+        content: Text(message, style: const TextStyle(color: Colors.grey)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK', style: TextStyle(color: Color(0xFF00E5FF))),
+          ),
+        ],
+      ),
+    );
+  }
+
   bool _isPast(Map<String, dynamic> data) {
     try {
       final dateStr = data['date'] as String;
@@ -181,16 +277,61 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
             const SizedBox(height: 16),
             const Text('Jucători la masă:', style: TextStyle(color: Colors.grey)),
             const SizedBox(height: 8),
-            ...players.map((p) => Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Row(
-                children: [
-                  Icon(p['role'] == 'host' ? Icons.star : Icons.person, size: 16, color: p['role'] == 'host' ? Colors.yellow : Colors.grey),
-                  const SizedBox(width: 8),
-                  Text('${p['username']} (${p['level']})', style: TextStyle(color: p['uid'] == currentUserUid ? const Color(0xFF00E5FF) : Colors.white)),
-                ],
-              ),
-            )).toList(),
+            ...players.map((p) {
+              final isMe = p['uid'] == currentUserUid;
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  children: [
+                    Icon(
+                      p['role'] == 'host' ? Icons.star : Icons.person, 
+                      size: 16, 
+                      color: p['role'] == 'host' ? Colors.yellow : Colors.grey
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '${p['username']} (${p['level']})', 
+                        style: TextStyle(
+                          color: isMe ? const Color(0xFF00E5FF) : Colors.white,
+                          fontWeight: isMe ? FontWeight.bold : FontWeight.normal,
+                        )
+                      ),
+                    ),
+                    if (!isMe) ...[
+                      // Chat button
+                      IconButton(
+                        icon: const Icon(Icons.chat_bubble_outline, color: Color(0xFF00E5FF), size: 18),
+                        tooltip: 'Trimite mesaj',
+                        constraints: const BoxConstraints(),
+                        padding: const EdgeInsets.all(4),
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => ChatScreen(
+                                otherUid: p['uid'],
+                                otherUsername: p['username'] ?? 'Utilizator',
+                                otherAvatarUrl: p['avatarUrl'],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(width: 8),
+                      // Friend request button
+                      IconButton(
+                        icon: const Icon(Icons.person_add_outlined, color: Colors.greenAccent, size: 18),
+                        tooltip: 'Adaugă prieten',
+                        constraints: const BoxConstraints(),
+                        padding: const EdgeInsets.all(4),
+                        onPressed: () => _sendFriendRequestFromTable(p),
+                      ),
+                    ],
+                  ],
+                ),
+              );
+            }).toList(),
             if (players.length < (data['maxPlayers'] ?? 2))
               Padding(
                 padding: const EdgeInsets.only(top: 8),

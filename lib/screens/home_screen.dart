@@ -4,10 +4,13 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../utils/level_utils.dart';
 import 'login_screen.dart';
-import 'avatar_screen.dart';
 import 'my_profile_screen.dart';
 import 'find_match_screen.dart';
 import 'my_matches_screen.dart';
+
+import 'friends_screen.dart';
+import 'notifications_screen.dart';
+import 'inbox_screen.dart';
 
 class ParallelogramClipper extends CustomClipper<Path> {
   @override
@@ -141,11 +144,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     height: 50,
                     color: const Color(0xFF131A2A),
                     child: avatarUrl == null
-                        ? const Center(child: Icon(Icons.person, color: Colors.white, size: 28))
-                        : Image(
-                            image: _getAvatarProvider(avatarUrl)!,
-                            fit: BoxFit.cover,
-                          ),
+                      ? const Center(child: Icon(Icons.person, color: Colors.white, size: 28))
+                      : Image(
+                          image: _getAvatarProvider(avatarUrl)!,
+                          fit: BoxFit.cover,
+                        ),
                   ),
                 ),
               ),
@@ -154,6 +157,75 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         title: const Text('PingPong Playhub'),
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.mail_outline, color: Colors.white),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const InboxScreen()),
+              );
+            },
+          ),
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('notifications')
+                .where('toUid', isEqualTo: FirebaseAuth.instance.currentUser?.uid)
+                .where('status', isEqualTo: 'pending')
+                .snapshots(),
+            builder: (context, snapshot) {
+              int count = 0;
+              if (snapshot.hasData) {
+                // Filter client side to avoid index creation requirements for != 'friend_request' query
+                count = snapshot.data!.docs.where((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  return data['type'] != 'friend_request';
+                }).length;
+              }
+              return Stack(
+                alignment: Alignment.center,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.notifications_none, color: Colors.white),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+                      );
+                    },
+                  ),
+                  if (count > 0)
+                    Positioned(
+                      right: 4,
+                      top: 4,
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          color: Colors.redAccent,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFF0A0E17), width: 1.5),
+                        ),
+                        constraints: const BoxConstraints(
+                          minWidth: 16,
+                          minHeight: 16,
+                        ),
+                        child: Text(
+                          count > 9 ? '9+' : '$count',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       drawer: _buildDrawer(username, levelName, progress, avatarUrl),
       body: Center(
@@ -280,11 +352,12 @@ class _HomeScreenState extends State<HomeScreen> {
                     MaterialPageRoute(builder: (_) => const MyMatchesScreen()),
                   ).then((_) => _loadUserData()); // Refresh on return
                 }),
-                _buildDrawerItem(Icons.calendar_month_outlined, 'Schedule a Table', onTap: () {
-                  Navigator.pop(context);
-                }),
                 _buildDrawerItem(Icons.group_add_outlined, 'Play with a Friend', onTap: () {
-                  Navigator.pop(context);
+                  Navigator.pop(context); // Close Drawer
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const FriendsScreen()),
+                  );
                 }),
                 _buildDrawerItem(Icons.emoji_events_outlined, 'Tournaments', onTap: () {
                   Navigator.pop(context);
