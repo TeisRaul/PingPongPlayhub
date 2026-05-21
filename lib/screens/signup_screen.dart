@@ -26,6 +26,7 @@ class _SignupScreenState extends State<SignupScreen> {
   late final _firstNameController = TextEditingController(text: widget.initialFirstName ?? '');
   late final _lastNameController = TextEditingController(text: widget.initialLastName ?? '');
   late final _emailController = TextEditingController(text: widget.initialEmail ?? '');
+  final _usernameController = TextEditingController();
   
   final _phoneController = TextEditingController();
   final _dobController = TextEditingController();
@@ -89,6 +90,7 @@ class _SignupScreenState extends State<SignupScreen> {
 
   @override
   void dispose() {
+    _usernameController.dispose();
     _firstNameController.dispose();
     _lastNameController.dispose();
     _emailController.dispose();
@@ -142,7 +144,6 @@ class _SignupScreenState extends State<SignupScreen> {
     }
   }
 
-  // Modificat pentru a fi asincron (async)
   Future<void> _handleSignup() async {
     if (_formKey.currentState!.validate()) {
       setState(() {
@@ -150,76 +151,194 @@ class _SignupScreenState extends State<SignupScreen> {
       });
 
       try {
-        // 1. Creăm contul în Firebase Auth
-        final UserCredential credential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
-          email: _emailController.text.trim(),
-          password: _passwordController.text,
-        );
-
-        final User? user = credential.user;
-
-        if (user != null) {
-          // 2. Salvăm restul datelor în Firestore sub același UID
-          await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-            'uid': user.uid,
-            'firstName': _firstNameController.text.trim(),
-            'lastName': _lastNameController.text.trim(),
-            'email': _emailController.text.trim(),
-            'phone': _fullPhoneNumber,
-            'dob': _dobController.text.trim(),
-            'pingPongLevel': 'Începător', // Valoare default pentru matchmaking
-            'matchesPlayed': 0,
-            'rating': 1000,
-            'createdAt': FieldValue.serverTimestamp(),
-          });
-
-          // 3. Dacă totul e ok, navigăm către ecranul de login
+        final usernameStr = _usernameController.text.trim();
+        
+        // 0. Verificăm unicitatea username-ului
+        final usernameQuery = await FirebaseFirestore.instance
+            .collection('users')
+            .where('username', isEqualTo: usernameStr)
+            .get();
+            
+        if (usernameQuery.docs.isNotEmpty) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Cont creat cu succes! Te poți autentifica acum.'),
-                backgroundColor: Colors.green,
-              ),
+              const SnackBar(content: Text('Acest nume de utilizator este deja folosit.'), backgroundColor: Colors.red),
             );
-            Navigator.pop(context); // Ne întoarcem la LoginScreen
           }
-        }
-      } on FirebaseAuthException catch (e) {
-        // Tratăm erorile specifice Firebase Auth (ex: email deja folosit)
-        String errorMessage = 'A apărut o eroare la înregistrare.';
-        if (e.code == 'email-already-in-use') {
-          errorMessage = 'Acest email este deja asociat unui cont.';
-        } else if (e.code == 'invalid-email') {
-          errorMessage = 'Formatul email-ului este invalid.';
+          setState(() => _isLoading = false);
+          return;
         }
 
-        print('====================================');
-        print('EROARE REALA FIREBASE: $e');
-        print('====================================');
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(errorMessage), backgroundColor: Colors.red),
-          );
+        // 1. Verificăm unicitatea numărului de telefon
+        final phoneQuery = await FirebaseFirestore.instance
+            .collection('users')
+            .where('phone', isEqualTo: _fullPhoneNumber)
+            .get();
+            
+        if (phoneQuery.docs.isNotEmpty) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Acest număr de telefon este deja înregistrat.'), backgroundColor: Colors.red),
+            );
+          }
+          setState(() => _isLoading = false);
+          return;
         }
+
+        // 2. Inițiem verificarea telefonului (trimitere SMS)
+        await FirebaseAuth.instance.verifyPhoneNumber(
+          phoneNumber: _fullPhoneNumber,
+          verificationCompleted: (PhoneAuthCredential credential) async {
+            // Nu forțăm auto-rezolvarea aici ca să nu avem duble creări, lăsăm flow-ul manual cu dialog.
+          },
+          verificationFailed: (FirebaseAuthException e) {
+            setState(() => _isLoading = false);
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Eroare SMS: ${e.message}'), backgroundColor: Colors.red),
+              );
+            }
+          },
+          codeSent: (String verificationId, int? resendToken) {
+            setState(() => _isLoading = false);
+            _showOTPDialog(verificationId);
+          },
+          codeAutoRetrievalTimeout: (String verificationId) {},
+        );
+
       } catch (e) {
-        // Prindem orice altă eroare
-        print('====================================');
-        print('EROARE GENERALA: $e');
-        print('====================================');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Eroare: ${e.toString()}'), backgroundColor: Colors.red),
           );
         }
-      } finally {
-        if (mounted) {
-          setState(() {
-            _isLoading = false;
-          });
-        }
+        setState(() => _isLoading = false);
       }
     }
+  }
+
+  void _showOTPDialog(String verificationId) {
+    final TextEditingController otpController = TextEditingController();
+    bool isDialogLoading = false;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF131A2A),
+              title: const Text('Verificare SMS', style: TextStyle(color: Colors.white)),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Am trimis un cod prin SMS. Te rugăm să-l introduci mai jos pentru a-ți confirma numărul.',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: otpController,
+                    keyboardType: TextInputType.number,
+                    maxLength: 6,
+                    decoration: const InputDecoration(
+                      labelText: 'Cod format din 6 cifre',
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isDialogLoading ? null : () => Navigator.pop(context),
+                  child: const Text('Anulează', style: TextStyle(color: Colors.redAccent)),
+                ),
+                ElevatedButton(
+                  onPressed: isDialogLoading
+                      ? null
+                      : () async {
+                          if (otpController.text.length != 6) return;
+                          setDialogState(() => isDialogLoading = true);
+
+                          try {
+                            // Creăm credențialul din codul SMS
+                            PhoneAuthCredential phoneCredential = PhoneAuthProvider.credential(
+                              verificationId: verificationId,
+                              smsCode: otpController.text.trim(),
+                            );
+
+                            // Creăm contul cu Email/Parolă
+                            final UserCredential credential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+                              email: _emailController.text.trim(),
+                              password: _passwordController.text,
+                            );
+
+                            final User? user = credential.user;
+
+                            if (user != null) {
+                              // Asociem numărul de telefon contului creat
+                              await user.linkWithCredential(phoneCredential);
+
+                              // Trimitem email-ul de confirmare
+                              await user.sendEmailVerification();
+
+                              // Salvăm datele în Firestore
+                              await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+                                'uid': user.uid,
+                                'username': _usernameController.text.trim(),
+                                'firstName': _firstNameController.text.trim(),
+                                'lastName': _lastNameController.text.trim(),
+                                'email': _emailController.text.trim(),
+                                'phone': _fullPhoneNumber,
+                                'dob': _dobController.text.trim(),
+                                'pingPongLevel': 'Începător',
+                                'matchesPlayed': 0,
+                                'rating': 0,
+                                'createdAt': FieldValue.serverTimestamp(),
+                              });
+
+                              if (mounted) {
+                                Navigator.pop(context); // Închidem dialogul
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Cont creat! Am trimis un link de confirmare pe email.'),
+                                    backgroundColor: Colors.green,
+                                  ),
+                                );
+                                Navigator.pushReplacement(
+                                  context,
+                                  MaterialPageRoute(builder: (context) => const AvatarScreen()),
+                                );
+                              }
+                            }
+                          } on FirebaseAuthException catch (e) {
+                            setDialogState(() => isDialogLoading = false);
+                            String msg = 'Eroare la verificare.';
+                            if (e.code == 'invalid-verification-code') {
+                              msg = 'Codul SMS este incorect.';
+                            } else if (e.code == 'credential-already-in-use') {
+                              msg = 'Acest număr de telefon este asociat altui cont.';
+                            }
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text(msg), backgroundColor: Colors.red),
+                            );
+                          } catch (e) {
+                            setDialogState(() => isDialogLoading = false);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Eroare: $e'), backgroundColor: Colors.red),
+                            );
+                          }
+                        },
+                  child: isDialogLoading
+                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      : const Text('Confirmă'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   @override
@@ -279,6 +398,17 @@ class _SignupScreenState extends State<SignupScreen> {
                       ),
                     ),
                   ],
+                ),
+                const SizedBox(height: 16),
+
+                // Username
+                TextFormField(
+                  controller: _usernameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Nume de utilizator',
+                    prefixIcon: Icon(Icons.person_outline),
+                  ),
+                  validator: (value) => value!.isEmpty ? 'Introduceți un nume de utilizator' : null,
                 ),
                 const SizedBox(height: 16),
 

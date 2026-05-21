@@ -5,8 +5,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'signup_screen.dart';
 import 'google_login_stub.dart' if (dart.library.io) 'google_login_mobile.dart';
-// import 'home_screen.dart'; // Aici vei importa ecranul principal al aplicației
-
+import 'home_screen.dart';
+import 'forgot_password_screen.dart';
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -59,7 +59,7 @@ class _LoginScreenState extends State<LoginScreen> {
           if (userDoc.exists) {
             // Caz A: Are deja cont complet. Îl trimitem direct în aplicație.
             print("Utilizator existent. Navigare către Home.");
-            // Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomeScreen()));
+            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomeScreen()));
           } else {
             // Caz B: Este prima dată. Extragem datele și îl trimitem la Signup
             
@@ -100,7 +100,78 @@ class _LoginScreenState extends State<LoginScreen> {
 
   // --- Funcția pentru Autentificare Email/Parolă (de bază) ---
   Future<void> _handleEmailLogin() async {
-    // Aici adaugi FirebaseAuth.instance.signInWithEmailAndPassword
+    final input = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    if (input.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Te rugăm să completezi ambele câmpuri'), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      String emailToLogin = input;
+
+      // Dacă nu conține '@', presupunem că e username și căutăm emailul
+      if (!input.contains('@')) {
+        final querySnapshot = await FirebaseFirestore.instance
+            .collection('users')
+            .where('username', isEqualTo: input)
+            .get();
+
+        if (querySnapshot.docs.isNotEmpty) {
+          emailToLogin = querySnapshot.docs.first.data()['email'] as String;
+        } else {
+          throw FirebaseAuthException(code: 'user-not-found', message: 'Nume de utilizator inexistent.');
+        }
+      }
+
+      await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: emailToLogin,
+        password: password,
+      );
+
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const HomeScreen()),
+        );
+      }
+    } on FirebaseAuthException catch (e) {
+      String errorMessage = 'Autentificare eșuată.';
+      if (e.code == 'user-not-found' || e.message == 'Nume de utilizator inexistent.') {
+        errorMessage = 'Utilizatorul nu a fost găsit.';
+      } else if (e.code == 'wrong-password') {
+        errorMessage = 'Parola este incorectă.';
+      } else if (e.code == 'invalid-email') {
+        errorMessage = 'Format invalid.';
+      } else if (e.code == 'invalid-credential') {
+        errorMessage = 'Date de autentificare incorecte.';
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(errorMessage), backgroundColor: Colors.red),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Eroare: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -141,13 +212,13 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 48),
 
-              // Email Input
+              // Email/Username Input
               TextField(
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
                 decoration: const InputDecoration(
-                  labelText: 'Email',
-                  prefixIcon: Icon(Icons.email_outlined),
+                  labelText: 'Email sau Nume de utilizator',
+                  prefixIcon: Icon(Icons.person_outline),
                 ),
               ),
               const SizedBox(height: 16),
@@ -172,7 +243,16 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 24),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const ForgotPasswordScreen()));
+                  },
+                  child: const Text('Ai uitat parola?', style: TextStyle(color: Color(0xFF00E5FF))),
+                ),
+              ),
+              const SizedBox(height: 16),
 
               // Login Button
               ElevatedButton(

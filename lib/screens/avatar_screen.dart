@@ -1,4 +1,9 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'home_screen.dart';
 
 class AvatarScreen extends StatefulWidget {
   const AvatarScreen({super.key});
@@ -8,9 +13,10 @@ class AvatarScreen extends StatefulWidget {
 }
 
 class _AvatarScreenState extends State<AvatarScreen> {
-  // Lista de avatare 3D mock (pot fi imagini dintr-un bucket Firebase/assets mai tarziu)
-  // Momentan folosim Icon-uri de flutter sau un UI placeholders.
   int? _selectedAvatarIndex;
+  String? _customImageBase64;
+  bool _isLoading = false;
+  final ImagePicker _picker = ImagePicker();
 
   final List<String> _avatarNames = [
     'Pro Player',
@@ -30,18 +36,86 @@ class _AvatarScreenState extends State<AvatarScreen> {
     'assets/images/avatars/rookie.png',
   ];
 
+  Future<void> _pickImage() async {
+    try {
+      final XFile? image = await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 50,
+      );
+      if (image != null) {
+        final bytes = await image.readAsBytes();
+        final base64String = base64Encode(bytes);
+        setState(() {
+          _customImageBase64 = 'data:image/png;base64,$base64String';
+          _selectedAvatarIndex = null;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Eroare la selectarea imaginii: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _saveAvatar() async {
+    setState(() => _isLoading = true);
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        String avatarUrlToSave = _customImageBase64 ?? _avatarPaths[_selectedAvatarIndex!];
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
+          'avatarUrl': avatarUrlToSave,
+        });
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Avatar salvat cu succes!')),
+          );
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const HomeScreen()),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Eroare la salvare: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            // Allows closing if accessed from drawer
+            if (Navigator.canPop(context)) {
+              Navigator.pop(context);
+            } else {
+              Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomeScreen()));
+            }
+          },
+        ),
+      ),
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(24.0),
+          padding: const EdgeInsets.symmetric(horizontal: 24.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: 40),
               const Text(
-                'Alege-ți Avatarul 3D',
+                'Alege-ți Avatarul',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 28,
@@ -51,30 +125,66 @@ class _AvatarScreenState extends State<AvatarScreen> {
               ),
               const SizedBox(height: 8),
               const Text(
-                'Selectează personajul care te reprezintă cel mai bine pe teren.',
+                'Selectează o imagine din telefon sau alege un avatar prestabilit.',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey,
+                style: TextStyle(fontSize: 16, color: Colors.grey),
+              ),
+              const SizedBox(height: 24),
+              
+              OutlinedButton.icon(
+                onPressed: _pickImage,
+                icon: const Icon(Icons.photo_library),
+                label: const Text('Selectează din Galerie'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  side: const BorderSide(color: Color(0xFF00E5FF)),
+                  foregroundColor: const Color(0xFF00E5FF),
                 ),
               ),
-              const SizedBox(height: 40),
+              
+              if (_customImageBase64 != null) ...[
+                const SizedBox(height: 16),
+                Center(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: const Color(0xFF00E5FF), width: 3),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF00E5FF).withOpacity(0.4),
+                          blurRadius: 15,
+                          spreadRadius: 2,
+                        ),
+                      ],
+                    ),
+                    child: CircleAvatar(
+                      radius: 65,
+                      backgroundImage: MemoryImage(base64Decode(_customImageBase64!.split(',').last)),
+                    ),
+                  ),
+                ),
+              ],
+              
+              const SizedBox(height: 24),
+              const Text('SAU alege un avatar prestabilit:', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
+              const SizedBox(height: 16),
               
               Expanded(
                 child: GridView.builder(
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
+                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                    maxCrossAxisExtent: 160,
                     crossAxisSpacing: 16,
                     mainAxisSpacing: 16,
                     childAspectRatio: 0.8,
                   ),
-                  itemCount: 6, // Numărul de avatare 3D mock
+                  itemCount: 6,
                   itemBuilder: (context, index) {
                     final isSelected = _selectedAvatarIndex == index;
                     return GestureDetector(
                       onTap: () {
                         setState(() {
                           _selectedAvatarIndex = index;
+                          _customImageBase64 = null;
                         });
                       },
                       child: AnimatedContainer(
@@ -99,9 +209,8 @@ class _AvatarScreenState extends State<AvatarScreen> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            // Imaginea Avatarului 3D
                             CircleAvatar(
-                              radius: 45,
+                              radius: 50,
                               backgroundColor: const Color(0xFF1E293B),
                               backgroundImage: AssetImage(_avatarPaths[index]),
                             ),
@@ -121,18 +230,19 @@ class _AvatarScreenState extends State<AvatarScreen> {
                 ),
               ),
 
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
               ElevatedButton(
-                onPressed: _selectedAvatarIndex != null
-                    ? () {
-                        // TODO: Save selected avatar to Firebase user profile
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Cont configurat cu succes!')),
-                        );
-                      }
-                    : null, // Disabled if no avatar selected
-                child: const Text('FINALIZEAZĂ'),
+                onPressed: (_selectedAvatarIndex != null || _customImageBase64 != null) && !_isLoading
+                    ? _saveAvatar
+                    : null,
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
+                child: _isLoading 
+                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) 
+                    : const Text('SALVEAZĂ'),
               ),
+              const SizedBox(height: 24),
             ],
           ),
         ),
