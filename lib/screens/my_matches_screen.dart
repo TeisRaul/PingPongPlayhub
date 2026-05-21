@@ -118,56 +118,198 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
     }
   }
 
-  Future<void> _reportResult(String matchId, Map<String, dynamic> matchData, bool iWon) async {
-    final currentUserUid = FirebaseAuth.instance.currentUser!.uid;
-    final isHost = matchData['hostUid'] == currentUserUid;
-    final myRole = isHost ? 'hostReport' : 'guestReport';
+  void _showReportDialog(String matchId, Map<String, dynamic> matchData) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return _ReportResultDialog(
+          matchId: matchId,
+          matchData: matchData,
+        );
+      },
+    );
+  }
 
-    await FirebaseFirestore.instance.collection('matches').doc(matchId).update({
-      myRole: iWon ? 'win' : 'lose',
-    });
+  Widget _buildReportSummary(Map<String, dynamic> data) {
+    final reportType = data['reportType'] ?? '1v1';
+    if (reportType == '1v1') {
+      final myWins = data['myWins'] ?? 0;
+      final myLosses = data['myLosses'] ?? 0;
+      return Text(
+        'Scor raportat de adversar: $myWins - $myLosses (${myWins > myLosses ? 'A câștigat' : 'A pierdut'})',
+        style: const TextStyle(color: Colors.white70, fontSize: 13),
+      );
+    } else {
+      final List<dynamic> reportedMatches = data['reportedMatches'] ?? [];
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Total meciuri jucate: ${data['totalMatches'] ?? 0}',
+            style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 6),
+          ...reportedMatches.map((m) {
+            final partner = m['partnerUsername'] ?? 'Partener';
+            final outcome = m['outcome'] == 'win' ? '🏆 Câștigat' : '❌ Pierdut';
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Text(
+                '• În echipă cu $partner: $outcome',
+                style: const TextStyle(color: Colors.white70, fontSize: 13),
+              ),
+            );
+          }).toList(),
+        ],
+      );
+    }
+  }
 
-    final doc = await FirebaseFirestore.instance.collection('matches').doc(matchId).get();
-    final data = doc.data()!;
-    final hostReport = data['hostReport'];
-    final guestReport = data['guestReport'];
+  Future<void> _disputeReport(String matchId) async {
+    try {
+      await FirebaseFirestore.instance.collection('matches').doc(matchId).update({
+        'status': 'matched',
+        'reporterUid': FieldValue.delete(),
+        'reporterUsername': FieldValue.delete(),
+        'reportType': FieldValue.delete(),
+        'totalMatches': FieldValue.delete(),
+        'myWins': FieldValue.delete(),
+        'myLosses': FieldValue.delete(),
+        'reportedMatches': FieldValue.delete(),
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Rezultatul a fost contestat. Puteți raporta din nou!'), backgroundColor: Colors.orange),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Eroare: $e'), backgroundColor: Colors.redAccent),
+        );
+      }
+    }
+  }
 
-    if (hostReport != null && guestReport != null && data['status'] != 'completed') {
-      if ((hostReport == 'win' && guestReport == 'lose') || (hostReport == 'lose' && guestReport == 'win')) {
-        String winnerUid = hostReport == 'win' ? data['hostUid'] : (data['joinedUids'].length > 1 ? data['joinedUids'][1] : '');
-        String loserUid = hostReport == 'lose' ? data['hostUid'] : (data['joinedUids'].length > 1 ? data['joinedUids'][1] : '');
+  Future<void> _confirmReport(String matchId, Map<String, dynamic> matchData) async {
+    try {
+      final List<dynamic> joinedUids = matchData['joinedUids'] ?? [];
+      final reportType = matchData['reportType'] ?? '1v1';
+      final reporterUid = matchData['reporterUid'] ?? '';
+
+      if (joinedUids.isEmpty) return;
+
+      final batch = FirebaseFirestore.instance.batch();
+
+      if (reportType == '1v1') {
+        final myWins = matchData['myWins'] ?? 0;
+        final myLosses = matchData['myLosses'] ?? 0;
         
-        int winnerRating = hostReport == 'win' ? (data['hostRating'] ?? 0) : 0;
-        int loserRating = hostReport == 'lose' ? (data['hostRating'] ?? 0) : 0;
+        final opponentUid = joinedUids.firstWhere((uid) => uid != reporterUid, orElse: () => '');
 
-        int winPoints = LevelUtils.calculateMatchPoints(winnerRating, loserRating);
-        int losePoints = LevelUtils.getLevelDetails(winnerRating)['losePoints'] as int;
-        
-        if (winnerUid.isNotEmpty) {
+        if (opponentUid.isNotEmpty && reporterUid.isNotEmpty) {
+          String winnerUid = myWins > myLosses ? reporterUid : opponentUid;
+          String loserUid = myWins > myLosses ? opponentUid : reporterUid;
+
+          // Fetch ratings
           final winnerDoc = await FirebaseFirestore.instance.collection('users').doc(winnerUid).get();
-          int wRating = winnerDoc.data()?['rating'] ?? 0;
-          await FirebaseFirestore.instance.collection('users').doc(winnerUid).update({'rating': wRating + winPoints});
-        }
-        
-        if (loserUid.isNotEmpty) {
           final loserDoc = await FirebaseFirestore.instance.collection('users').doc(loserUid).get();
-          int lRating = loserDoc.data()?['rating'] ?? 0;
-          await FirebaseFirestore.instance.collection('users').doc(loserUid).update({'rating': (lRating - losePoints < 0) ? 0 : lRating - losePoints});
-        }
 
-        await FirebaseFirestore.instance.collection('matches').doc(matchId).update({'status': 'completed'});
-        
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Rezultat confirmat!'), backgroundColor: Colors.green));
+          int winnerRating = winnerDoc.data()?['rating'] ?? 0;
+          int loserRating = loserDoc.data()?['rating'] ?? 0;
+
+          int winPoints = LevelUtils.calculateMatchPoints(winnerRating, loserRating);
+          int losePoints = LevelUtils.getLevelDetails(loserRating)['losePoints'] as int;
+
+          batch.update(FirebaseFirestore.instance.collection('users').doc(winnerUid), {
+            'rating': winnerRating + winPoints,
+          });
+
+          batch.update(FirebaseFirestore.instance.collection('users').doc(loserUid), {
+            'rating': (loserRating - losePoints < 0) ? 0 : loserRating - losePoints,
+          });
         }
       } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Rezultate conflictuale.'), backgroundColor: Colors.red));
+        // 2v2 multiple matches reporting
+        final List<dynamic> reportedMatches = matchData['reportedMatches'] ?? [];
+        Map<String, int> winsCount = {};
+        Map<String, int> lossesCount = {};
+
+        for (var uid in joinedUids) {
+          winsCount[uid.toString()] = 0;
+          lossesCount[uid.toString()] = 0;
+        }
+
+        for (var m in reportedMatches) {
+          final partnerUid = m['partnerUid']?.toString() ?? '';
+          final outcome = m['outcome']?.toString() ?? 'win';
+
+          // Opponents are all other UIDs that are not reporter and not partner
+          final opponents = joinedUids.where((uid) => uid.toString() != reporterUid && uid.toString() != partnerUid).toList();
+
+          if (outcome == 'win') {
+            winsCount[reporterUid] = (winsCount[reporterUid] ?? 0) + 1;
+            if (partnerUid.isNotEmpty) {
+              winsCount[partnerUid] = (winsCount[partnerUid] ?? 0) + 1;
+            }
+            for (var opp in opponents) {
+              final oppStr = opp.toString();
+              lossesCount[oppStr] = (lossesCount[oppStr] ?? 0) + 1;
+            }
+          } else {
+            lossesCount[reporterUid] = (lossesCount[reporterUid] ?? 0) + 1;
+            if (partnerUid.isNotEmpty) {
+              lossesCount[partnerUid] = (lossesCount[partnerUid] ?? 0) + 1;
+            }
+            for (var opp in opponents) {
+              final oppStr = opp.toString();
+              winsCount[oppStr] = (winsCount[oppStr] ?? 0) + 1;
+            }
+          }
+        }
+
+        // Apply rating updates for all 4 players
+        for (var uid in joinedUids) {
+          final uidStr = uid.toString();
+          final wins = winsCount[uidStr] ?? 0;
+          final losses = lossesCount[uidStr] ?? 0;
+
+          if (wins > losses) {
+            // Player won more than they lost overall
+            final userDoc = await FirebaseFirestore.instance.collection('users').doc(uidStr).get();
+            final rating = userDoc.data()?['rating'] ?? 0;
+            final winPoints = LevelUtils.getLevelDetails(rating)['winPoints'] as int;
+            batch.update(FirebaseFirestore.instance.collection('users').doc(uidStr), {
+              'rating': rating + winPoints,
+            });
+          } else if (wins < losses) {
+            // Player lost more than they won overall
+            final userDoc = await FirebaseFirestore.instance.collection('users').doc(uidStr).get();
+            final rating = userDoc.data()?['rating'] ?? 0;
+            final losePoints = LevelUtils.getLevelDetails(rating)['losePoints'] as int;
+            batch.update(FirebaseFirestore.instance.collection('users').doc(uidStr), {
+              'rating': (rating - losePoints < 0) ? 0 : rating - losePoints,
+            });
+          }
         }
       }
-    } else {
+
+      batch.update(FirebaseFirestore.instance.collection('matches').doc(matchId), {
+        'status': 'completed',
+      });
+
+      await batch.commit();
+
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Așteptăm confirmarea celuilalt jucător.'), backgroundColor: Color(0xFF00E5FF)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Rezultat confirmat! Punctele au fost actualizate.'), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Eroare: $e'), backgroundColor: Colors.redAccent),
+        );
       }
     }
   }
@@ -344,26 +486,101 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
                 decoration: BoxDecoration(color: Colors.green.withOpacity(0.2), borderRadius: BorderRadius.circular(8)),
                 child: const Text('Meci finalizat și puncte acordate!', style: TextStyle(color: Colors.green)),
               )
-            else if (isPast && data['status'] == 'matched') ...[
-              Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                      onPressed: () => _reportResult(docId, data, true),
-                      child: const Text('Am Câștigat'),
+            else if (isPast && (data['status'] == 'matched' || data['status'] == 'reported')) ...[
+              if (data['status'] == 'reported') ...[
+                if (data['reporterUid'] == currentUserUid)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF00E5FF).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFF00E5FF).withOpacity(0.3)),
                     ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-                      onPressed: () => _reportResult(docId, data, false),
-                      child: const Text('Am Pierdut'),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.hourglass_empty, color: Color(0xFF00E5FF), size: 20),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Scorul a fost raportat. Așteptăm confirmarea celorlalți jucători.',
+                            style: TextStyle(color: Color(0xFF00E5FF), fontSize: 13),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
-              )
+                  )
+                else
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${data['reporterUsername'] ?? 'Un jucător'} a raportat rezultatul:',
+                              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange, fontSize: 13),
+                            ),
+                            const SizedBox(height: 8),
+                            _buildReportSummary(data),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.green,
+                                foregroundColor: Colors.white,
+                              ),
+                              onPressed: () => _confirmReport(docId, data),
+                              child: const Text('Confirmă Rezultatul'),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: OutlinedButton(
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.redAccent,
+                                side: const BorderSide(color: Colors.redAccent),
+                              ),
+                              onPressed: () => _disputeReport(docId),
+                              child: const Text('Contestă'),
+                            ),
+                          ),
+                        ],
+                      )
+                    ],
+                  )
+              ] else ...[
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF00E5FF),
+                          foregroundColor: Colors.black,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        icon: const Icon(Icons.analytics_outlined),
+                        label: const Text('RAPORTEAZĂ REZULTAT', style: TextStyle(fontWeight: FontWeight.bold)),
+                        onPressed: () => _showReportDialog(docId, data),
+                      ),
+                    ),
+                  ],
+                )
+              ]
             ] else if (!isPast) ...[
               Row(
                 children: [
@@ -463,6 +680,317 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
           },
         ),
       ),
+    );
+  }
+}
+
+class _ReportResultDialog extends StatefulWidget {
+  final String matchId;
+  final Map<String, dynamic> matchData;
+
+  const _ReportResultDialog({
+    required this.matchId,
+    required this.matchData,
+  });
+
+  @override
+  State<_ReportResultDialog> createState() => _ReportResultDialogState();
+}
+
+class _ReportResultDialogState extends State<_ReportResultDialog> {
+  int _totalMatches = 5;
+  
+  // 1v1 specific state
+  int _myWins = 3;
+
+  // 2v2 specific state
+  List<Map<String, dynamic>> _matches2v2 = [];
+
+  bool _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final List<dynamic> joinedUids = widget.matchData['joinedUids'] ?? [];
+    final bool is2v2 = joinedUids.length >= 4;
+    if (is2v2) {
+      _init2v2Matches();
+    }
+  }
+
+  void _init2v2Matches() {
+    _matches2v2 = List.generate(_totalMatches, (index) {
+      final currentUserUid = FirebaseAuth.instance.currentUser?.uid;
+      final List<dynamic> players = widget.matchData['joinedPlayers'] ?? [];
+      final otherPlayers = players.where((p) => p['uid'] != currentUserUid).toList();
+      final defaultPartner = otherPlayers.isNotEmpty ? otherPlayers.first : null;
+
+      return {
+        'partnerUid': defaultPartner?['uid'] ?? '',
+        'partnerUsername': defaultPartner?['username'] ?? 'Jucător',
+        'outcome': 'win',
+      };
+    });
+  }
+
+  void _updateTotalMatches(int newTotal) {
+    setState(() {
+      _totalMatches = newTotal;
+      if (_myWins > _totalMatches) {
+        _myWins = _totalMatches;
+      }
+      final List<dynamic> joinedUids = widget.matchData['joinedUids'] ?? [];
+      if (joinedUids.length >= 4) {
+        _init2v2Matches();
+      }
+    });
+  }
+
+  Future<void> _submitReport() async {
+    setState(() => _isSubmitting = true);
+    try {
+      final currentUserUid = FirebaseAuth.instance.currentUser!.uid;
+      
+      // Get reporter username
+      final userDoc = await FirebaseFirestore.instance.collection('users').doc(currentUserUid).get();
+      final reporterUsername = userDoc.data()?['username'] ?? 'Jucător';
+
+      final List<dynamic> joinedUids = widget.matchData['joinedUids'] ?? [];
+      final bool is2v2 = joinedUids.length >= 4;
+
+      final reportUpdates = {
+        'status': 'reported',
+        'reporterUid': currentUserUid,
+        'reporterUsername': reporterUsername,
+        'reportType': is2v2 ? '2v2' : '1v1',
+        'totalMatches': _totalMatches,
+      };
+
+      if (!is2v2) {
+        reportUpdates['myWins'] = _myWins;
+        reportUpdates['myLosses'] = _totalMatches - _myWins;
+        reportUpdates['score'] = '$_myWins-${_totalMatches - _myWins}';
+      } else {
+        reportUpdates['reportedMatches'] = _matches2v2;
+      }
+
+      await FirebaseFirestore.instance.collection('matches').doc(widget.matchId).update(reportUpdates);
+
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Rezultatul a fost raportat cu succes!'), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Eroare la raportare: $e'), backgroundColor: Colors.redAccent),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final List<dynamic> joinedUids = widget.matchData['joinedUids'] ?? [];
+    final bool is2v2 = joinedUids.length >= 4;
+    final currentUserUid = FirebaseAuth.instance.currentUser?.uid;
+    final List<dynamic> players = widget.matchData['joinedPlayers'] ?? [];
+    final otherPlayers = players.where((p) => p['uid'] != currentUserUid).toList();
+
+    return AlertDialog(
+      backgroundColor: const Color(0xFF131A2A),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: Color(0xFF00E5FF), width: 1),
+      ),
+      title: Text(
+        is2v2 ? 'Raportare Meci 2v2' : 'Raportare Meci 1v1',
+        style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF00E5FF)),
+      ),
+      content: SizedBox(
+        width: MediaQuery.of(context).size.width * 0.85,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Câte meciuri ați jucat în total?',
+                style: TextStyle(color: Colors.white70, fontSize: 14),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: Slider(
+                      value: _totalMatches.toDouble(),
+                      min: 1,
+                      max: 15,
+                      divisions: 14,
+                      activeColor: const Color(0xFF00E5FF),
+                      inactiveColor: const Color(0xFF1E293B),
+                      label: _totalMatches.toString(),
+                      onChanged: (val) => _updateTotalMatches(val.round()),
+                    ),
+                  ),
+                  Text(
+                    _totalMatches.toString(),
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              if (!is2v2) ...[
+                Text(
+                  'Meciuri câștigate de tine: $_myWins',
+                  style: const TextStyle(color: Colors.white70, fontSize: 14),
+                ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Slider(
+                        value: _myWins.toDouble(),
+                        min: 0,
+                        max: _totalMatches.toDouble(),
+                        divisions: _totalMatches,
+                        activeColor: Colors.greenAccent,
+                        inactiveColor: const Color(0xFF1E293B),
+                        label: _myWins.toString(),
+                        onChanged: (val) => setState(() => _myWins = val.round()),
+                      ),
+                    ),
+                    Text(
+                      '${_totalMatches - _myWins} pierdute',
+                      style: const TextStyle(color: Colors.grey, fontSize: 14),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF00E5FF).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      'Scor raportat: $_myWins - ${_totalMatches - _myWins}',
+                      style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF00E5FF), fontSize: 16),
+                    ),
+                  ),
+                ),
+              ] else ...[
+                const Text(
+                  'Detalii pentru fiecare meci:',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                ),
+                const SizedBox(height: 12),
+                ...List.generate(_totalMatches, (index) {
+                  if (index >= _matches2v2.length) return const SizedBox();
+                  final match = _matches2v2[index];
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E293B),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFF00E5FF).withOpacity(0.2)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Meciul ${index + 1}',
+                          style: const TextStyle(color: Color(0xFF00E5FF), fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text('Partenerul tău:', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                        DropdownButton<String>(
+                          value: match['partnerUid'],
+                          isExpanded: true,
+                          dropdownColor: const Color(0xFF131A2A),
+                          style: const TextStyle(color: Colors.white),
+                          items: otherPlayers.map((p) {
+                            return DropdownMenuItem<String>(
+                              value: p['uid'],
+                              child: Text(p['username'] ?? 'Jucător'),
+                            );
+                          }).toList(),
+                          onChanged: (val) {
+                            if (val != null) {
+                              final selectedPlayer = otherPlayers.firstWhere((p) => p['uid'] == val);
+                              setState(() {
+                                _matches2v2[index]['partnerUid'] = val;
+                                _matches2v2[index]['partnerUsername'] = selectedPlayer['username'] ?? 'Jucător';
+                              });
+                            }
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('Rezultat:', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                            Row(
+                              children: [
+                                GestureDetector(
+                                  onTap: () => setState(() => _matches2v2[index]['outcome'] = 'win'),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: match['outcome'] == 'win' ? Colors.green : Colors.transparent,
+                                      borderRadius: BorderRadius.circular(4),
+                                      border: Border.all(color: Colors.green),
+                                    ),
+                                    child: const Text('Câștigat', style: TextStyle(color: Colors.white, fontSize: 12)),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                GestureDetector(
+                                  onTap: () => setState(() => _matches2v2[index]['outcome'] = 'lose'),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: match['outcome'] == 'lose' ? Colors.red : Colors.transparent,
+                                      borderRadius: BorderRadius.circular(4),
+                                      border: Border.all(color: Colors.red),
+                                    ),
+                                    child: const Text('Pierdut', style: TextStyle(color: Colors.white, fontSize: 12)),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+              ],
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('RENUNȚĂ', style: TextStyle(color: Colors.grey)),
+        ),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF00E5FF),
+            foregroundColor: Colors.black,
+          ),
+          onPressed: _isSubmitting ? null : _submitReport,
+          child: _isSubmitting
+              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
+              : const Text('SALVEAZĂ', style: TextStyle(fontWeight: FontWeight.bold)),
+        ),
+      ],
     );
   }
 }
