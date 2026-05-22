@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../utils/level_utils.dart';
+import '../data/mock_locations.dart';
+import '../widgets/city_selector.dart';
 
 class VenueSignupScreen extends StatefulWidget {
   const VenueSignupScreen({super.key});
@@ -155,14 +158,9 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
         }
       });
 
-      // 3. Estimate hourly price from text description
+      // 3. Estimate hourly price from text description using LevelUtils
       final priceText = _priceController.text;
-      final numberRegExp = RegExp(r'\d+');
-      final match = numberRegExp.firstMatch(priceText);
-      double parsedPrice = 35.0; // default standard
-      if (match != null) {
-        parsedPrice = double.tryParse(match.group(0) ?? '') ?? 35.0;
-      }
+      double parsedPrice = LevelUtils.getHourlyPrice(priceText, 12); // Noon reference baseline
 
       final int indoorTables = int.tryParse(_indoorTablesController.text) ?? 0;
       final int outdoorTables = int.tryParse(_outdoorTablesController.text) ?? 0;
@@ -192,7 +190,7 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
         'cui': _cuiController.text.trim(),
         'iban': _ibanController.text.trim(),
         'blockedDates': [],
-        'isVerified': false,
+        'isVerified': true,
         'createdAt': FieldValue.serverTimestamp(),
       });
 
@@ -425,12 +423,14 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
                   children: [
                     Expanded(
                       flex: 4,
-                      child: TextFormField(
-                        controller: _cityController,
-                        decoration: const InputDecoration(
-                          labelText: 'Oraș',
-                          prefixIcon: Icon(Icons.location_city),
-                        ),
+                      child: CitySelectorField(
+                        selectedCity: _cityController.text.isEmpty ? null : _cityController.text,
+                        cityOptions: romanianCities,
+                        onCitySelected: (val) {
+                          setState(() {
+                            _cityController.text = val;
+                          });
+                        },
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
                             return 'Oraș obligatoriu';

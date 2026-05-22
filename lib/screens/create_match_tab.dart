@@ -4,6 +4,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import '../data/mock_locations.dart';
 import 'payment_screen.dart';
+import '../utils/level_utils.dart';
+import '../widgets/city_selector.dart';
 
 class CreateMatchTab extends StatefulWidget {
   const CreateMatchTab({super.key});
@@ -15,6 +17,7 @@ class CreateMatchTab extends StatefulWidget {
 class _CreateMatchTabState extends State<CreateMatchTab> {
   int _currentStep = 0;
   bool _isLoading = false;
+  bool _isLoadingLocs = false;
 
   // Step 1: Locatie
   String? _selectedCity;
@@ -30,14 +33,101 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
   List<int> _selectedHours = [];
   int? _selectedTable;
   List<int> _reservedTables = [];
+  bool _isDayBlockedFlag = false;
+  String? _overlappingTournament;
 
   // Step 3: Plata
   String _paymentMethod = 'Cash la locație';
 
+  List<PingPongLocation> _allLocations = List.from(mockLocations);
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFirestoreLocations();
+  }
+
+  Future<void> _loadFirestoreLocations() async {
+    if (!mounted) return;
+    setState(() => _isLoadingLocs = true);
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('venues')
+          .get();
+
+      final List<PingPongLocation> fetched = [];
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        final String id = doc.id;
+        final String name = data['venueName'] ?? '';
+        final String city = data['city'] ?? '';
+        final int numTables = data['totalTables'] ?? 4;
+
+        final schedule = data['schedule'] as Map<dynamic, dynamic>?;
+        final lvSchedule = schedule?['Luni-Vineri'] as String? ?? '09:00 - 22:00';
+        final hoursParts = lvSchedule.split('-');
+        int openHour = 9;
+        int closeHour = 22;
+        if (hoursParts.length == 2) {
+          final startStr = hoursParts[0].trim().split(':').first;
+          final endStr = hoursParts[1].trim().split(':').first;
+          openHour = int.tryParse(startStr) ?? 9;
+          closeHour = int.tryParse(endStr) ?? 22;
+        }
+
+        fetched.add(PingPongLocation(
+          id: id,
+          city: city,
+          name: name,
+          openHour: openHour,
+          closeHour: closeHour,
+          numTables: numTables,
+          pricePerHour: (data['pricePerHour'] as num?)?.toDouble() ?? 20.0,
+          pricePerHourText: data['pricePerHourText'] as String? ?? '20 RON/oră',
+        ));
+      }
+
+      final List<PingPongLocation> merged = List.from(mockLocations);
+      for (var loc in fetched) {
+        final exists = merged.any((m) =>
+            m.id == loc.id || m.name.toLowerCase() == loc.name.toLowerCase());
+        if (!exists) {
+          merged.add(loc);
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _allLocations = merged;
+        });
+      }
+    } catch (e) {
+      debugPrint('Eroare incarcare sali din Firestore: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingLocs = false);
+      }
+    }
+  }
+
   // --- Step 1 Helpers ---
+  List<String> get _cityOptions {
+    final Set<String> cities = {};
+    for (var loc in _allLocations) {
+      if (loc.city.isNotEmpty) {
+        cities.add(loc.city.trim());
+      }
+    }
+    cities.addAll(romanianCities);
+    final sorted = cities.toList()..sort();
+    return sorted;
+  }
+
   List<PingPongLocation> get _filteredLocations {
     if (_selectedCity == null) return [];
-    return mockLocations.where((loc) => loc.city == _selectedCity).toList();
+    return _allLocations
+        .where((loc) => loc.city.trim().toLowerCase() == _selectedCity!.trim().toLowerCase())
+        .toList();
   }
 
   // --- Step 2 Helpers ---
@@ -61,6 +151,49 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
     
     try {
       final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
+      
+      // 1. Verificăm dacă întreaga zi e blocată
+      bool isDayBlocked = false;
+      final venueQuery = await FirebaseFirestore.instance
+          .collection('venues')
+          .where('venueName', isEqualTo: _selectedLocation!.name)
+          .get();
+
+      if (venueQuery.docs.isNotEmpty) {
+        final data = venueQuery.docs.first.data();
+        final blockedDates = List<dynamic>.from(data['blockedDates'] ?? []);
+        if (blockedDates.contains(dateStr)) {
+          isDayBlocked = true;
+        }
+      }
+
+      // 2. Verificăm turneele active care se suprapun
+      String? overlappingTournamentTitle;
+      final tourQuery = await FirebaseFirestore.instance
+          .collection('tournaments')
+          .where('venueName', isEqualTo: _selectedLocation!.name)
+          .where('date', isEqualTo: dateStr)
+          .get();
+
+      for (var doc in tourQuery.docs) {
+        final data = doc.data();
+        final String status = data['status'] ?? 'open';
+        if (status != 'open' && status != 'active') continue;
+
+        final String tourTime = data['time'] ?? '';
+        final String tourEndTime = data['endTime'] ?? '';
+        final String tourTitle = data['title'] ?? 'Turneu';
+
+        final int tourStart = _parseTimeStr(tourTime, 0);
+        final int tourEnd = _parseTimeStr(tourEndTime, tourStart + 3);
+
+        if (_startHour! < tourEnd && tourStart < _endHour!) {
+          overlappingTournamentTitle = tourTitle;
+          break;
+        }
+      }
+
+      // 3. Verificăm meciurile deja rezervate
       final query = await FirebaseFirestore.instance
           .collection('matches')
           .where('locationId', isEqualTo: _selectedLocation!.id)
@@ -82,8 +215,10 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
 
       setState(() {
         _reservedTables = reserved;
-        if (_selectedTable != null && reserved.contains(_selectedTable)) {
-          _selectedTable = null; // deselect if it became reserved
+        _isDayBlockedFlag = isDayBlocked;
+        _overlappingTournament = overlappingTournamentTitle;
+        if (_selectedTable != null && (reserved.contains(_selectedTable) || isDayBlocked || overlappingTournamentTitle != null)) {
+          _selectedTable = null; // deselect if it became reserved or blocked
         }
       });
     } catch (e) {
@@ -93,26 +228,69 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
     }
   }
 
-  Future<bool> _isDateBlocked() async {
-    if (_selectedLocation == null) return false;
+  Future<String?> _getBlockedReason() async {
+    if (_selectedLocation == null) return null;
     try {
       final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
-      final query = await FirebaseFirestore.instance
+
+      // 1. Check if the venue has manually blocked the entire day
+      final venueQuery = await FirebaseFirestore.instance
           .collection('venues')
           .where('venueName', isEqualTo: _selectedLocation!.name)
           .get();
 
-      if (query.docs.isNotEmpty) {
-        final data = query.docs.first.data();
+      if (venueQuery.docs.isNotEmpty) {
+        final data = venueQuery.docs.first.data();
         final blockedDates = List<dynamic>.from(data['blockedDates'] ?? []);
         if (blockedDates.contains(dateStr)) {
-          return true;
+          return 'day';
+        }
+      }
+
+      // 2. Check if there is an overlapping active tournament
+      if (_startHour != null && _endHour != null) {
+        final tourQuery = await FirebaseFirestore.instance
+            .collection('tournaments')
+            .where('venueName', isEqualTo: _selectedLocation!.name)
+            .where('date', isEqualTo: dateStr)
+            .get();
+
+        for (var doc in tourQuery.docs) {
+          final data = doc.data();
+          final String status = data['status'] ?? 'open';
+          if (status != 'open' && status != 'active') continue;
+
+          final String tourTime = data['time'] ?? '';
+          final String tourEndTime = data['endTime'] ?? '';
+          final String tourTitle = data['title'] ?? 'Turneu';
+
+          final int tourStart = _parseTimeStr(tourTime, 0);
+          final int tourEnd = _parseTimeStr(tourEndTime, tourStart + 3); // Fallback: 3 hours for legacy tournaments
+
+          // Verify time span overlap: matchStart < tourEnd && tourStart < matchEnd
+          if (_startHour! < tourEnd && tourStart < _endHour!) {
+            final String timeDisplay = tourEndTime.isNotEmpty ? '$tourTime - $tourEndTime' : '$tourTime (aprox. 3 ore)';
+            return 'tournament|$tourTitle|$timeDisplay';
+          }
         }
       }
     } catch (e) {
-      debugPrint('Error checking blocked dates: $e');
+      debugPrint('Error checking blocked reason: $e');
     }
-    return false;
+    return null;
+  }
+
+  int _parseTimeStr(String timeStr, int fallbackHour) {
+    if (timeStr.isEmpty) return fallbackHour;
+    try {
+      final parts = timeStr.split(':');
+      if (parts.isNotEmpty) {
+        return int.parse(parts[0]);
+      }
+    } catch (e) {
+      debugPrint('Error parsing time string $timeStr: $e');
+    }
+    return fallbackHour;
   }
 
   // --- Step 4 (Save) ---
@@ -221,36 +399,15 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Alege intervalul orar și o masă liberă.'), backgroundColor: Colors.redAccent));
               return;
             }
-            setState(() => _isLoading = true);
-            final blocked = await _isDateBlocked();
-            setState(() => _isLoading = false);
-            if (blocked) {
-              if (mounted) {
-                showDialog(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    backgroundColor: const Color(0xFF131A2A),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      side: const BorderSide(color: Color(0xFF00E5FF), width: 1.5),
-                    ),
-                    title: const Text('Dată Indisponibilă', style: TextStyle(color: Colors.white)),
-                    content: Text('Data de ${DateFormat('dd MMM yyyy').format(_selectedDate)} este rezervată pentru turnee / blocată de club.'),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text('OK', style: TextStyle(color: Color(0xFF00E5FF), fontWeight: FontWeight.bold)),
-                      ),
-                    ],
-                  ),
-                );
-              }
-              return;
-            }
+            // Mesele sunt deja dezactivate în UI dacă există un turneu sau un blocaj,
+            // astfel încât utilizatorul nu poate selecta o masă indisponibilă și nu poate continua.
           } else if (_currentStep == 2) {
             if (_paymentMethod.contains('Card')) {
-              int hours = (_endHour ?? 0) - (_startHour ?? 0);
-              double amount = hours * 20.0; // Preț simulare: 20 lei / oră
+              double amount = LevelUtils.calculateTotalBookingPrice(
+                _selectedLocation!.pricePerHourText,
+                _startHour!,
+                _endHour!,
+              );
 
               final paymentSuccess = await Navigator.push(
                 context,
@@ -312,11 +469,10 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
             content: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                DropdownButtonFormField<String>(
-                  value: _selectedCity,
-                  decoration: const InputDecoration(labelText: 'Oraș', prefixIcon: Icon(Icons.location_city)),
-                  items: romanianCities.map((city) => DropdownMenuItem(value: city, child: Text(city))).toList(),
-                  onChanged: (val) {
+                CitySelectorField(
+                  selectedCity: _selectedCity,
+                  cityOptions: _cityOptions,
+                  onCitySelected: (val) {
                     setState(() {
                       _selectedCity = val;
                       _selectedLocation = null;
@@ -476,7 +632,7 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
                       ),
                       const SizedBox(height: 32),
                       const Text('Planul Meselor', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
-                      const Text('Alege o masă verde (disponibilă)', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                      const Text('Alege o masă liberă (disponibilă)', style: TextStyle(fontSize: 12, color: Colors.grey)),
                       const SizedBox(height: 16),
                       if (_isLoading) const Center(child: CircularProgressIndicator())
                       else if (_startHour == null || _endHour == null)
@@ -502,18 +658,28 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
                             itemBuilder: (context, index) {
                               final tableId = index + 1;
                               final isReserved = _reservedTables.contains(tableId);
+                              final isTableBlocked = isReserved || _isDayBlockedFlag || _overlappingTournament != null;
                               final isSelected = _selectedTable == tableId;
 
+                              String statusText = 'Liberă';
+                              if (_isDayBlockedFlag) {
+                                statusText = 'Zi închisă';
+                              } else if (_overlappingTournament != null) {
+                                statusText = 'Turneu';
+                              } else if (isReserved) {
+                                statusText = 'Ocupată';
+                              }
+
                               return GestureDetector(
-                                onTap: isReserved ? null : () {
+                                onTap: isTableBlocked ? null : () {
                                   setState(() => _selectedTable = tableId);
                                 },
                                 child: AnimatedContainer(
                                   duration: const Duration(milliseconds: 200),
                                   decoration: BoxDecoration(
-                                    color: isReserved ? Colors.red.withOpacity(0.2) : (isSelected ? const Color(0xFF00E5FF).withOpacity(0.3) : const Color(0xFF1E293B)),
+                                    color: isTableBlocked ? Colors.red.withOpacity(0.15) : (isSelected ? const Color(0xFF00E5FF).withOpacity(0.3) : const Color(0xFF1E293B)),
                                     border: Border.all(
-                                      color: isReserved ? Colors.redAccent : (isSelected ? const Color(0xFF00E5FF) : Colors.grey[800]!),
+                                      color: isTableBlocked ? Colors.redAccent : (isSelected ? const Color(0xFF00E5FF) : Colors.grey[800]!),
                                       width: 1.5,
                                     ),
                                     borderRadius: BorderRadius.circular(12),
@@ -522,10 +688,10 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
                                     child: Column(
                                       mainAxisAlignment: MainAxisAlignment.center,
                                       children: [
-                                        Icon(Icons.table_restaurant, size: 20, color: isReserved ? Colors.redAccent : (isSelected ? const Color(0xFF00E5FF) : Colors.grey)),
+                                        Icon(Icons.table_restaurant, size: 20, color: isTableBlocked ? Colors.redAccent : (isSelected ? const Color(0xFF00E5FF) : Colors.grey)),
                                         const SizedBox(height: 4),
-                                        Text('Masa $tableId', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isReserved ? Colors.redAccent : Colors.white)),
-                                        Text(isReserved ? 'Ocupată' : 'Liberă', style: TextStyle(fontSize: 10, color: isReserved ? Colors.redAccent : Colors.grey)),
+                                        Text('Masa $tableId', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isTableBlocked ? Colors.redAccent : Colors.white)),
+                                        Text(statusText, style: TextStyle(fontSize: 10, color: isTableBlocked ? Colors.redAccent : Colors.grey)),
                                       ],
                                     ),
                                   ),
@@ -547,8 +713,15 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
               children: [
                 Builder(
                   builder: (context) {
-                    int hours = (_endHour ?? 0) - (_startHour ?? 0);
-                    double totalAmount = hours * 20.0;
+                    double totalAmount = 0.0;
+                    String priceInfo = 'Tarif pe oră: ${_selectedLocation?.pricePerHourText ?? "20 RON/oră"}';
+                    if (_selectedLocation != null && _startHour != null && _endHour != null) {
+                      totalAmount = LevelUtils.calculateTotalBookingPrice(
+                        _selectedLocation!.pricePerHourText,
+                        _startHour!,
+                        _endHour!,
+                      );
+                    }
                     return Container(
                       padding: const EdgeInsets.all(12),
                       margin: const EdgeInsets.only(bottom: 16),
@@ -563,7 +736,7 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
                           const SizedBox(width: 12),
                           Expanded(
                             child: Text(
-                              'Preț simulare: 20 lei / oră\nTotal de plată: ${totalAmount.toStringAsFixed(0)} lei (achitat integral de Host)',
+                              '$priceInfo\nTotal de plată: ${totalAmount.toStringAsFixed(0)} lei (achitat integral de Host)',
                               style: const TextStyle(color: Colors.white, fontSize: 13, height: 1.4),
                             ),
                           ),
@@ -611,7 +784,17 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
                   const Divider(color: Colors.grey),
                   _summaryRow(Icons.emoji_events, 'Tip Meci', _matchType),
                   _summaryRow(Icons.payment, 'Plată', _paymentMethod),
-                  _summaryRow(Icons.monetization_on, 'Cost Total Simulat', '${((_endHour ?? 0) - (_startHour ?? 0)) * 20} lei'),
+                  _summaryRow(
+                    Icons.monetization_on,
+                    'Cost Total',
+                    '${_selectedLocation != null && _startHour != null && _endHour != null
+                        ? LevelUtils.calculateTotalBookingPrice(
+                            _selectedLocation!.pricePerHourText,
+                            _startHour!,
+                            _endHour!,
+                          ).toStringAsFixed(0)
+                        : ((_endHour ?? 0) - (_startHour ?? 0)) * 20} RON',
+                  ),
                 ],
               ),
             ),

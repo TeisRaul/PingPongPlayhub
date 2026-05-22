@@ -5,6 +5,8 @@ class PingPongLocation {
   final int openHour; // ex: 10
   final int closeHour; // ex: 22
   final int numTables;
+  final double pricePerHour;
+  final String pricePerHourText;
 
   const PingPongLocation({
     required this.id,
@@ -13,6 +15,8 @@ class PingPongLocation {
     required this.openHour,
     required this.closeHour,
     required this.numTables,
+    this.pricePerHour = 20.0,
+    this.pricePerHourText = '20 RON/oră',
   });
 }
 

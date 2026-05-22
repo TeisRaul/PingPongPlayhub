@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../utils/level_utils.dart';
 import 'avatar_screen.dart';
+import '../widgets/player_drawer.dart';
 
 class MyProfileScreen extends StatefulWidget {
   const MyProfileScreen({super.key});
@@ -151,9 +152,18 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.menu, color: Color(0xFF00E5FF)),
+            onPressed: () {
+              Scaffold.of(context).openDrawer();
+            },
+          ),
+        ),
         title: const Text('Profilul Meu'),
         centerTitle: true,
       ),
+      drawer: const PlayerDrawer(activePage: 'profile'),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
         child: Column(

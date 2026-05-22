@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../data/mock_locations.dart';
 import '../utils/level_utils.dart';
+import '../widgets/city_selector.dart';
 
 class FindMatchTab extends StatefulWidget {
   const FindMatchTab({super.key});
@@ -16,18 +17,99 @@ class _FindMatchTabState extends State<FindMatchTab> {
   String _filterCity = 'Toate';
   String _filterLocationId = 'Toate';
 
+  List<PingPongLocation> _allLocations = List.from(mockLocations);
+  bool _isLoadingLocs = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFirestoreLocations();
+  }
+
+  Future<void> _loadFirestoreLocations() async {
+    if (!mounted) return;
+    setState(() => _isLoadingLocs = true);
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('venues')
+          .get();
+
+      final List<PingPongLocation> fetched = [];
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        final String id = doc.id;
+        final String name = data['venueName'] ?? '';
+        final String city = data['city'] ?? '';
+        final int numTables = data['totalTables'] ?? 4;
+
+        final schedule = data['schedule'] as Map<dynamic, dynamic>?;
+        final lvSchedule = schedule?['Luni-Vineri'] as String? ?? '09:00 - 22:00';
+        final hoursParts = lvSchedule.split('-');
+        int openHour = 9;
+        int closeHour = 22;
+        if (hoursParts.length == 2) {
+          final startStr = hoursParts[0].trim().split(':').first;
+          final endStr = hoursParts[1].trim().split(':').first;
+          openHour = int.tryParse(startStr) ?? 9;
+          closeHour = int.tryParse(endStr) ?? 22;
+        }
+
+        fetched.add(PingPongLocation(
+          id: id,
+          city: city,
+          name: name,
+          openHour: openHour,
+          closeHour: closeHour,
+          numTables: numTables,
+        ));
+      }
+
+      final List<PingPongLocation> merged = List.from(mockLocations);
+      for (var loc in fetched) {
+        final exists = merged.any((m) =>
+            m.id == loc.id || m.name.toLowerCase() == loc.name.toLowerCase());
+        if (!exists) {
+          merged.add(loc);
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _allLocations = merged;
+        });
+      }
+    } catch (e) {
+      debugPrint('Eroare incarcare sali din Firestore in filtrul de meciuri: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingLocs = false);
+      }
+    }
+  }
+
   List<String> get _cityOptions {
+    final Set<String> cities = {};
+    for (var loc in _allLocations) {
+      if (loc.city.isNotEmpty) {
+        cities.add(loc.city.trim());
+      }
+    }
+    cities.addAll(romanianCities);
+    final sorted = cities.toList()..sort();
+
     List<String> opts = ['Toate'];
-    opts.addAll(romanianCities);
+    opts.addAll(sorted);
     return opts;
   }
 
   List<dynamic> get _locationOptions {
     List<dynamic> opts = [{'id': 'Toate', 'name': 'Toate'}];
     if (_filterCity == 'Toate') {
-      opts.addAll(mockLocations.map((l) => {'id': l.id, 'name': l.name}));
+      opts.addAll(_allLocations.map((l) => {'id': l.id, 'name': l.name}));
     } else {
-      opts.addAll(mockLocations.where((l) => l.city == _filterCity).map((l) => {'id': l.id, 'name': l.name}));
+      opts.addAll(_allLocations
+          .where((l) => l.city.trim().toLowerCase() == _filterCity.trim().toLowerCase())
+          .map((l) => {'id': l.id, 'name': l.name}));
     }
     return opts;
   }
@@ -123,13 +205,12 @@ class _FindMatchTabState extends State<FindMatchTab> {
               Row(
                 children: [
                   Expanded(
-                    child: DropdownButtonFormField<String>(
-                      value: _filterCity,
-                      decoration: const InputDecoration(labelText: 'Oraș', contentPadding: EdgeInsets.symmetric(horizontal: 12)),
-                      items: _cityOptions.map((c) => DropdownMenuItem(value: c, child: Text(c, overflow: TextOverflow.ellipsis))).toList(),
-                      onChanged: (val) {
+                    child: CitySelectorField(
+                      selectedCity: _filterCity,
+                      cityOptions: _cityOptions,
+                      onCitySelected: (val) {
                         setState(() {
-                          _filterCity = val ?? 'Toate';
+                          _filterCity = val;
                           _filterLocationId = 'Toate'; // reset location
                         });
                       },

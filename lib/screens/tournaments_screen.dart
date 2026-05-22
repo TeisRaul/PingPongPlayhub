@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'chat_screen.dart';
+import '../widgets/player_drawer.dart';
 
 class TournamentsScreen extends StatefulWidget {
   const TournamentsScreen({super.key});
@@ -137,7 +138,16 @@ class _TournamentsScreenState extends State<TournamentsScreen> with SingleTicker
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0A0E17),
+      drawer: const PlayerDrawer(activePage: 'tournaments'),
       appBar: AppBar(
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.menu, color: Color(0xFF00E5FF)),
+            onPressed: () {
+              Scaffold.of(context).openDrawer();
+            },
+          ),
+        ),
         title: const Text('Turnee Tenis de Masă'),
         backgroundColor: const Color(0xFF131A2A),
         elevation: 0,
@@ -219,6 +229,7 @@ class _TournamentsScreenState extends State<TournamentsScreen> with SingleTicker
             final String venueName = data['venueName'] ?? 'Sală';
             final String date = data['date'] ?? '';
             final String time = data['time'] ?? '';
+            final String endTime = data['endTime'] ?? '';
             final int maxPlayers = data['maxPlayers'] ?? 8;
             final List<dynamic> joinedUids = data['joinedUids'] ?? [];
             final String status = data['status'] ?? 'open';
@@ -305,7 +316,7 @@ class _TournamentsScreenState extends State<TournamentsScreen> with SingleTicker
                             children: [
                               const Icon(Icons.calendar_month_outlined, size: 18, color: Color(0xFF00E5FF)),
                               const SizedBox(width: 6),
-                              Text('$date | $time', style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                              Text('$date | $time${endTime.isNotEmpty ? " - $endTime" : ""}', style: const TextStyle(color: Colors.white70, fontSize: 13)),
                             ],
                           ),
                           Row(
@@ -373,6 +384,7 @@ class _CreateTournamentFormState extends State<CreateTournamentForm> {
 
   DateTime? _selectedDate;
   TimeOfDay? _selectedTime;
+  TimeOfDay? _selectedEndTime;
   int _maxPlayers = 8;
   String _minRank = 'Toate Rank-urile';
   String _maxRank = 'Toate Rank-urile';
@@ -446,11 +458,43 @@ class _CreateTournamentFormState extends State<CreateTournamentForm> {
     }
   }
 
+  Future<void> _pickEndTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: const TimeOfDay(hour: 12, minute: 0),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.dark(
+              primary: Color(0xFFFF0055),
+              onPrimary: Colors.black,
+              surface: Color(0xFF131A2A),
+              onSurface: Colors.white,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      setState(() => _selectedEndTime = picked);
+    }
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_selectedDate == null || _selectedTime == null) {
+    if (_selectedDate == null || _selectedTime == null || _selectedEndTime == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Selectează data și ora turneului!'), backgroundColor: Colors.redAccent),
+        const SnackBar(content: Text('Selectează data, ora de start și ora de sfârșit!'), backgroundColor: Colors.redAccent),
+      );
+      return;
+    }
+
+    final startMin = _selectedTime!.hour * 60 + _selectedTime!.minute;
+    final endMin = _selectedEndTime!.hour * 60 + _selectedEndTime!.minute;
+    if (endMin <= startMin) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Ora de sfârșit trebuie să fie după ora de start!'), backgroundColor: Colors.redAccent),
       );
       return;
     }
@@ -463,6 +507,10 @@ class _CreateTournamentFormState extends State<CreateTournamentForm> {
       final minuteStr = _selectedTime!.minute.toString().padLeft(2, '0');
       final timeStr = '$hourStr:$minuteStr';
 
+      final endHourStr = _selectedEndTime!.hour.toString().padLeft(2, '0');
+      final endMinuteStr = _selectedEndTime!.minute.toString().padLeft(2, '0');
+      final endTimeStr = '$endHourStr:$endMinuteStr';
+
       // 1. Create Tournament Document
       final tourRef = FirebaseFirestore.instance.collection('tournaments').doc();
       await tourRef.set({
@@ -471,6 +519,7 @@ class _CreateTournamentFormState extends State<CreateTournamentForm> {
         'description': _descController.text.trim(),
         'date': dateStr,
         'time': timeStr,
+        'endTime': endTimeStr,
         'maxPlayers': _maxPlayers,
         'entryFee': double.tryParse(_feeController.text) ?? 0.0,
         'minRank': _minRank,
@@ -483,11 +532,8 @@ class _CreateTournamentFormState extends State<CreateTournamentForm> {
         'createdAt': FieldValue.serverTimestamp(),
       });
 
-      // 2. Block this date in the venue's doc automatically
-      final venueRef = FirebaseFirestore.instance.collection('venues').doc(widget.venueId);
-      await venueRef.update({
-        'blockedDates': FieldValue.arrayUnion([dateStr]),
-      });
+      // 2. Note: We no longer block the entire day in the venue's doc.
+      // Tournament time blocks are validated dynamically during match reservation!
 
       // 3. Create corresponding group chat for the tournament
       final chatRef = FirebaseFirestore.instance.collection('chats').doc('tournament_${tourRef.id}');
@@ -564,38 +610,56 @@ class _CreateTournamentFormState extends State<CreateTournamentForm> {
                   validator: (val) => val == null || val.trim().isEmpty ? 'Te rugăm să introduci detalii' : null,
                 ),
                 const SizedBox(height: 16),
+                OutlinedButton.icon(
+                  onPressed: _pickDate,
+                  icon: const Icon(Icons.calendar_month, color: Color(0xFF00E5FF)),
+                  label: Text(
+                    _selectedDate == null
+                        ? 'Alege Data Turneului'
+                        : DateFormat('dd MMMM yyyy').format(_selectedDate!),
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    side: BorderSide(color: const Color(0xFF00E5FF).withOpacity(0.5)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+                const SizedBox(height: 16),
                 Row(
                   children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: _pickDate,
-                        icon: const Icon(Icons.calendar_month, color: Color(0xFF00E5FF)),
-                        label: Text(
-                          _selectedDate == null
-                              ? 'Alege Data'
-                              : DateFormat('dd MMM yyyy').format(_selectedDate!),
-                          style: const TextStyle(color: Colors.white),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          side: BorderSide(color: const Color(0xFF00E5FF).withOpacity(0.5)),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
                     Expanded(
                       child: OutlinedButton.icon(
                         onPressed: _pickTime,
                         icon: const Icon(Icons.access_time, color: Color(0xFF00E5FF)),
                         label: Text(
                           _selectedTime == null
-                              ? 'Alege Ora'
+                              ? 'Ora Start'
                               : '${_selectedTime!.hour.toString().padLeft(2, '0')}:${_selectedTime!.minute.toString().padLeft(2, '0')}',
                           style: const TextStyle(color: Colors.white),
                         ),
                         style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          side: BorderSide(color: const Color(0xFF00E5FF).withOpacity(0.5)),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          side: BorderSide(color: const Color(0xFF00E5FF).withOpacity(0.3)),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _pickEndTime,
+                        icon: const Icon(Icons.lock_clock, color: Color(0xFFFF0055)),
+                        label: Text(
+                          _selectedEndTime == null
+                              ? 'Ora Sfârșit'
+                              : '${_selectedEndTime!.hour.toString().padLeft(2, '0')}:${_selectedEndTime!.minute.toString().padLeft(2, '0')}',
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          side: BorderSide(color: const Color(0xFFFF0055).withOpacity(0.3)),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                       ),
                     ),
@@ -1464,6 +1528,7 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> with 
     final String status = tourData['status'] ?? 'open';
     final String date = tourData['date'] ?? '';
     final String time = tourData['time'] ?? '';
+    final String endTime = tourData['endTime'] ?? '';
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20.0),
@@ -1532,7 +1597,7 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> with 
                   const Divider(color: Color(0xFF1E293B)),
                   const SizedBox(height: 12),
                   _buildDetailRow(Icons.storefront, 'Locație', venueName),
-                  _buildDetailRow(Icons.calendar_month, 'Data & Ora', '$date la $time'),
+                  _buildDetailRow(Icons.calendar_month, 'Data & Ora', '$date, $time${endTime.isNotEmpty ? " - $endTime" : ""}'),
                   _buildDetailRow(Icons.people, 'Număr de participanți', '${joinedUids.length} / $maxPlayers înscriși'),
                   _buildDetailRow(
                     Icons.military_tech_outlined,

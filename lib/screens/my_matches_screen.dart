@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../utils/level_utils.dart';
 import 'chat_screen.dart';
+import '../widgets/player_drawer.dart';
 
 class MyMatchesScreen extends StatefulWidget {
   const MyMatchesScreen({super.key});
@@ -634,6 +635,14 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
       length: 2,
       child: Scaffold(
         appBar: AppBar(
+          leading: Builder(
+            builder: (context) => IconButton(
+              icon: const Icon(Icons.menu, color: Color(0xFF00E5FF)),
+              onPressed: () {
+                Scaffold.of(context).openDrawer();
+              },
+            ),
+          ),
           title: const Text('Meciurile Mele'),
           bottom: const TabBar(
             indicatorColor: Color(0xFF00E5FF),
@@ -643,6 +652,7 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
             ],
           ),
         ),
+        drawer: const PlayerDrawer(activePage: 'my_matches'),
         body: StreamBuilder<QuerySnapshot>(
           stream: FirebaseFirestore.instance.collection('matches')
               .where('joinedUids', arrayContains: currentUserUid)

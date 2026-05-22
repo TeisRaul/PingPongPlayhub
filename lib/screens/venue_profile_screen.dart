@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import '../widgets/player_drawer.dart';
+import '../utils/level_utils.dart';
+import '../data/mock_locations.dart';
+import '../widgets/city_selector.dart';
 
 class VenueProfileScreen extends StatefulWidget {
   const VenueProfileScreen({super.key});
@@ -78,7 +82,7 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
     _websiteController.text = data['website'] ?? '';
     _indoorTablesController.text = (data['indoorTables'] ?? 0).toString();
     _outdoorTablesController.text = (data['outdoorTables'] ?? 0).toString();
-    _priceController.text = data['pricePerHourText'] ?? '';
+    _priceController.text = data['pricePerHourText'] ?? (data['pricePerHour']?.toString() ?? '');
     _cuiController.text = data['cui'] ?? '';
     _ibanController.text = data['iban'] ?? '';
 
@@ -153,14 +157,9 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
-        // Parse hourly price as best as we can
+        // Parse hourly price as best as we can using LevelUtils
         final priceText = _priceController.text;
-        final numberRegExp = RegExp(r'\d+');
-        final match = numberRegExp.firstMatch(priceText);
-        double parsedPrice = 35.0;
-        if (match != null) {
-          parsedPrice = double.tryParse(match.group(0) ?? '') ?? 35.0;
-        }
+        double parsedPrice = LevelUtils.getHourlyPrice(priceText, 12); // Noon reference baseline
 
         final int indoor = int.tryParse(_indoorTablesController.text) ?? 0;
         final int outdoor = int.tryParse(_outdoorTablesController.text) ?? 0;
@@ -454,9 +453,20 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
         final venueData = snapshot.data!.data() as Map<String, dynamic>;
 
         return Scaffold(
+          drawer: const PlayerDrawer(activePage: 'venue_profile'),
           appBar: AppBar(
             backgroundColor: Colors.transparent,
             elevation: 0,
+            leading: !_isEditing
+                ? Builder(
+                    builder: (context) => IconButton(
+                      icon: const Icon(Icons.menu, color: Color(0xFF00E5FF)),
+                      onPressed: () {
+                        Scaffold.of(context).openDrawer();
+                      },
+                    ),
+                  )
+                : null,
             title: Text(_isEditing ? 'Editează Profilul Sălii' : 'Profilul Sălii'),
             centerTitle: true,
             actions: [
@@ -620,7 +630,13 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
 
         // Section 5: Tariffs and Financials
         _buildSectionHeader('Tarif & Detalii Financiare'),
-        _buildProfileDetailRow(Icons.monetization_on_outlined, 'Tarif pe oră', data['pricePerHourText'] ?? '-'),
+        _buildProfileDetailRow(
+          Icons.monetization_on_outlined,
+          'Tarif pe oră',
+          (data['pricePerHourText'] != null && (data['pricePerHourText'] as String).isNotEmpty)
+              ? data['pricePerHourText']
+              : '${data['pricePerHour'] ?? 20.0} RON/oră',
+        ),
         _buildProfileDetailRow(Icons.description_outlined, 'CUI Fiscal', data['cui']?.toString().isEmpty == true ? '-' : (data['cui'] ?? '-')),
         _buildProfileDetailRow(Icons.account_balance_wallet_outlined, 'IBAN de Plată', data['iban']?.toString().isEmpty == true ? '-' : (data['iban'] ?? '-')),
 
@@ -804,10 +820,15 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
           const SizedBox(height: 16),
 
           // City
-          _buildTextField(
-            controller: _cityController,
-            label: 'Oraș',
-            validator: (value) => value!.isEmpty ? 'Introdu orașul!' : null,
+          CitySelectorField(
+            selectedCity: _cityController.text.isEmpty ? null : _cityController.text,
+            cityOptions: romanianCities,
+            onCitySelected: (val) {
+              setState(() {
+                _cityController.text = val;
+              });
+            },
+            validator: (value) => value == null || value.isEmpty ? 'Introdu orașul!' : null,
           ),
           const SizedBox(height: 16),
 

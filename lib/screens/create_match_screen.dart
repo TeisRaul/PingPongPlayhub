@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'find_match_tab.dart';
+import 'create_match_tab.dart';
 import '../widgets/player_drawer.dart';
 
-class FindMatchScreen extends StatelessWidget {
-  const FindMatchScreen({super.key});
+class CreateMatchScreen extends StatelessWidget {
+  const CreateMatchScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -21,13 +21,13 @@ class FindMatchScreen extends StatelessWidget {
           ),
         ),
         title: const Text(
-          'Descoperă Meciuri',
+          'Creează un Meci',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
       ),
-      drawer: const PlayerDrawer(activePage: 'find_match'),
-      body: const FindMatchTab(),
+      drawer: const PlayerDrawer(activePage: 'create_match'),
+      body: const CreateMatchTab(),
     );
   }
 }

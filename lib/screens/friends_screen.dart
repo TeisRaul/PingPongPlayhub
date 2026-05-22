@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'chat_screen.dart';
 import 'create_match_for_friends_screen.dart';
 import '../utils/level_utils.dart';
+import '../widgets/player_drawer.dart';
 
 class FriendsScreen extends StatefulWidget {
   const FriendsScreen({super.key});
@@ -353,7 +354,16 @@ class _FriendsScreenState extends State<FriendsScreen> {
     return DefaultTabController(
       length: 2,
       child: Scaffold(
+        drawer: const PlayerDrawer(activePage: 'friends'),
         appBar: AppBar(
+          leading: Builder(
+            builder: (context) => IconButton(
+              icon: const Icon(Icons.menu, color: Color(0xFF00E5FF)),
+              onPressed: () {
+                Scaffold.of(context).openDrawer();
+              },
+            ),
+          ),
           title: const Text('Play with a Friend'),
           backgroundColor: const Color(0xFF131A2A),
           elevation: 0,

@@ -13,6 +13,7 @@ import 'notifications_screen.dart';
 import 'inbox_screen.dart';
 import 'tournaments_screen.dart';
 import 'venue_profile_screen.dart';
+import '../widgets/player_drawer.dart';
 
 class ParallelogramClipper extends CustomClipper<Path> {
   @override
@@ -402,35 +403,603 @@ class _HomeScreenState extends State<HomeScreen> {
           ]
         ],
       ),
-      drawer: _buildDrawer(username, levelName, progress, avatarUrl),
-      body: isVenue ? _buildVenueDashboard() : _buildPlayerBody(username, levelName),
+      drawer: const PlayerDrawer(activePage: 'dashboard'),
+      body: isVenue ? _buildVenueDashboard() : _buildPlayerBody(),
     );
   }
 
-  Widget _buildPlayerBody(String username, String levelName) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            'Salut, $username!',
-            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+  Widget _buildPlayerBody() {
+    final rating = userData?['rating'] ?? 0;
+    final levelDetails = LevelUtils.getLevelDetails(rating);
+    final String levelName = levelDetails['levelName'];
+    final double progress = levelDetails['progress'];
+    final int currentPoints = levelDetails['currentPointsInLevel'];
+    final int pointsToNext = levelDetails['pointsToNextLevel'];
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('matches')
+          .where('joinedUids', arrayContains: FirebaseAuth.instance.currentUser?.uid)
+          .snapshots(),
+      builder: (context, snapshot) {
+        int scheduledMatchesCount = 0;
+        List<QueryDocumentSnapshot> activeMatches = [];
+
+        if (snapshot.hasData) {
+          activeMatches = snapshot.data!.docs.where((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            final String status = data['status'] ?? 'open';
+            return status != 'cancelled' && status != 'completed';
+          }).toList();
+          scheduledMatchesCount = activeMatches.length;
+        }
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Welcome Header
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Salut, ${userData?['username'] ?? 'Jucător'}!',
+                          style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.white),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'Bun venit în arena PingPong Playhub!',
+                          style: TextStyle(color: Colors.grey, fontSize: 14),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+
+              // 1. Rank Panel
+              Card(
+                elevation: 8,
+                color: const Color(0xFF131A2A),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: BorderSide(color: const Color(0xFF00E5FF).withOpacity(0.3), width: 1.5),
+                ),
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        const Color(0xFF131A2A),
+                        const Color(0xFF0A0E17),
+                        const Color(0xFF00E5FF).withOpacity(0.06),
+                      ],
+                    ),
+                  ),
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF00E5FF).withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: const Color(0xFF00E5FF), width: 1.5),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFF00E5FF).withOpacity(0.2),
+                                  blurRadius: 8,
+                                  spreadRadius: 1,
+                                ),
+                              ],
+                            ),
+                            child: Text(
+                              levelName.toUpperCase(),
+                              style: const TextStyle(
+                                color: Color(0xFF00E5FF),
+                                fontSize: 15,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 1.2,
+                              ),
+                            ),
+                          ),
+                          const Spacer(),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              const Text(
+                                'RATING JUCĂTOR',
+                                style: TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.w600),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '$rating PTS',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Progres Nivel',
+                            style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500),
+                          ),
+                          Text(
+                            '$currentPoints / ${currentPoints + pointsToNext} XP',
+                            style: const TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: LinearProgressIndicator(
+                          value: progress,
+                          backgroundColor: Colors.grey[900],
+                          color: const Color(0xFF00E5FF),
+                          minHeight: 10,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Mai ai nevoie de $pointsToNext puncte pentru a trece la următorul nivel!',
+                        style: const TextStyle(color: Colors.grey, fontSize: 12, fontStyle: FontStyle.italic),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // 2. Quick Stats Grid
+              Row(
+                children: [
+                  _buildDashboardStatCard(
+                    'Meciuri Active',
+                    '$scheduledMatchesCount',
+                    Icons.sports_tennis,
+                    const Color(0xFF00E5FF),
+                  ),
+                  const SizedBox(width: 12),
+                  _buildDashboardStatCard(
+                    'Victorii',
+                    '${userData?['wins'] ?? 8}',
+                    Icons.emoji_events_outlined,
+                    const Color(0xFFFF0055),
+                  ),
+                  const SizedBox(width: 12),
+                  _buildDashboardStatCard(
+                    'Win Rate',
+                    '${userData?['winRate'] ?? "60%"}',
+                    Icons.trending_up,
+                    const Color(0xFF00FF66),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+
+              // 3. News & Trivia Section
+              const Text(
+                'Noutăți & Curiozități',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+              ),
+              const SizedBox(height: 12),
+              _buildNewsTriviaSection(),
+              
+              const SizedBox(height: 24),
+
+              // 4. My Active Matches List
+              const Text(
+                'Meciurile Mele Programate',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+              ),
+              const SizedBox(height: 12),
+
+              if (snapshot.connectionState == ConnectionState.waiting)
+                const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)))
+              else if (activeMatches.isEmpty)
+                Card(
+                  color: const Color(0xFF131A2A),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    side: BorderSide(color: Colors.white.withOpacity(0.05)),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 36.0, horizontal: 20),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.calendar_today_outlined, size: 44, color: Colors.grey[600]),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'Nu ai meciuri active programate.',
+                          style: TextStyle(color: Colors.white70, fontSize: 15, fontWeight: FontWeight.bold),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Fii primul care lansează o provocare sau alătură-te unui meci deschis în comunitate!',
+                          style: TextStyle(color: Colors.grey, fontSize: 13),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 16),
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const FindMatchScreen()),
+                            );
+                          },
+                          icon: const Icon(Icons.search, size: 18, color: Colors.black),
+                          label: const Text('Caută Meciuri', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF00E5FF),
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              else
+                ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: activeMatches.length,
+                  separatorBuilder: (context, index) => const SizedBox(height: 12),
+                  itemBuilder: (context, index) {
+                    final docId = activeMatches[index].id;
+                    final matchData = activeMatches[index].data() as Map<String, dynamic>;
+                    
+                    final String hostName = matchData['hostUsername'] ?? 'Jucător';
+                    final String date = matchData['date'] ?? '';
+                    final int startHour = matchData['startHour'] ?? 0;
+                    final int endHour = matchData['endHour'] ?? 0;
+                    final String location = matchData['locationName'] ?? 'Sală';
+                    final int tableId = matchData['tableId'] ?? 1;
+                    final bool isFriendly = matchData['isFriendly'] ?? false;
+                    final String status = matchData['status'] ?? 'open';
+                    final List<dynamic> joined = matchData['joinedPlayers'] ?? [];
+                    final String visibility = matchData['visibility'] ?? 'Public';
+                    final bool isPrivate = visibility.toLowerCase() == 'private';
+
+                    Color statusColor = const Color(0xFF00E5FF);
+                    if (status == 'matched') {
+                      statusColor = const Color(0xFF00FF66);
+                    }
+
+                    return Card(
+                      color: const Color(0xFF131A2A),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        side: BorderSide(
+                          color: const Color(0xFF00E5FF).withOpacity(0.15),
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                CircleAvatar(
+                                  radius: 18,
+                                  backgroundColor: const Color(0xFF1E293B),
+                                  backgroundImage: matchData['hostAvatarUrl'] != null && (matchData['hostAvatarUrl'] as String).isNotEmpty
+                                      ? _getAvatarProvider(matchData['hostAvatarUrl'])
+                                      : null,
+                                  child: matchData['hostAvatarUrl'] == null || (matchData['hostAvatarUrl'] as String).isEmpty
+                                      ? Text(hostName.substring(0, 1).toUpperCase(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))
+                                      : null,
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        hostName,
+                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.white),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      Text(
+                                        matchData['hostLevel'] ?? 'Jucător',
+                                        style: const TextStyle(fontSize: 12, color: Color(0xFF00E5FF)),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: statusColor.withOpacity(0.15),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: statusColor, width: 1),
+                                  ),
+                                  child: Text(
+                                    status.toUpperCase(),
+                                    style: TextStyle(color: statusColor, fontSize: 11, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const Divider(color: Colors.grey, height: 24),
+                            Row(
+                              children: [
+                                const Icon(Icons.calendar_month, color: Colors.grey, size: 18),
+                                const SizedBox(width: 8),
+                                Text('$date  |  $startHour:00 - $endHour:00', style: const TextStyle(color: Colors.white70)),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                const Icon(Icons.location_on_outlined, color: Colors.grey, size: 18),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    location,
+                                    style: const TextStyle(color: Colors.white70),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            // Players Avatars Row
+                            if (joined.isNotEmpty) ...[
+                              Row(
+                                children: [
+                                  const Icon(Icons.people_outline, color: Colors.grey, size: 18),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    '${joined.length} jucători:',
+                                    style: const TextStyle(color: Colors.grey, fontSize: 12),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: SizedBox(
+                                      height: 24,
+                                      child: ListView.builder(
+                                        scrollDirection: Axis.horizontal,
+                                        itemCount: joined.length,
+                                        itemBuilder: (context, pIdx) {
+                                          final p = joined[pIdx] as Map<String, dynamic>;
+                                          final pName = p['username'] ?? 'Jucător';
+                                          final pAvatar = p['avatarUrl'] as String?;
+                                          return Tooltip(
+                                            message: pName,
+                                            child: Container(
+                                              margin: const EdgeInsets.only(right: 6),
+                                              child: CircleAvatar(
+                                                radius: 12,
+                                                backgroundColor: const Color(0xFF1E293B),
+                                                backgroundImage: pAvatar != null && pAvatar.isNotEmpty ? _getAvatarProvider(pAvatar) : null,
+                                                child: pAvatar == null || pAvatar.isEmpty
+                                                    ? Text(pName.substring(0, 1).toUpperCase(), style: const TextStyle(fontSize: 8, color: Colors.white, fontWeight: FontWeight.bold))
+                                                    : null,
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                            ],
+                            // Badges Row
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                _buildBadge(Icons.table_restaurant, 'Masa $tableId', const Color(0xFF00E5FF)),
+                                _buildBadge(
+                                  isPrivate ? Icons.lock_outline : Icons.public,
+                                  isPrivate ? 'Meci Privat' : 'Meci Public',
+                                  isPrivate ? const Color(0xFFFF0055) : const Color(0xFF00E5FF),
+                                ),
+                                _buildBadge(
+                                  isFriendly ? Icons.favorite_border : Icons.emoji_events_outlined,
+                                  isFriendly ? 'Amical' : 'Competitiv',
+                                  isFriendly ? Colors.purpleAccent : const Color(0xFF00E5FF),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+            ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            'Nivel curent: $levelName',
-            style: const TextStyle(fontSize: 18, color: Color(0xFF00E5FF)),
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            'Acesta este ecranul principal. Folosește meniul din stânga sus (Avatar) pentru a naviga.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey),
-          ),
-        ],
+        );
+      },
+    );
+  }
+
+  Widget _buildDashboardStatCard(String label, String value, IconData icon, Color color) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF131A2A),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withOpacity(0.2), width: 1.2),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: color, size: 20),
+            const SizedBox(height: 10),
+            Text(
+              value,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.grey,
+                fontSize: 10,
+                fontWeight: FontWeight.w500,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
       ),
     );
   }
+
+  Widget _buildNewsTriviaSection() {
+    final List<Map<String, dynamic>> items = [
+      {
+        'title': 'Știai că?',
+        'subtitle': 'Viteză record de smash',
+        'content': 'Cel mai rapid smash din istorie a fost înregistrat la viteza de 116 km/h, lovit de neozeelandezul Lark Brandt în 2003!',
+        'icon': Icons.lightbulb_outline,
+        'color': const Color(0xFFFF9800),
+      },
+      {
+        'title': 'Mondialul Playhub 2026',
+        'subtitle': 'Eveniment oficial',
+        'content': 'Înscrierile sunt deschise pentru Master Series! Premii record de 5000 RON și rating dublu pentru câștigători.',
+        'icon': Icons.emoji_events_outlined,
+        'color': const Color(0xFFFFD700),
+      },
+      {
+        'title': 'Știai că?',
+        'subtitle': 'Palete în culori neon',
+        'content': 'ITTF aprobă acum utilizarea fețelor de palete în culori vibrante precum albastru, verde, roz sau violet (pe lângă negru)!',
+        'icon': Icons.palette_outlined,
+        'color': const Color(0xFFFF00FF),
+      },
+      {
+        'title': 'Mese inteligente cu senzori',
+        'subtitle': 'Tehnologie IoT',
+        'content': 'Playhub Arena începe testarea meselor dotate cu senzori optici și laser pentru determinarea automată a marginilor.',
+        'icon': Icons.sensors,
+        'color': const Color(0xFF00E5FF),
+      },
+      {
+        'title': 'Știai că?',
+        'subtitle': 'Rotație extremă',
+        'content': 'O minge lovită puternic de un profesionist se poate roti cu până la 150 de rotații pe secundă (9000 RPM)!',
+        'icon': Icons.sync,
+        'color': const Color(0xFF00FF66),
+      },
+    ];
+
+    return SizedBox(
+      height: 165,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        itemCount: items.length,
+        itemBuilder: (context, idx) {
+          final item = items[idx];
+          final Color color = item['color'];
+
+          return Container(
+            width: 280,
+            margin: const EdgeInsets.only(right: 14, bottom: 4),
+            decoration: BoxDecoration(
+              color: const Color(0xFF131A2A),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: color.withOpacity(0.25), width: 1.2),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  const Color(0xFF131A2A),
+                  color.withOpacity(0.05),
+                ],
+              ),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(item['icon'], color: color, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          item['title'],
+                          style: TextStyle(
+                            color: color,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            letterSpacing: 0.5,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    item['subtitle'].toString().toUpperCase(),
+                    style: const TextStyle(
+                      color: Colors.grey,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 10,
+                      letterSpacing: 1.0,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: Text(
+                      item['content'],
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
+                        height: 1.35,
+                      ),
+                      maxLines: 4,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
 
   Widget _buildVenueDashboard() {
     final bool isVerified = userData?['isVerified'] ?? false;
@@ -518,9 +1087,32 @@ class _HomeScreenState extends State<HomeScreen> {
                       const SizedBox(width: 12),
                       _buildQuickStat('Mese Outdoor', '${userData?['outdoorTables'] ?? 0}'),
                       const SizedBox(width: 12),
-                      _buildQuickStat('Preț estimativ', '${userData?['pricePerHour'] ?? 35} RON/h'),
+                      _buildQuickStat('Tarif de bază', '${userData?['pricePerHour'] ?? 35} RON/h'),
                     ],
                   ),
+                  if (userData?['pricePerHourText'] != null && (userData?['pricePerHourText'] as String).isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF00E5FF).withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFF00E5FF).withOpacity(0.2)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.sell_outlined, color: Color(0xFF00E5FF), size: 16),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Schemă tarifară: ${userData!['pricePerHourText']}',
+                              style: const TextStyle(color: Colors.white, fontSize: 13, height: 1.3),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -613,13 +1205,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
           const SizedBox(height: 24),
 
-          // Bookings List Header
-          const Text(
-            'Programări active / Rezervări mese',
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
-          ),
-          const SizedBox(height: 12),
-
           // Bookings Stream
           StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
@@ -637,13 +1222,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
               final rawDocs = snapshot.data?.docs ?? [];
               
-              // Filter and sort client side
+              // Filter active bookings client side
               final docs = rawDocs.where((doc) {
                 final data = doc.data() as Map<String, dynamic>;
-                // show open/matched active bookings
                 return data['status'] != 'completed';
               }).toList();
 
+              // Sort by date (ascending) and hour
               docs.sort((a, b) {
                 final aData = a.data() as Map<String, dynamic>;
                 final bData = b.data() as Map<String, dynamic>;
@@ -652,59 +1237,51 @@ class _HomeScreenState extends State<HomeScreen> {
                 final int aHour = aData['startHour'] ?? 0;
                 final int bHour = bData['startHour'] ?? 0;
 
-                int dateComp = bDate.compareTo(aDate);
+                int dateComp = aDate.compareTo(bDate);
                 if (dateComp != 0) return dateComp;
-                return bHour.compareTo(aHour);
+                return aHour.compareTo(bHour);
               });
 
-              if (docs.isEmpty) {
-                return Card(
-                  color: const Color(0xFF131A2A),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 40.0),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.calendar_today_outlined, size: 48, color: Colors.grey),
-                        SizedBox(height: 12),
-                        Text('Nicio programare activă.', style: TextStyle(color: Colors.grey, fontSize: 15)),
-                      ],
-                    ),
-                  ),
-                );
-              }
+              // Compute Today's Occupancy
+              final todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+              final todayMatches = docs.where((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                return data['date'] == todayStr && data['status'] != 'cancelled';
+              }).toList();
 
-              return ListView.separated(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: docs.length,
-                separatorBuilder: (context, index) => const SizedBox(height: 12),
-                itemBuilder: (context, index) {
-                  final docId = docs[index].id;
-                  final data = docs[index].data() as Map<String, dynamic>;
-                  final String hostName = data['hostUsername'] ?? 'Host';
-                  final String date = data['date'] ?? '';
-                  final int startHour = data['startHour'] ?? 0;
-                  final int endHour = data['endHour'] ?? 0;
-                  final int tableId = data['tableId'] ?? 1;
-                  final bool isFriendly = data['isFriendly'] ?? false;
-                  final String status = data['status'] ?? 'open';
-                  final List<dynamic> joined = data['joinedPlayers'] ?? [];
-                  
-                  final bool isCancelled = status == 'cancelled';
+              final int todayMatchesCount = todayMatches.length;
 
-                  Color statusColor = const Color(0xFF00E5FF);
-                  if (isCancelled) statusColor = Colors.redAccent;
-                  else if (status == 'matched') statusColor = Colors.greenAccent;
+              final List<int> todayReservedTables = todayMatches
+                  .map((doc) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    return data['tableId'] as int?;
+                  })
+                  .where((t) => t != null)
+                  .map((t) => t!)
+                  .toSet()
+                  .toList()
+                ..sort();
 
-                  return Card(
-                    color: const Color(0xFF131A2A),
+              final List<String> todayIntervals = todayMatches
+                  .map((doc) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    final int start = data['startHour'] ?? 0;
+                    final int end = data['endHour'] ?? 0;
+                    return '$start:00 - $end:00';
+                  })
+                  .toSet()
+                  .toList()
+                ..sort();
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // --- TODAY SUMMARY CARD ---
+                  Card(
+                    color: const Color(0xFF0D1424),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      side: BorderSide(
-                        color: isCancelled ? Colors.redAccent.withOpacity(0.3) : const Color(0xFF00E5FF).withOpacity(0.15),
-                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      side: const BorderSide(color: Color(0xFF00E5FF), width: 1.5),
                     ),
                     child: Padding(
                       padding: const EdgeInsets.all(16.0),
@@ -712,77 +1289,357 @@ class _HomeScreenState extends State<HomeScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
+                              const Icon(Icons.today, color: Color(0xFF00E5FF), size: 24),
+                              const SizedBox(width: 8),
+                              const Text(
+                                'ASTĂZI LA CLUB',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 1.2,
+                                ),
+                              ),
+                              const Spacer(),
                               Text(
-                                'Gazdă: $hostName',
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
-                              ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: statusColor.withOpacity(0.15),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Text(
-                                  status.toUpperCase(),
-                                  style: TextStyle(color: statusColor, fontSize: 11, fontWeight: FontWeight.bold),
-                                ),
+                                DateFormat('dd MMM yyyy').format(DateTime.now()),
+                                style: const TextStyle(color: Colors.grey, fontSize: 13),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 12),
+                          const Divider(color: Color(0xFF00E5FF), height: 24, thickness: 1),
                           Row(
                             children: [
-                              const Icon(Icons.calendar_month, color: Colors.grey, size: 18),
-                              const SizedBox(width: 6),
-                              Text('$date  |  $startHour:00 - $endHour:00', style: const TextStyle(color: Colors.white70)),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text('Meciuri azi', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      '$todayMatchesCount',
+                                      style: const TextStyle(
+                                        color: Color(0xFF00E5FF),
+                                        fontSize: 28,
+                                        fontWeight: FontWeight.bold,
+                                        shadows: [
+                                          Shadow(color: Color(0xFF00E5FF), blurRadius: 8),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Container(width: 1, height: 40, color: Colors.grey[800]),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                flex: 2,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text('Mese ocupate', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                                    const SizedBox(height: 6),
+                                    todayReservedTables.isEmpty
+                                        ? const Text('Nicio masă ocupată', style: TextStyle(color: Colors.grey, fontSize: 13))
+                                        : Wrap(
+                                            spacing: 6,
+                                            runSpacing: 6,
+                                            children: todayReservedTables.map((t) {
+                                              return Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                decoration: BoxDecoration(
+                                                  color: const Color(0xFFFF0055).withOpacity(0.15),
+                                                  border: Border.all(color: const Color(0xFFFF0055), width: 1),
+                                                  borderRadius: BorderRadius.circular(6),
+                                                ),
+                                                child: Text(
+                                                  'Masa $t',
+                                                  style: const TextStyle(
+                                                    color: Color(0xFFFF0055),
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              );
+                                            }).toList(),
+                                          ),
+                                  ],
+                                ),
+                              ),
                             ],
                           ),
+                          const SizedBox(height: 16),
+                          const Text('Intervale active azi:', style: TextStyle(color: Colors.grey, fontSize: 11)),
                           const SizedBox(height: 6),
-                          Row(
-                            children: [
-                              const Icon(Icons.table_restaurant, color: Colors.grey, size: 18),
-                              const SizedBox(width: 6),
-                              Text('Masa $tableId', style: const TextStyle(color: Colors.white70)),
-                              const SizedBox(width: 24),
-                              Icon(isFriendly ? Icons.emoji_emotions_outlined : Icons.emoji_events_outlined, color: Colors.grey, size: 18),
-                              const SizedBox(width: 6),
-                              Text(isFriendly ? 'Amical' : 'Competitiv', style: const TextStyle(color: Colors.white70)),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          Row(
-                            children: [
-                              const Icon(Icons.people_outline, color: Colors.grey, size: 18),
-                              const SizedBox(width: 6),
-                              Text('Jucători: ${joined.length} înscriși', style: const TextStyle(color: Colors.white70)),
-                            ],
-                          ),
-                          if (!isCancelled) ...[
-                            const SizedBox(height: 16),
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: OutlinedButton.icon(
-                                style: OutlinedButton.styleFrom(
-                                  side: const BorderSide(color: Colors.redAccent),
-                                  foregroundColor: Colors.redAccent,
-                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          todayIntervals.isEmpty
+                              ? const Text('Niciun interval rezervat', style: TextStyle(color: Colors.grey, fontSize: 13))
+                              : Wrap(
+                                  spacing: 6,
+                                  runSpacing: 6,
+                                  children: todayIntervals.map((interval) {
+                                    return Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF00E5FF).withOpacity(0.1),
+                                        border: Border.all(color: const Color(0xFF00E5FF).withOpacity(0.5), width: 1),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: Text(
+                                        interval,
+                                        style: const TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    );
+                                  }).toList(),
                                 ),
-                                icon: const Icon(Icons.cancel_outlined, size: 18),
-                                label: const Text('ANULEAZĂ REZERVAREA'),
-                                onPressed: () => _cancelBooking(docId, data),
-                              ),
-                            ),
-                          ]
                         ],
                       ),
                     ),
-                  );
-                },
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // Bookings List Header
+                  const Text(
+                    'Programări active / Rezervări mese',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                  ),
+                  const SizedBox(height: 12),
+
+                  if (docs.isEmpty)
+                    Card(
+                      color: const Color(0xFF131A2A),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 40.0),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.calendar_today_outlined, size: 48, color: Colors.grey),
+                            SizedBox(height: 12),
+                            Text('Nicio programare activă.', style: TextStyle(color: Colors.grey, fontSize: 15)),
+                          ],
+                        ),
+                      ),
+                    )
+                  else
+                    ListView.separated(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: docs.length,
+                      separatorBuilder: (context, index) => const SizedBox(height: 12),
+                      itemBuilder: (context, index) {
+                        final docId = docs[index].id;
+                        final data = docs[index].data() as Map<String, dynamic>;
+                        final String hostName = data['hostUsername'] ?? 'Host';
+                        final String date = data['date'] ?? '';
+                        final int startHour = data['startHour'] ?? 0;
+                        final int endHour = data['endHour'] ?? 0;
+                        final int tableId = data['tableId'] ?? 1;
+                        final bool isFriendly = data['isFriendly'] ?? false;
+                        final String status = data['status'] ?? 'open';
+                        final List<dynamic> joined = data['joinedPlayers'] ?? [];
+                        
+                        final bool isCancelled = status == 'cancelled';
+                        final String visibility = data['visibility'] ?? 'public';
+                        final bool isPrivate = visibility.toLowerCase() == 'private';
+                        final String payment = data['paymentMethod'] ?? 'Cash la locație';
+                        final bool isCard = payment.contains('Card');
+
+                        Color statusColor = const Color(0xFF00E5FF);
+                        if (isCancelled) {
+                          statusColor = Colors.redAccent;
+                        } else if (status == 'matched') {
+                          statusColor = Colors.greenAccent;
+                        }
+
+                        return Card(
+                          color: const Color(0xFF131A2A),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            side: BorderSide(
+                              color: isCancelled ? Colors.redAccent.withOpacity(0.3) : const Color(0xFF00E5FF).withOpacity(0.15),
+                              width: 1.5,
+                            ),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Gazda si Status
+                                Row(
+                                  children: [
+                                    CircleAvatar(
+                                      radius: 18,
+                                      backgroundColor: const Color(0xFF1E293B),
+                                      backgroundImage: data['hostAvatarUrl'] != null && (data['hostAvatarUrl'] as String).isNotEmpty
+                                          ? _getAvatarProvider(data['hostAvatarUrl'])
+                                          : null,
+                                      child: data['hostAvatarUrl'] == null || (data['hostAvatarUrl'] as String).isEmpty
+                                          ? Text(hostName.substring(0, 1).toUpperCase(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))
+                                          : null,
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            hostName,
+                                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                          Text(
+                                            data['hostLevel'] ?? 'Jucător',
+                                            style: const TextStyle(fontSize: 12, color: Color(0xFF00E5FF)),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: statusColor.withOpacity(0.15),
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(color: statusColor, width: 1),
+                                      ),
+                                      child: Text(
+                                        status.toUpperCase(),
+                                        style: TextStyle(color: statusColor, fontSize: 11, fontWeight: FontWeight.bold),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const Divider(color: Colors.grey, height: 24),
+                                // Data si orele
+                                Row(
+                                  children: [
+                                    const Icon(Icons.calendar_month, color: Colors.grey, size: 18),
+                                    const SizedBox(width: 8),
+                                    Text('$date  |  $startHour:00 - $endHour:00', style: const TextStyle(color: Colors.white70)),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                // Jucatori
+                                if (joined.isNotEmpty) ...[
+                                  Row(
+                                    crossAxisAlignment: CrossAxisAlignment.center,
+                                    children: [
+                                      const Icon(Icons.people_outline, color: Colors.grey, size: 18),
+                                      const SizedBox(width: 8),
+                                      Text('${joined.length} jucători înscriși:', style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  SizedBox(
+                                    height: 32,
+                                    child: ListView.builder(
+                                      scrollDirection: Axis.horizontal,
+                                      itemCount: joined.length,
+                                      itemBuilder: (context, pIdx) {
+                                        final p = joined[pIdx] as Map<String, dynamic>;
+                                        final pName = p['username'] ?? 'Jucător';
+                                        final pAvatar = p['avatarUrl'] as String?;
+                                        return Tooltip(
+                                          message: pName,
+                                          child: Container(
+                                            margin: const EdgeInsets.only(right: 6),
+                                            child: CircleAvatar(
+                                              radius: 14,
+                                              backgroundColor: const Color(0xFF1E293B),
+                                              backgroundImage: pAvatar != null && pAvatar.isNotEmpty ? _getAvatarProvider(pAvatar) : null,
+                                              child: pAvatar == null || pAvatar.isEmpty
+                                                  ? Text(pName.substring(0, 1).toUpperCase(), style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold))
+                                                  : null,
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                ],
+                                // Badges
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: [
+                                    _buildBadge(Icons.table_restaurant, 'Masa $tableId', const Color(0xFF00E5FF)),
+                                    _buildBadge(
+                                      isPrivate ? Icons.lock_outline : Icons.public,
+                                      isPrivate ? 'Meci Privat' : 'Meci Public',
+                                      isPrivate ? const Color(0xFFFF0055) : const Color(0xFF00E5FF),
+                                    ),
+                                    _buildBadge(
+                                      isFriendly ? Icons.favorite_border : Icons.emoji_events_outlined,
+                                      isFriendly ? 'Amical' : 'Competitiv',
+                                      isFriendly ? Colors.purpleAccent : const Color(0xFF00E5FF),
+                                    ),
+                                    _buildBadge(
+                                      isCard ? Icons.credit_card : Icons.payments_outlined,
+                                      isCard ? 'Card (Achitat)' : 'Cash la club',
+                                      isCard ? const Color(0xFF00FF66) : Colors.orangeAccent,
+                                    ),
+                                  ],
+                                ),
+                                if (!isCancelled) ...[
+                                  const SizedBox(height: 16),
+                                  Align(
+                                    alignment: Alignment.centerRight,
+                                    child: OutlinedButton.icon(
+                                      style: OutlinedButton.styleFrom(
+                                        side: const BorderSide(color: Colors.redAccent),
+                                        foregroundColor: Colors.redAccent,
+                                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                      ),
+                                      icon: const Icon(Icons.cancel_outlined, size: 18),
+                                      label: const Text('ANULEAZĂ REZERVAREA'),
+                                      onPressed: () => _cancelBooking(docId, data),
+                                    ),
+                                  ),
+                                ]
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                ],
               );
             },
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBadge(IconData icon, String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+         color: color.withOpacity(0.08),
+         border: Border.all(color: color.withOpacity(0.4), width: 1.2),
+         borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+           Icon(icon, color: color, size: 14),
+           const SizedBox(width: 6),
+           Text(
+             label,
+             style: TextStyle(
+               color: color,
+               fontSize: 11,
+               fontWeight: FontWeight.bold,
+             ),
+           ),
         ],
       ),
     );
