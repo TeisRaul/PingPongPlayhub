@@ -17,12 +17,13 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
   int _currentStep = 0;
   bool _isLoading = false;
 
-  final _currentUser = FirebaseAuth.instance.currentUser;
+  User? get _currentUser => FirebaseAuth.instance.currentUser;
 
   // Step 1: Locatie
   String? _selectedCity;
   PingPongLocation? _selectedLocation;
   int _maxPlayers = 2;
+  String _matchType = 'Amical'; // Private matches default to Amical
 
   // Step 2: Data, Ora si Masa
   DateTime _selectedDate = DateTime.now();
@@ -39,7 +40,6 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
 
   // Step 4: Plata
   String _paymentMethod = 'Cash la locație';
-  String _paymentSplit = 'Splituiește nota';
 
   @override
   void initState() {
@@ -48,11 +48,12 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
   }
 
   Future<void> _loadFriends() async {
-    if (_currentUser == null) return;
+    final user = _currentUser;
+    if (user == null) return;
     try {
       final snap = await FirebaseFirestore.instance
           .collection('friendships')
-          .where('uids', arrayContains: _currentUser.uid)
+          .where('uids', arrayContains: user.uid)
           .get();
 
       final List<Map<String, dynamic>> loadedFriends = [];
@@ -62,12 +63,15 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
         final List<dynamic> usernames = data['usernames'] ?? [];
         final List<dynamic> avatars = data['avatars'] ?? [];
 
-        int otherIdx = uids.indexOf(_currentUser.uid) == 0 ? 1 : 0;
+        int otherIdx = uids.indexOf(user.uid) == 0 ? 1 : 0;
         if (uids.length >= 2) {
+          final String otherUid = uids[otherIdx];
+          final String otherUsername = (usernames.length > otherIdx) ? usernames[otherIdx] : 'Utilizator';
+          final String? otherAvatar = (avatars.length > otherIdx) ? avatars[otherIdx] : null;
           loadedFriends.add({
-            'uid': uids[otherIdx],
-            'username': usernames[otherIdx],
-            'avatarUrl': avatars[otherIdx],
+            'uid': otherUid,
+            'username': otherUsername,
+            'avatarUrl': otherAvatar,
           });
         }
       }
@@ -140,11 +144,12 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
   }
 
   Future<void> _createMatch() async {
-    if (_currentUser == null) return;
+    final user = _currentUser;
+    if (user == null) return;
 
     setState(() => _isLoading = true);
     try {
-      final userDoc = await FirebaseFirestore.instance.collection('users').doc(_currentUser.uid).get();
+      final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
       final userData = userDoc.data() ?? {};
       final username = userData['username'] ?? 'Jucător';
       final avatarUrl = userData['avatarUrl'];
@@ -152,7 +157,7 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
       final levelName = LevelUtils.getLevelDetails(rating)['levelName'];
 
       final Map<String, dynamic> hostPlayer = {
-        'uid': _currentUser.uid,
+        'uid': user.uid,
         'username': username,
         'avatarUrl': avatarUrl,
         'rating': rating,
@@ -162,16 +167,17 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
 
       // Create the match document
       final matchDocRef = await FirebaseFirestore.instance.collection('matches').add({
-        'hostUid': _currentUser.uid,
+        'hostUid': user.uid,
         'hostUsername': username,
         'hostAvatarUrl': avatarUrl,
         'hostRating': rating,
         'hostLevel': levelName,
         'joinedPlayers': [hostPlayer],
-        'joinedUids': [_currentUser.uid],
+        'joinedUids': [user.uid],
         'invitedUids': _invitedFriendUids, // save invited friend list
         'maxPlayers': _maxPlayers,
         'visibility': 'private', // private visibility for play with a friend
+        'isFriendly': _matchType == 'Amical',
         'city': _selectedCity,
         'locationId': _selectedLocation!.id,
         'locationName': _selectedLocation!.name,
@@ -180,7 +186,7 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
         'endHour': _endHour,
         'tableId': _selectedTable,
         'paymentMethod': _paymentMethod,
-        'paymentSplit': _paymentSplit,
+        'paymentSplit': 'Achitat integral',
         'status': 'open',
         'createdAt': FieldValue.serverTimestamp(),
       });
@@ -189,11 +195,10 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
       if (_invitedFriendUids.isNotEmpty) {
         final batch = FirebaseFirestore.instance.batch();
         for (var friendUid in _invitedFriendUids) {
-          final friendData = _myFriends.firstWhere((f) => f['uid'] == friendUid);
           final newNotificationRef = FirebaseFirestore.instance.collection('notifications').doc();
           batch.set(newNotificationRef, {
             'toUid': friendUid,
-            'fromUid': _currentUser.uid,
+            'fromUid': user.uid,
             'fromUsername': username,
             'fromAvatarUrl': avatarUrl,
             'title': 'Invitație la meci',
@@ -224,6 +229,28 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
     }
   }
 
+  Future<bool> _isDateBlocked() async {
+    if (_selectedLocation == null) return false;
+    try {
+      final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
+      final query = await FirebaseFirestore.instance
+          .collection('venues')
+          .where('venueName', isEqualTo: _selectedLocation!.name)
+          .get();
+
+      if (query.docs.isNotEmpty) {
+        final data = query.docs.first.data();
+        final blockedDates = List<dynamic>.from(data['blockedDates'] ?? []);
+        if (blockedDates.contains(dateStr)) {
+          return true;
+        }
+      }
+    } catch (e) {
+      debugPrint('Error checking blocked dates: $e');
+    }
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -247,12 +274,37 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Alege orele și o masă liberă.'), backgroundColor: Colors.redAccent));
               return;
             }
+            setState(() => _isLoading = true);
+            final blocked = await _isDateBlocked();
+            setState(() => _isLoading = false);
+            if (blocked) {
+              if (mounted) {
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    backgroundColor: const Color(0xFF131A2A),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: const BorderSide(color: Color(0xFF00E5FF), width: 1.5),
+                    ),
+                    title: const Text('Dată Indisponibilă', style: TextStyle(color: Colors.white)),
+                    content: Text('Data de ${DateFormat('dd MMM yyyy').format(_selectedDate)} este rezervată pentru turnee / blocată de club.'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('OK', style: TextStyle(color: Color(0xFF00E5FF), fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                  ),
+                );
+              }
+              return;
+            }
           } else if (_currentStep == 4) {
             // Step 4 is Rezumat/Save
             if (_paymentMethod.contains('Card')) {
               int hours = (_endHour ?? 0) - (_startHour ?? 0);
-              double amount = hours * 30.0;
-              if (_paymentSplit == 'Splituiește nota') amount = amount / 2;
+              double amount = hours * 20.0; // Preț simulare: 20 lei / oră
 
               final paymentSuccess = await Navigator.push(
                 context,
@@ -347,6 +399,16 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
                     DropdownMenuItem(value: 4, child: Text('2v2 (4 Jucători)')),
                   ],
                   onChanged: (val) => setState(() => _maxPlayers = val ?? 2),
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  value: _matchType,
+                  decoration: const InputDecoration(labelText: 'Tip Meci', prefixIcon: Icon(Icons.emoji_events_outlined)),
+                  items: const [
+                    DropdownMenuItem(value: 'Competitiv', child: Text('Competitiv (Cu puncte)')),
+                    DropdownMenuItem(value: 'Amical', child: Text('Amical (Fără puncte)')),
+                  ],
+                  onChanged: (val) => setState(() => _matchType = val ?? 'Amical'),
                 ),
               ],
             ),
@@ -524,7 +586,7 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
                               final friend = _myFriends[idx];
                               final uid = friend['uid'] as String;
                               final name = friend['username'] as String;
-                              final avatar = friend['avatarUrl'] as String;
+                              final avatar = (friend['avatarUrl'] as String?) ?? '';
                               final isSelected = _invitedFriendUids.contains(uid);
 
                               return CheckboxListTile(
@@ -564,12 +626,39 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
           // STEP 3: Detalii Plată
           Step(
             title: const Text('Cum dorești să plătești?'),
-            subtitle: const Text('Metodă plată și împărțire'),
+            subtitle: const Text('Metodă plată'),
             isActive: _currentStep >= 3,
             state: _currentStep > 3 ? StepState.complete : StepState.indexed,
             content: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Builder(
+                  builder: (context) {
+                    int hours = (_endHour ?? 0) - (_startHour ?? 0);
+                    double totalAmount = hours * 20.0;
+                    return Container(
+                      padding: const EdgeInsets.all(12),
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1E293B),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFF00E5FF).withOpacity(0.3)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.info_outline, color: Color(0xFF00E5FF), size: 20),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Preț simulare: 20 lei / oră\nTotal de plată: ${totalAmount.toStringAsFixed(0)} lei (achitat integral de Host)',
+                              style: const TextStyle(color: Colors.white, fontSize: 13, height: 1.4),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+                ),
                 const Text('Metoda de plată', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
                 RadioListTile(
                   title: const Text('Cash la locație'),
@@ -584,22 +673,6 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
                   value: 'Card în aplicație',
                   groupValue: _paymentMethod,
                   onChanged: (val) => setState(() => _paymentMethod = val.toString()),
-                ),
-                const Divider(),
-                const Text('Împărțirea notei', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
-                RadioListTile(
-                  title: const Text('Splituiește nota'),
-                  activeColor: const Color(0xFF00E5FF),
-                  value: 'Splituiește nota',
-                  groupValue: _paymentSplit,
-                  onChanged: (val) => setState(() => _paymentSplit = val.toString()),
-                ),
-                RadioListTile(
-                  title: const Text('Achită host-ul integral'),
-                  activeColor: const Color(0xFF00E5FF),
-                  value: 'Achită host-ul integral',
-                  groupValue: _paymentSplit,
-                  onChanged: (val) => setState(() => _paymentSplit = val.toString()),
                 ),
               ],
             ),
@@ -628,8 +701,9 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
                       ? 'Niciun prieten selectat'
                       : '${_invitedFriendUids.length} prieteni vor primi invitație'),
                   const Divider(color: Colors.grey),
+                  _summaryRow(Icons.emoji_events, 'Tip Meci', _matchType),
                   _summaryRow(Icons.payment, 'Plată', _paymentMethod),
-                  _summaryRow(Icons.receipt_long, 'Nota de plată', _paymentSplit),
+                  _summaryRow(Icons.monetization_on, 'Cost Total Simulat', '${((_endHour ?? 0) - (_startHour ?? 0)) * 20} lei'),
                 ],
               ),
             ),

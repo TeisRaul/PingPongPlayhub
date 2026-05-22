@@ -13,7 +13,7 @@ class FriendsScreen extends StatefulWidget {
 }
 
 class _FriendsScreenState extends State<FriendsScreen> {
-  final _currentUser = FirebaseAuth.instance.currentUser;
+  User? get _currentUser => FirebaseAuth.instance.currentUser;
   final _searchController = TextEditingController();
   
   bool _isSearching = false;
@@ -29,7 +29,8 @@ class _FriendsScreenState extends State<FriendsScreen> {
   // --- Search & Add Friends ---
   Future<void> _searchUsers() async {
     final query = _searchController.text.trim();
-    if (query.isEmpty || _currentUser == null) return;
+    final user = _currentUser;
+    if (query.isEmpty || user == null) return;
 
     setState(() {
       _isSearching = true;
@@ -54,7 +55,7 @@ class _FriendsScreenState extends State<FriendsScreen> {
         for (var doc in qSnap.docs) {
           final data = doc.data();
           final uid = data['uid'] ?? '';
-          if (uid.isNotEmpty && uid != _currentUser.uid && !uniqueUids.contains(uid)) {
+          if (uid.isNotEmpty && uid != user.uid && !uniqueUids.contains(uid)) {
             uniqueUids.add(uid);
             results.add(data);
           }
@@ -75,7 +76,8 @@ class _FriendsScreenState extends State<FriendsScreen> {
   }
 
   Future<void> _sendFriendRequest(Map<String, dynamic> targetUser) async {
-    if (_currentUser == null) return;
+    final user = _currentUser;
+    if (user == null) return;
 
     final targetUid = targetUser['uid'];
     final targetUsername = targetUser['username'] ?? 'Utilizator';
@@ -83,9 +85,9 @@ class _FriendsScreenState extends State<FriendsScreen> {
 
     try {
       // 1. Verificare anti-spam: sunt deja prieteni?
-      final String friendshipId = _currentUser.uid.compareTo(targetUid) < 0
-          ? '${_currentUser.uid}_$targetUid'
-          : '${targetUid}_${_currentUser.uid}';
+      final String friendshipId = user.uid.compareTo(targetUid) < 0
+          ? '${user.uid}_$targetUid'
+          : '${targetUid}_${user.uid}';
 
       final friendshipDoc = await FirebaseFirestore.instance.collection('friendships').doc(friendshipId).get();
       if (friendshipDoc.exists) {
@@ -96,7 +98,7 @@ class _FriendsScreenState extends State<FriendsScreen> {
       // 2. Verificare anti-spam: există deja o cerere pending de la mine la ei?
       final sentRequestQuery = await FirebaseFirestore.instance
           .collection('friend_requests')
-          .where('fromUid', isEqualTo: _currentUser.uid)
+          .where('fromUid', isEqualTo: user.uid)
           .where('toUid', isEqualTo: targetUid)
           .where('status', isEqualTo: 'pending')
           .get();
@@ -110,7 +112,7 @@ class _FriendsScreenState extends State<FriendsScreen> {
       final receivedRequestQuery = await FirebaseFirestore.instance
           .collection('friend_requests')
           .where('fromUid', isEqualTo: targetUid)
-          .where('toUid', isEqualTo: _currentUser.uid)
+          .where('toUid', isEqualTo: user.uid)
           .where('status', isEqualTo: 'pending')
           .get();
 
@@ -120,14 +122,14 @@ class _FriendsScreenState extends State<FriendsScreen> {
       }
 
       // Get my details for the request
-      final myDoc = await FirebaseFirestore.instance.collection('users').doc(_currentUser.uid).get();
+      final myDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
       final myData = myDoc.data() ?? {};
       final myUsername = myData['username'] ?? 'Utilizator';
       final myAvatarUrl = myData['avatarUrl'] ?? '';
 
       // Save friend request doc
       await FirebaseFirestore.instance.collection('friend_requests').add({
-        'fromUid': _currentUser.uid,
+        'fromUid': user.uid,
         'fromUsername': myUsername,
         'fromAvatarUrl': myAvatarUrl,
         'toUid': targetUid,
@@ -170,6 +172,7 @@ class _FriendsScreenState extends State<FriendsScreen> {
 
   // --- Friend Requests Popup Dialog (Received requests) ---
   void _showReceivedRequestsDialog() {
+    final user = _currentUser;
     showDialog(
       context: context,
       builder: (dialogContext) {
@@ -191,7 +194,7 @@ class _FriendsScreenState extends State<FriendsScreen> {
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
                   .collection('friend_requests')
-                  .where('toUid', isEqualTo: _currentUser?.uid)
+                  .where('toUid', isEqualTo: user?.uid)
                   .where('status', isEqualTo: 'pending')
                   .snapshots(),
               builder: (context, snapshot) {
@@ -267,7 +270,8 @@ class _FriendsScreenState extends State<FriendsScreen> {
   }
 
   Future<void> _acceptFriendRequest(String requestId, Map<String, dynamic> reqData) async {
-    if (_currentUser == null) return;
+    final user = _currentUser;
+    if (user == null) return;
     
     final fromUid = reqData['fromUid'];
     final fromUsername = reqData['fromUsername'] ?? 'Utilizator';
@@ -275,18 +279,18 @@ class _FriendsScreenState extends State<FriendsScreen> {
 
     try {
       // Get my details
-      final myDoc = await FirebaseFirestore.instance.collection('users').doc(_currentUser.uid).get();
+      final myDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
       final myData = myDoc.data() ?? {};
       final myUsername = myData['username'] ?? 'Utilizator';
       final myAvatar = myData['avatarUrl'] ?? '';
 
       // Generate friendship ID
-      final String friendshipId = _currentUser.uid.compareTo(fromUid) < 0
-          ? '${_currentUser.uid}_$fromUid'
-          : '${fromUid}_${_currentUser.uid}';
+      final String friendshipId = user.uid.compareTo(fromUid) < 0
+          ? '${user.uid}_$fromUid'
+          : '${fromUid}_${user.uid}';
 
-      final isFirst = _currentUser.uid.compareTo(fromUid) < 0;
-      final uids = isFirst ? [_currentUser.uid, fromUid] : [fromUid, _currentUser.uid];
+      final isFirst = user.uid.compareTo(fromUid) < 0;
+      final uids = isFirst ? [user.uid, fromUid] : [fromUid, user.uid];
       final usernames = isFirst ? [myUsername, fromUsername] : [fromUsername, myUsername];
       final avatars = isFirst ? [myAvatar, fromAvatar] : [fromAvatar, myAvatar];
 
@@ -338,7 +342,8 @@ class _FriendsScreenState extends State<FriendsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_currentUser == null) {
+    final user = _currentUser;
+    if (user == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Play with a Friend')),
         body: const Center(child: Text('Trebuie să fii autentificat!')),
@@ -376,6 +381,7 @@ class _FriendsScreenState extends State<FriendsScreen> {
   }
 
   Widget _buildFriendsTab() {
+    final user = _currentUser;
     return Column(
       children: [
         // Cereri Primite Bar
@@ -389,7 +395,7 @@ class _FriendsScreenState extends State<FriendsScreen> {
               StreamBuilder<QuerySnapshot>(
                 stream: FirebaseFirestore.instance
                     .collection('friend_requests')
-                    .where('toUid', isEqualTo: _currentUser?.uid)
+                    .where('toUid', isEqualTo: user?.uid)
                     .where('status', isEqualTo: 'pending')
                     .snapshots(),
                 builder: (context, snapshot) {
@@ -416,7 +422,7 @@ class _FriendsScreenState extends State<FriendsScreen> {
           child: StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
                 .collection('friendships')
-                .where('uids', arrayContains: _currentUser?.uid)
+                .where('uids', arrayContains: user?.uid)
                 .snapshots(),
             builder: (context, snapshot) {
               if (snapshot.hasError) {
@@ -457,12 +463,12 @@ class _FriendsScreenState extends State<FriendsScreen> {
                   final List<dynamic> usernames = friendshipData['usernames'] ?? [];
                   final List<dynamic> avatars = friendshipData['avatars'] ?? [];
 
-                  int otherIdx = uids.indexOf(_currentUser?.uid) == 0 ? 1 : 0;
+                  int otherIdx = uids.indexOf(user?.uid) == 0 ? 1 : 0;
                   if (uids.length < 2) return const SizedBox();
 
                   final String otherUid = uids[otherIdx];
-                  final String otherUsername = usernames[otherIdx];
-                  final String? otherAvatar = avatars[otherIdx];
+                  final String otherUsername = (usernames.length > otherIdx) ? usernames[otherIdx] : 'Utilizator';
+                  final String? otherAvatar = (avatars.length > otherIdx) ? avatars[otherIdx] : null;
 
                   return Card(
                     color: const Color(0xFF131A2A),

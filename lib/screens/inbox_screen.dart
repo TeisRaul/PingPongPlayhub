@@ -12,7 +12,7 @@ class InboxScreen extends StatefulWidget {
 }
 
 class _InboxScreenState extends State<InboxScreen> {
-  final _currentUser = FirebaseAuth.instance.currentUser;
+  User? get _currentUser => FirebaseAuth.instance.currentUser;
 
   String _formatTime(Timestamp? timestamp) {
     if (timestamp == null) return '';
@@ -26,7 +26,8 @@ class _InboxScreenState extends State<InboxScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_currentUser == null) {
+    final user = _currentUser;
+    if (user == null) {
       return Scaffold(
         appBar: AppBar(
           title: const Text('Mesaje'),
@@ -45,7 +46,7 @@ class _InboxScreenState extends State<InboxScreen> {
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection('chats')
-            .where('uids', arrayContains: _currentUser.uid)
+            .where('uids', arrayContains: user.uid)
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
@@ -101,22 +102,52 @@ class _InboxScreenState extends State<InboxScreen> {
           return ListView.separated(
             padding: const EdgeInsets.all(16),
             itemCount: docs.length,
-            separatorBuilder: (context, index) => const SizedBox(height: 12),
-            itemBuilder: (context, index) {
+            separatorBuilder: (context, index) => const SizedBox(height: 12            itemBuilder: (context, index) {
               final data = docs[index].data() as Map<String, dynamic>;
               final chatId = docs[index].id;
+              final bool isTournamentChat = data['isTournamentChat'] ?? false;
 
-              // Find other participant's data
-              final List<dynamic> uids = data['uids'] ?? [];
-              final List<dynamic> usernames = data['usernames'] ?? [];
-              final List<dynamic> avatars = data['avatars'] ?? [];
+              String chatTitle = '';
+              Widget leadingWidget;
 
-              int otherIndex = uids.indexOf(_currentUser.uid) == 0 ? 1 : 0;
-              if (uids.length < 2) return const SizedBox(); // safety check
+              if (isTournamentChat) {
+                chatTitle = data['title'] ?? 'Chat Turneu';
+                leadingWidget = Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF00E5FF).withOpacity(0.1),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: const Color(0xFF00E5FF), width: 1.5),
+                  ),
+                  child: const Icon(Icons.emoji_events_outlined, color: Color(0xFF00E5FF), size: 20),
+                );
+              } else {
+                // Find other participant's data
+                final List<dynamic> uids = data['uids'] ?? [];
+                final List<dynamic> usernames = data['usernames'] ?? [];
+                final List<dynamic> avatars = data['avatars'] ?? [];
 
-              final String otherUid = uids[otherIndex];
-              final String otherUsername = usernames.length > otherIndex ? usernames[otherIndex] : 'Utilizator';
-              final String? otherAvatarUrl = avatars.length > otherIndex ? avatars[otherIndex] : null;
+                int otherIndex = uids.indexOf(user.uid) == 0 ? 1 : 0;
+                if (uids.length < 2) return const SizedBox(); // safety check
+
+                final String otherUid = uids[otherIndex];
+                final String otherUsername = usernames.length > otherIndex ? usernames[otherIndex] : 'Utilizator';
+                final String? otherAvatarUrl = avatars.length > otherIndex ? avatars[otherIndex] : null;
+
+                chatTitle = otherUsername;
+                leadingWidget = CircleAvatar(
+                  backgroundColor: const Color(0xFF1E293B),
+                  backgroundImage: otherAvatarUrl != null && otherAvatarUrl.isNotEmpty
+                      ? NetworkImage(otherAvatarUrl)
+                      : null,
+                  child: otherAvatarUrl == null || otherAvatarUrl.isEmpty
+                      ? Text(otherUsername.substring(0, 1).toUpperCase(),
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))
+                      : null,
+                );
+              }
+
               final String lastMsg = data['lastMessage'] ?? 'Niciun mesaj';
               final Timestamp? lastTime = data['lastMessageTime'];
 
@@ -128,20 +159,18 @@ class _InboxScreenState extends State<InboxScreen> {
                 ),
                 child: ListTile(
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  leading: CircleAvatar(
-                    backgroundColor: const Color(0xFF1E293B),
-                    backgroundImage: otherAvatarUrl != null && otherAvatarUrl.isNotEmpty
-                        ? NetworkImage(otherAvatarUrl)
-                        : null,
-                    child: otherAvatarUrl == null || otherAvatarUrl.isEmpty
-                        ? Text(otherUsername.substring(0, 1).toUpperCase(),
-                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))
-                        : null,
-                  ),
+                  leading: leadingWidget,
                   title: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(otherUsername, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                      Expanded(
+                        child: Text(
+                          chatTitle,
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
                       Text(_formatTime(lastTime), style: const TextStyle(color: Colors.grey, fontSize: 12)),
                     ],
                   ),
@@ -155,21 +184,43 @@ class _InboxScreenState extends State<InboxScreen> {
                     ),
                   ),
                   onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => ChatScreen(
-                          chatId: chatId,
-                          otherUid: otherUid,
-                          otherUsername: otherUsername,
-                          otherAvatarUrl: otherAvatarUrl,
+                    if (isTournamentChat) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ChatScreen(
+                            chatId: chatId,
+                            isTournamentChat: true,
+                            tournamentTitle: chatTitle,
+                            adminUid: data['adminUid'],
+                          ),
                         ),
-                      ),
-                    );
+                      );
+                    } else {
+                      final List<dynamic> uids = data['uids'] ?? [];
+                      int otherIndex = uids.indexOf(user.uid) == 0 ? 1 : 0;
+                      final String otherUid = uids[otherIndex];
+                      final List<dynamic> usernames = data['usernames'] ?? [];
+                      final String otherUsername = usernames.length > otherIndex ? usernames[otherIndex] : 'Utilizator';
+                      final List<dynamic> avatars = data['avatars'] ?? [];
+                      final String? otherAvatarUrl = avatars.length > otherIndex ? avatars[otherIndex] : null;
+
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ChatScreen(
+                            chatId: chatId,
+                            otherUid: otherUid,
+                            otherUsername: otherUsername,
+                            otherAvatarUrl: otherAvatarUrl,
+                          ),
+                        ),
+                      );
+                    }
                   },
                 ),
               );
-            },
+            }, },
           );
         },
       ),

@@ -71,6 +71,24 @@ class _FindMatchTabState extends State<FindMatchTab> {
         'joinedUids': joinedUids,
       });
 
+      // Send join notification to host
+      final hostUid = data['hostUid'];
+      if (hostUid != null && hostUid != user.uid) {
+        final newNotificationRef = FirebaseFirestore.instance.collection('notifications').doc();
+        await FirebaseFirestore.instance.collection('notifications').doc(newNotificationRef.id).set({
+          'toUid': hostUid,
+          'fromUid': user.uid,
+          'fromUsername': guestUsername,
+          'fromAvatarUrl': guestAvatarUrl ?? '',
+          'title': 'Jucător nou la masă',
+          'body': '$guestUsername s-a alăturat meciului tău de pe data de ${data['date']}.',
+          'type': 'match_join',
+          'status': 'pending',
+          'matchId': matchId,
+          'timestamp': FieldValue.serverTimestamp(),
+        });
+      }
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Te-ai alăturat cu succes!'), backgroundColor: Colors.green));
       }

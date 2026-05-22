@@ -196,100 +196,103 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
       final List<dynamic> joinedUids = matchData['joinedUids'] ?? [];
       final reportType = matchData['reportType'] ?? '1v1';
       final reporterUid = matchData['reporterUid'] ?? '';
+      final bool isFriendly = matchData['isFriendly'] == true;
 
       if (joinedUids.isEmpty) return;
 
       final batch = FirebaseFirestore.instance.batch();
 
-      if (reportType == '1v1') {
-        final myWins = matchData['myWins'] ?? 0;
-        final myLosses = matchData['myLosses'] ?? 0;
-        
-        final opponentUid = joinedUids.firstWhere((uid) => uid != reporterUid, orElse: () => '');
+      if (!isFriendly) {
+        if (reportType == '1v1') {
+          final myWins = matchData['myWins'] ?? 0;
+          final myLosses = matchData['myLosses'] ?? 0;
+          
+          final opponentUid = joinedUids.firstWhere((uid) => uid != reporterUid, orElse: () => '');
 
-        if (opponentUid.isNotEmpty && reporterUid.isNotEmpty) {
-          String winnerUid = myWins > myLosses ? reporterUid : opponentUid;
-          String loserUid = myWins > myLosses ? opponentUid : reporterUid;
+          if (opponentUid.isNotEmpty && reporterUid.isNotEmpty) {
+            String winnerUid = myWins > myLosses ? reporterUid : opponentUid;
+            String loserUid = myWins > myLosses ? opponentUid : reporterUid;
 
-          // Fetch ratings
-          final winnerDoc = await FirebaseFirestore.instance.collection('users').doc(winnerUid).get();
-          final loserDoc = await FirebaseFirestore.instance.collection('users').doc(loserUid).get();
+            // Fetch ratings
+            final winnerDoc = await FirebaseFirestore.instance.collection('users').doc(winnerUid).get();
+            final loserDoc = await FirebaseFirestore.instance.collection('users').doc(loserUid).get();
 
-          int winnerRating = winnerDoc.data()?['rating'] ?? 0;
-          int loserRating = loserDoc.data()?['rating'] ?? 0;
+            int winnerRating = winnerDoc.data()?['rating'] ?? 0;
+            int loserRating = loserDoc.data()?['rating'] ?? 0;
 
-          int winPoints = LevelUtils.calculateMatchPoints(winnerRating, loserRating);
-          int losePoints = LevelUtils.getLevelDetails(loserRating)['losePoints'] as int;
+            int winPoints = LevelUtils.calculateMatchPoints(winnerRating, loserRating);
+            int losePoints = LevelUtils.getLevelDetails(loserRating)['losePoints'] as int;
 
-          batch.update(FirebaseFirestore.instance.collection('users').doc(winnerUid), {
-            'rating': winnerRating + winPoints,
-          });
+            batch.update(FirebaseFirestore.instance.collection('users').doc(winnerUid), {
+              'rating': winnerRating + winPoints,
+            });
 
-          batch.update(FirebaseFirestore.instance.collection('users').doc(loserUid), {
-            'rating': (loserRating - losePoints < 0) ? 0 : loserRating - losePoints,
-          });
-        }
-      } else {
-        // 2v2 multiple matches reporting
-        final List<dynamic> reportedMatches = matchData['reportedMatches'] ?? [];
-        Map<String, int> winsCount = {};
-        Map<String, int> lossesCount = {};
+            batch.update(FirebaseFirestore.instance.collection('users').doc(loserUid), {
+              'rating': (loserRating - losePoints < 0) ? 0 : loserRating - losePoints,
+            });
+          }
+        } else {
+          // 2v2 multiple matches reporting
+          final List<dynamic> reportedMatches = matchData['reportedMatches'] ?? [];
+          Map<String, int> winsCount = {};
+          Map<String, int> lossesCount = {};
 
-        for (var uid in joinedUids) {
-          winsCount[uid.toString()] = 0;
-          lossesCount[uid.toString()] = 0;
-        }
+          for (var uid in joinedUids) {
+            winsCount[uid.toString()] = 0;
+            lossesCount[uid.toString()] = 0;
+          }
 
-        for (var m in reportedMatches) {
-          final partnerUid = m['partnerUid']?.toString() ?? '';
-          final outcome = m['outcome']?.toString() ?? 'win';
+          for (var m in reportedMatches) {
+            final partnerUid = m['partnerUid']?.toString() ?? '';
+            final outcome = m['outcome']?.toString() ?? 'win';
 
-          // Opponents are all other UIDs that are not reporter and not partner
-          final opponents = joinedUids.where((uid) => uid.toString() != reporterUid && uid.toString() != partnerUid).toList();
+            // Opponents are all other UIDs that are not reporter and not partner
+            final opponents = joinedUids.where((uid) => uid.toString() != reporterUid && uid.toString() != partnerUid).toList();
 
-          if (outcome == 'win') {
-            winsCount[reporterUid] = (winsCount[reporterUid] ?? 0) + 1;
-            if (partnerUid.isNotEmpty) {
-              winsCount[partnerUid] = (winsCount[partnerUid] ?? 0) + 1;
-            }
-            for (var opp in opponents) {
-              final oppStr = opp.toString();
-              lossesCount[oppStr] = (lossesCount[oppStr] ?? 0) + 1;
-            }
-          } else {
-            lossesCount[reporterUid] = (lossesCount[reporterUid] ?? 0) + 1;
-            if (partnerUid.isNotEmpty) {
-              lossesCount[partnerUid] = (lossesCount[partnerUid] ?? 0) + 1;
-            }
-            for (var opp in opponents) {
-              final oppStr = opp.toString();
-              winsCount[oppStr] = (winsCount[oppStr] ?? 0) + 1;
+            if (outcome == 'win') {
+              winsCount[reporterUid] = (winsCount[reporterUid] ?? 0) + 1;
+              if (partnerUid.isNotEmpty) {
+                winsCount[partnerUid] = (winsCount[partnerUid] ?? 0) + 1;
+              }
+              for (var opp in opponents) {
+                final oppStr = opp.toString();
+                lossesCount[oppStr] = (lossesCount[oppStr] ?? 0) + 1;
+              }
+            } else {
+              lossesCount[reporterUid] = (lossesCount[reporterUid] ?? 0) + 1;
+              if (partnerUid.isNotEmpty) {
+                lossesCount[partnerUid] = (lossesCount[partnerUid] ?? 0) + 1;
+              }
+              for (var opp in opponents) {
+                final oppStr = opp.toString();
+                winsCount[oppStr] = (winsCount[oppStr] ?? 0) + 1;
+              }
             }
           }
-        }
 
-        // Apply rating updates for all 4 players
-        for (var uid in joinedUids) {
-          final uidStr = uid.toString();
-          final wins = winsCount[uidStr] ?? 0;
-          final losses = lossesCount[uidStr] ?? 0;
+          // Apply rating updates for all 4 players
+          for (var uid in joinedUids) {
+            final uidStr = uid.toString();
+            final wins = winsCount[uidStr] ?? 0;
+            final losses = lossesCount[uidStr] ?? 0;
 
-          if (wins > losses) {
-            // Player won more than they lost overall
-            final userDoc = await FirebaseFirestore.instance.collection('users').doc(uidStr).get();
-            final rating = userDoc.data()?['rating'] ?? 0;
-            final winPoints = LevelUtils.getLevelDetails(rating)['winPoints'] as int;
-            batch.update(FirebaseFirestore.instance.collection('users').doc(uidStr), {
-              'rating': rating + winPoints,
-            });
-          } else if (wins < losses) {
-            // Player lost more than they won overall
-            final userDoc = await FirebaseFirestore.instance.collection('users').doc(uidStr).get();
-            final rating = userDoc.data()?['rating'] ?? 0;
-            final losePoints = LevelUtils.getLevelDetails(rating)['losePoints'] as int;
-            batch.update(FirebaseFirestore.instance.collection('users').doc(uidStr), {
-              'rating': (rating - losePoints < 0) ? 0 : rating - losePoints,
-            });
+            if (wins > losses) {
+              // Player won more than they lost overall
+              final userDoc = await FirebaseFirestore.instance.collection('users').doc(uidStr).get();
+              final rating = userDoc.data()?['rating'] ?? 0;
+              final winPoints = LevelUtils.getLevelDetails(rating)['winPoints'] as int;
+              batch.update(FirebaseFirestore.instance.collection('users').doc(uidStr), {
+                'rating': rating + winPoints,
+              });
+            } else if (wins < losses) {
+              // Player lost more than they won overall
+              final userDoc = await FirebaseFirestore.instance.collection('users').doc(uidStr).get();
+              final rating = userDoc.data()?['rating'] ?? 0;
+              final losePoints = LevelUtils.getLevelDetails(rating)['losePoints'] as int;
+              batch.update(FirebaseFirestore.instance.collection('users').doc(uidStr), {
+                'rating': (rating - losePoints < 0) ? 0 : rating - losePoints,
+              });
+            }
           }
         }
       }
@@ -302,7 +305,14 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Rezultat confirmat! Punctele au fost actualizate.'), backgroundColor: Colors.green),
+          SnackBar(
+            content: Text(
+              isFriendly 
+                ? 'Rezultat confirmat! Meciul fiind Amical, punctele nu au fost modificate.'
+                : 'Rezultat confirmat! Punctele au fost actualizate.'
+            ),
+            backgroundColor: Colors.green,
+          ),
         );
       }
     } catch (e) {

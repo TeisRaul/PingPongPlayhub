@@ -21,6 +21,7 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
   PingPongLocation? _selectedLocation;
   int _maxPlayers = 2;
   String _visibility = 'Public';
+  String _matchType = 'Competitiv';
 
   // Step 2: Data, Ora si Masa
   DateTime _selectedDate = DateTime.now();
@@ -32,7 +33,6 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
 
   // Step 3: Plata
   String _paymentMethod = 'Cash la locație';
-  String _paymentSplit = 'Splituiește nota';
 
   // --- Step 1 Helpers ---
   List<PingPongLocation> get _filteredLocations {
@@ -93,6 +93,28 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
     }
   }
 
+  Future<bool> _isDateBlocked() async {
+    if (_selectedLocation == null) return false;
+    try {
+      final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
+      final query = await FirebaseFirestore.instance
+          .collection('venues')
+          .where('venueName', isEqualTo: _selectedLocation!.name)
+          .get();
+
+      if (query.docs.isNotEmpty) {
+        final data = query.docs.first.data();
+        final blockedDates = List<dynamic>.from(data['blockedDates'] ?? []);
+        if (blockedDates.contains(dateStr)) {
+          return true;
+        }
+      }
+    } catch (e) {
+      debugPrint('Error checking blocked dates: $e');
+    }
+    return false;
+  }
+
   // --- Step 4 (Save) ---
   Future<void> _createMatch() async {
     final user = FirebaseAuth.instance.currentUser;
@@ -138,6 +160,7 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
         'joinedUids': [user.uid],
         'maxPlayers': _maxPlayers,
         'visibility': _visibility.toLowerCase(),
+        'isFriendly': _matchType == 'Amical',
         'city': _selectedCity,
         'locationId': _selectedLocation!.id,
         'locationName': _selectedLocation!.name,
@@ -146,7 +169,7 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
         'endHour': _endHour,
         'tableId': _selectedTable,
         'paymentMethod': _paymentMethod,
-        'paymentSplit': _paymentSplit,
+        'paymentSplit': 'Achitat integral',
         'status': 'open',
         'createdAt': FieldValue.serverTimestamp(),
       });
@@ -166,6 +189,7 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
           _selectedTable = null;
           _maxPlayers = 2;
           _visibility = 'Public';
+          _matchType = 'Competitiv';
         });
       }
     } catch (e) {
@@ -197,11 +221,36 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Alege intervalul orar și o masă liberă.'), backgroundColor: Colors.redAccent));
               return;
             }
-          } else if (_currentStep == 3) {
+            setState(() => _isLoading = true);
+            final blocked = await _isDateBlocked();
+            setState(() => _isLoading = false);
+            if (blocked) {
+              if (mounted) {
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    backgroundColor: const Color(0xFF131A2A),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: const BorderSide(color: Color(0xFF00E5FF), width: 1.5),
+                    ),
+                    title: const Text('Dată Indisponibilă', style: TextStyle(color: Colors.white)),
+                    content: Text('Data de ${DateFormat('dd MMM yyyy').format(_selectedDate)} este rezervată pentru turnee / blocată de club.'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('OK', style: TextStyle(color: Color(0xFF00E5FF), fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                  ),
+                );
+              }
+              return;
+            }
+          } else if (_currentStep == 2) {
             if (_paymentMethod.contains('Card')) {
               int hours = (_endHour ?? 0) - (_startHour ?? 0);
-              double amount = hours * 30.0; // Presupunem un cost de 30 RON pe oră
-              if (_paymentSplit == 'Splituiește nota') amount = amount / 2;
+              double amount = hours * 20.0; // Preț simulare: 20 lei / oră
 
               final paymentSuccess = await Navigator.push(
                 context,
@@ -318,6 +367,16 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
                       ),
                     ),
                   ],
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  value: _matchType,
+                  decoration: const InputDecoration(labelText: 'Tip Meci', prefixIcon: Icon(Icons.emoji_events_outlined)),
+                  items: const [
+                    DropdownMenuItem(value: 'Competitiv', child: Text('Competitiv (Cu puncte)')),
+                    DropdownMenuItem(value: 'Amical', child: Text('Amical (Fără puncte)')),
+                  ],
+                  onChanged: (val) => setState(() => _matchType = val ?? 'Competitiv'),
                 ),
               ],
             ),
@@ -480,12 +539,39 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
           ),
           Step(
             title: const Text('Cum dorești să plătești?'),
-            subtitle: const Text('Cash/Card și Detalii Note'),
+            subtitle: const Text('Metodă plată'),
             isActive: _currentStep >= 2,
             state: _currentStep > 2 ? StepState.complete : StepState.indexed,
             content: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Builder(
+                  builder: (context) {
+                    int hours = (_endHour ?? 0) - (_startHour ?? 0);
+                    double totalAmount = hours * 20.0;
+                    return Container(
+                      padding: const EdgeInsets.all(12),
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1E293B),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFF00E5FF).withOpacity(0.3)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.info_outline, color: Color(0xFF00E5FF), size: 20),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Preț simulare: 20 lei / oră\nTotal de plată: ${totalAmount.toStringAsFixed(0)} lei (achitat integral de Host)',
+                              style: const TextStyle(color: Colors.white, fontSize: 13, height: 1.4),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+                ),
                 const Text('Metoda de plată', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
                 RadioListTile(
                   title: const Text('Cash la locație'),
@@ -500,22 +586,6 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
                   value: 'Card în aplicație',
                   groupValue: _paymentMethod,
                   onChanged: (val) => setState(() => _paymentMethod = val.toString()),
-                ),
-                const Divider(),
-                const Text('Împărțirea notei', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
-                RadioListTile(
-                  title: const Text('Splituiește nota'),
-                  activeColor: const Color(0xFF00E5FF),
-                  value: 'Splituiește nota',
-                  groupValue: _paymentSplit,
-                  onChanged: (val) => setState(() => _paymentSplit = val.toString()),
-                ),
-                RadioListTile(
-                  title: const Text('Achită host-ul integral'),
-                  activeColor: const Color(0xFF00E5FF),
-                  value: 'Achită host-ul integral',
-                  groupValue: _paymentSplit,
-                  onChanged: (val) => setState(() => _paymentSplit = val.toString()),
                 ),
               ],
             ),
@@ -539,8 +609,9 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
                   _summaryRow(Icons.access_time, 'Interval Orare', '${_startHour ?? '-'}:00 - ${_endHour ?? '-'}:00 (${((_endHour ?? 0) - (_startHour ?? 0))} ore)'),
                   _summaryRow(Icons.table_restaurant, 'Masa', _selectedTable != null ? 'Masa $_selectedTable' : '-'),
                   const Divider(color: Colors.grey),
+                  _summaryRow(Icons.emoji_events, 'Tip Meci', _matchType),
                   _summaryRow(Icons.payment, 'Plată', _paymentMethod),
-                  _summaryRow(Icons.receipt_long, 'Nota', _paymentSplit),
+                  _summaryRow(Icons.monetization_on, 'Cost Total Simulat', '${((_endHour ?? 0) - (_startHour ?? 0)) * 20} lei'),
                 ],
               ),
             ),
