@@ -807,9 +807,25 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> with 
 
       // Synchronize in tournament chat room
       final chatRef = FirebaseFirestore.instance.collection('chats').doc('tournament_${widget.tournamentId}');
-      await chatRef.update({
-        'uids': FieldValue.arrayUnion([user.uid]),
-      });
+      final chatSnapshot = await chatRef.get();
+      if (!chatSnapshot.exists) {
+        await chatRef.set({
+          'isTournamentChat': true,
+          'tournamentId': widget.tournamentId,
+          'title': tourData['title'] ?? 'Chat Turneu',
+          'adminUid': tourData['venueId'] ?? '',
+          'uids': [tourData['venueId'] ?? '', user.uid],
+          'usernames': [tourData['venueName'] ?? 'Club', widget.currentUserData?['username'] ?? 'Player'],
+          'avatars': ['', widget.currentUserData?['avatarUrl'] ?? ''],
+          'lastMessage': 'Chat-ul turneului a fost inițializat.',
+          'lastMessageTime': FieldValue.serverTimestamp(),
+          'onlyAdminCanSend': false,
+        }, SetOptions(merge: true));
+      } else {
+        await chatRef.update({
+          'uids': FieldValue.arrayUnion([user.uid]),
+        });
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -847,9 +863,12 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> with 
 
       // Synchronize in tournament chat room
       final chatRef = FirebaseFirestore.instance.collection('chats').doc('tournament_${widget.tournamentId}');
-      await chatRef.update({
-        'uids': FieldValue.arrayRemove([user.uid]),
-      });
+      final chatSnapshot = await chatRef.get();
+      if (chatSnapshot.exists) {
+        await chatRef.update({
+          'uids': FieldValue.arrayRemove([user.uid]),
+        });
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

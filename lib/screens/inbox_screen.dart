@@ -102,7 +102,8 @@ class _InboxScreenState extends State<InboxScreen> {
           return ListView.separated(
             padding: const EdgeInsets.all(16),
             itemCount: docs.length,
-            separatorBuilder: (context, index) => const SizedBox(height: 12            itemBuilder: (context, index) {
+            separatorBuilder: (context, index) => const SizedBox(height: 12),
+            itemBuilder: (context, index) {
               final data = docs[index].data() as Map<String, dynamic>;
               final chatId = docs[index].id;
               final bool isTournamentChat = data['isTournamentChat'] ?? false;
@@ -220,7 +221,7 @@ class _InboxScreenState extends State<InboxScreen> {
                   },
                 ),
               );
-            }, },
+            },
           );
         },
       ),

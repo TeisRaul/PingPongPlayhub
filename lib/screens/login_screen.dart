@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'signup_screen.dart';
+import 'venue_signup_screen.dart';
 import 'google_login_stub.dart' if (dart.library.io) 'google_login_mobile.dart';
 import 'home_screen.dart';
 import 'forgot_password_screen.dart';
@@ -335,6 +336,31 @@ class _LoginScreenState extends State<LoginScreen> {
                       foregroundColor: const Color(0xFF00E5FF),
                     ),
                     child: const Text('Creează cont nou'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              // Venue Sign Up Link
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text(
+                    'Ești proprietar de sală? ',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const VenueSignupScreen(),
+                        ),
+                      );
+                    },
+                    style: TextButton.styleFrom(
+                      foregroundColor: const Color(0xFFFF0055), // Vibrant neon pink/magenta
+                    ),
+                    child: const Text('Înregistrează-te'),
                   ),
                 ],
               ),
