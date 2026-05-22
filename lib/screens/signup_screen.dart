@@ -3,6 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl_phone_field/intl_phone_field.dart';
 import 'avatar_screen.dart';
+import '../widgets/city_selector.dart';
+import '../data/mock_locations.dart';
 
 class SignupScreen extends StatefulWidget {
   final String? initialFirstName;
@@ -36,6 +38,8 @@ class _SignupScreenState extends State<SignupScreen> {
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _isLoading = false;
+
+  String? _selectedCity;
 
   String _fullPhoneNumber = '';
   double _passwordStrength = 0.0;
@@ -291,6 +295,7 @@ class _SignupScreenState extends State<SignupScreen> {
                                 'email': _emailController.text.trim(),
                                 'phone': _fullPhoneNumber,
                                 'dob': _dobController.text.trim(),
+                                'city': _selectedCity ?? '',
                                 'pingPongLevel': 'Începător',
                                 'matchesPlayed': 0,
                                 'rating': 0,
@@ -451,6 +456,16 @@ class _SignupScreenState extends State<SignupScreen> {
                     prefixIcon: Icon(Icons.calendar_today_outlined),
                   ),
                   validator: (value) => value!.isEmpty ? 'Necesar' : null,
+                ),
+                const SizedBox(height: 16),
+
+                // Oraș
+                CitySelectorField(
+                  label: 'Orașul tău',
+                  selectedCity: _selectedCity,
+                  cityOptions: romanianCities,
+                  onCitySelected: (city) => setState(() => _selectedCity = city),
+                  validator: (val) => (val == null || val.isEmpty) ? 'Selectează orașul tău' : null,
                 ),
                 const SizedBox(height: 16),
 

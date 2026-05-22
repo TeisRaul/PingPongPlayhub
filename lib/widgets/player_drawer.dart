@@ -12,6 +12,7 @@ import '../screens/friends_screen.dart';
 import '../screens/tournaments_screen.dart';
 import '../screens/venue_profile_screen.dart';
 import '../screens/login_screen.dart';
+import '../screens/venue_map_screen.dart';
 
 class PlayerDrawer extends StatefulWidget {
   final String activePage;
@@ -289,6 +290,12 @@ class _PlayerDrawerState extends State<PlayerDrawer> {
                       title: 'Turnee',
                       pageKey: 'tournaments',
                       onTap: () => _navigateTo('tournaments', const TournamentsScreen()),
+                    ),
+                    _buildDrawerItem(
+                      icon: Icons.map_outlined,
+                      title: 'Harta Sălilor',
+                      pageKey: 'venue_map',
+                      onTap: () => _navigateTo('venue_map', const VenueMapScreen()),
                     ),
                   ],
             ),

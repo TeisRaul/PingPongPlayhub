@@ -6,14 +6,13 @@ class LevelUtils {
   /// Calculează detaliile nivelului curent pe baza punctajului (rating/xp)
   static Map<String, dynamic> getLevelDetails(int rating) {
     if (rating < 0) rating = 0;
-    
+
     int levelIndex = rating ~/ pointsPerLevel;
-    
-    // Verificăm dacă a atins Diamond (Nivelul maxim)
+
     if (levelIndex >= tiers.length * subLevels.length) {
       return {
         'levelName': 'Diamond',
-        'progress': 1.0, // Nivel maxim, progres plin
+        'progress': 1.0,
         'currentPointsInLevel': pointsPerLevel,
         'pointsToNextLevel': 0,
         'winPoints': 40,
@@ -23,34 +22,31 @@ class LevelUtils {
 
     int tierIndex = levelIndex ~/ subLevels.length;
     int subLevelIndex = levelIndex % subLevels.length;
-    
     String levelName = '${tiers[tierIndex]} ${subLevels[subLevelIndex]}';
-    
     int currentPointsInLevel = rating % pointsPerLevel;
     double progress = currentPointsInLevel / pointsPerLevel;
-    
-    // Determinare puncte de victorie / înfrângere
+
     int winPoints = 25;
     int losePoints = 0;
-    
-    if (levelIndex == 0) { // Iron I
+
+    if (levelIndex == 0) {
       winPoints = 25; losePoints = 0;
-    } else if (levelIndex == 1 || levelIndex == 2) { // Iron II, III
+    } else if (levelIndex == 1 || levelIndex == 2) {
       winPoints = 25; losePoints = 5;
-    } else if (levelIndex == 3 || levelIndex == 4 || levelIndex == 5) { // Iron IV, Bronze I, II
+    } else if (levelIndex == 3 || levelIndex == 4 || levelIndex == 5) {
       winPoints = 25; losePoints = 10;
-    } else if (levelIndex == 6 || levelIndex == 7) { // Bronze III, IV
+    } else if (levelIndex == 6 || levelIndex == 7) {
       winPoints = 25; losePoints = 15;
-    } else if (levelIndex >= 8 && levelIndex <= 11) { // Silver I-IV
+    } else if (levelIndex >= 8 && levelIndex <= 11) {
       winPoints = 25; losePoints = 25;
-    } else if (levelIndex >= 12 && levelIndex <= 15) { // Gold I-IV
+    } else if (levelIndex >= 12 && levelIndex <= 15) {
       winPoints = 30; losePoints = 25;
-    } else if (levelIndex == 16 || levelIndex == 17) { // Platinum I, II
+    } else if (levelIndex == 16 || levelIndex == 17) {
       winPoints = 30; losePoints = 25;
-    } else if (levelIndex == 18 || levelIndex == 19) { // Platinum III, IV
+    } else if (levelIndex == 18 || levelIndex == 19) {
       winPoints = 30; losePoints = 30;
     }
-    
+
     return {
       'levelName': levelName,
       'progress': progress,
@@ -61,129 +57,171 @@ class LevelUtils {
     };
   }
 
-  /// Calculează punctele câștigate, cu bonus dacă învingătorul avea rating mai mic (categorie inferioară)
+  /// Calculează punctele câștigate, cu bonus dacă învingătorul avea rating mai mic
   static int calculateMatchPoints(int winnerRating, int loserRating) {
     if (winnerRating < 0) winnerRating = 0;
     if (loserRating < 0) loserRating = 0;
 
     int winnerLevelIndex = winnerRating ~/ pointsPerLevel;
     int loserLevelIndex = loserRating ~/ pointsPerLevel;
-
     int winPoints = LevelUtils.getLevelDetails(winnerRating)['winPoints'] as int;
 
-    // Bonus progresiv: Dacă învingătorul are un nivel mai mic decât învinsul, primește bonus.
     if (loserLevelIndex > winnerLevelIndex) {
       int difference = loserLevelIndex - winnerLevelIndex;
-      // Oferim un bonus de 5 puncte pentru fiecare sub-nivel diferență
-      int bonus = difference * 5; 
-      winPoints += bonus;
+      winPoints += difference * 5;
     }
-    
+
     return winPoints;
   }
 
-  /// Extrage tariful orar dinamic pe baza textului introdus de administrator și a orei selectate
+  /// Extrage tariful orar dinamic pe baza textului introdus de administrator și a orei selectate.
+  ///
+  /// Suportă formate:
+  ///   "30 RON/oră înainte de 17:00, 40 RON/oră după 17:00"  ← format standard cu virgulă
+  ///   "30 de lei inainte de 17 si dupa 17 40"               ← format cu "si"
+  ///   "inainte de 17 30, dupa 17 40"                         ← ordine inversă
+  ///   "30 lei pana la 17, 40 lei de la 17"                   ← format cu pana la/de la
+  ///   "50 RON/oră"                                            ← tarif fix
+  ///
+  /// Algoritm: textul este împărțit în segmente (virgulă / punct-virgulă / "si"),
+  /// fiecare segment conținând fie o clauză "înainte-de", fie o clauză "după".
+  /// Procesarea independentă pe segmente elimină capturarea greșită a cifrelor
+  /// din altă clauză (bug-ul care producea 0 lei sau prețuri eronate).
   static double getHourlyPrice(String priceText, int hour) {
-    if (priceText.isEmpty) return 20.0; // fallback default price
-    
-    // Standardizează textul: litere mici și înlocuirea spațiilor multiple
-    final text = priceText.toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
-    
-    // 1. Definim regexurile pentru condițiile "înainte de / până la" (Before)
-    // Scenariul A: [preț] înainte de [oră] (ex: "30 de lei inainte de 17")
-    final beforeRegExp = RegExp(
-      r'(\d+(?:\.\d+)?)\s*(?:de\s*)?(?:ron|lei|/or[aă]|/h)?\s*(?:înainte de|inainte de|până la|pana la|before|<)\s*(?:ora\s*)?(\d{1,2})(?::\d{2})?',
-    );
-    // Scenariul B (revers): înainte de [oră] [preț] (ex: "inainte de 17 30", "inainte de 17: 30 de lei")
-    final beforeRegExpRev = RegExp(
-      r'(?:înainte de|inainte de|până la|pana la|before|<)\s*(?:ora\s*)?(\d{1,2})(?::\d{2})?\s*(?:de\s*)?(?:ron|lei|/or[aă]|/h|:|valoare|costa|este)?\s*(\d+(?:\.\d+)?)',
-    );
+    if (priceText.isEmpty) return 20.0;
 
-    // 2. Definim regexurile pentru condițiile "după / de la" (After)
-    // Scenariul A: [preț] după [oră] (ex: "40 de lei dupa 17")
-    final afterRegExp = RegExp(
-      r'(\d+(?:\.\d+)?)\s*(?:de\s*)?(?:ron|lei|/or[aă]|/h)?\s*(?:după|dupa|de la|after|>)\s*(?:ora\s*)?(\d{1,2})(?::\d{2})?',
+    // Normalizare
+    final text = priceText
+        .toLowerCase()
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .replaceAll('–', '-')
+        .replaceAll('—', '-')
+        .trim();
+
+    // ── Funcții helper locale ────────────────────────────────────────────────
+
+    // Primul număr întreg/zecimal dintr-un string (caută \b...\b)
+    double? firstNum(String s) {
+      final m = RegExp(r'\b(\d+(?:[.,]\d+)?)\b').firstMatch(s);
+      if (m == null) return null;
+      return double.tryParse(m.group(1)!.replaceAll(',', '.'));
+    }
+
+    // Regex pentru ora: 1-2 cifre, opțional urmat de ":MM"
+    // Nu trebuie să înceapă după ':', '/' sau altă cifră (evităm ":00")
+    final hourRe = RegExp(r'(?<![:/\d])(\d{1,2})(?::\d{2})?(?!\d)');
+
+    // Returnează ora din string-ul dat (prima potrivire)
+    int? firstHour(String s) {
+      final m = hourRe.firstMatch(s);
+      return m == null ? null : int.tryParse(m.group(1)!);
+    }
+
+    // ── Extragere preț și oră din segment cu keyword ───────────────────────
+    // Returnează {price, hour} dintr-un segment de tip:
+    //   Format A (preț înaintea keyword-ului): "30 ron/oră KEYWORD 17:00"
+    //   Format B (preț după keyword și oră):   "KEYWORD 17:00 30 lei" / "KEYWORD 17 30"
+    _PriceHour? extractPriceHour(String seg, RegExpMatch kwMatch) {
+      final beforeKw = seg.substring(0, kwMatch.start).trim();
+      final afterKw  = seg.substring(kwMatch.end).trim();
+
+      // Format A: prețul e înaintea keyword-ului
+      final priceA = firstNum(beforeKw);
+      if (priceA != null) {
+        final h = firstHour(afterKw);
+        if (h != null) return _PriceHour(priceA, h);
+      }
+
+      // Format B: prețul e DUPĂ oră (ordine inversă):
+      //   "KEYWORD 17 30 lei"  sau  "KEYWORD ora 17:00 30 lei"
+      final hourM = hourRe.firstMatch(afterKw);
+      if (hourM != null) {
+        final h = int.tryParse(hourM.group(1)!);
+        // prețul se află după oră
+        final afterHourStr = afterKw.substring(hourM.end).trim();
+        final priceB = firstNum(afterHourStr);
+        if (h != null && priceB != null) return _PriceHour(priceB, h);
+      }
+
+      return null;
+    }
+
+    // ── Cuvinte-cheie ────────────────────────────────────────────────────────
+    // "înainte de" acceptă și "inainte de" (fără diacritic î/Î)
+    final befRe = RegExp(
+      r'(?:(?:î|i)nainte\s+de|p[aă]n[aă]\s+la|before(?!\s*de))',
     );
-    // Scenariul B (revers): după [oră] [preț] (ex: "dupa 17 40", "dupa ora 17 este 40 de lei")
-    final afterRegExpRev = RegExp(
-      r'(?:după|dupa|de la|after|>)\s*(?:ora\s*)?(\d{1,2})(?::\d{2})?\s*(?:de\s*)?(?:ron|lei|/or[aă]|/h|:|valoare|costa|este)?\s*(\d+(?:\.\d+)?)',
-    );
+    // "după" acceptă "dupa" fără diacritic; "de la" este alt cuvânt-cheie after
+    final aftRe = RegExp(r'(?:dup[aă]|de\s+la|after)');
+
+    // ── Împărțire în segmente ────────────────────────────────────────────────
+    final segments = text
+        .split(RegExp(r'[,;]|\b(?:si|și)\b'))
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
 
     double? beforePrice;
-    int? beforeHourLimit;
-    
-    // Găsim o regulă "Before" în text
-    final beforeMatch = beforeRegExp.firstMatch(text);
-    if (beforeMatch != null) {
-      beforePrice = double.tryParse(beforeMatch.group(1) ?? '');
-      beforeHourLimit = int.tryParse(beforeMatch.group(2) ?? '');
-    } else {
-      final beforeMatchRev = beforeRegExpRev.firstMatch(text);
-      if (beforeMatchRev != null) {
-        beforeHourLimit = int.tryParse(beforeMatchRev.group(1) ?? '');
-        beforePrice = double.tryParse(beforeMatchRev.group(2) ?? '');
-      }
-    }
-
+    int?    beforeHourLimit;
     double? afterPrice;
-    int? afterHourLimit;
-    
-    // Găsim o regulă "After" în text
-    final afterMatch = afterRegExp.firstMatch(text);
-    if (afterMatch != null) {
-      afterPrice = double.tryParse(afterMatch.group(1) ?? '');
-      afterHourLimit = int.tryParse(afterMatch.group(2) ?? '');
-    } else {
-      final afterMatchRev = afterRegExpRev.firstMatch(text);
-      if (afterMatchRev != null) {
-        afterHourLimit = int.tryParse(afterMatchRev.group(1) ?? '');
-        afterPrice = double.tryParse(afterMatchRev.group(2) ?? '');
+    int?    afterHourLimit;
+
+    for (final seg in segments) {
+      final befM = befRe.firstMatch(seg);
+      final aftM = aftRe.firstMatch(seg);
+
+      if (befM != null && aftM == null) {
+        // Segment cu condiție "înainte de"
+        final ph = extractPriceHour(seg, befM);
+        if (ph != null) {
+          beforePrice = ph.price;
+          beforeHourLimit = ph.hour;
+        }
+      } else if (aftM != null && befM == null) {
+        // Segment cu condiție "după"
+        final ph = extractPriceHour(seg, aftM);
+        if (ph != null) {
+          afterPrice = ph.price;
+          afterHourLimit = ph.hour;
+        }
       }
+      // Segmentele fără keyword sunt tratate ca tarif fix mai jos
     }
 
-    // Dacă ambele condiții limită au fost găsite
-    if (beforePrice != null && beforeHourLimit != null && afterPrice != null && afterHourLimit != null) {
-      if (hour < beforeHourLimit) {
-        return beforePrice;
-      } else {
-        return afterPrice;
-      }
+    // ── Aplicare reguli ──────────────────────────────────────────────────────
+
+    if (beforePrice != null && beforeHourLimit != null &&
+        afterPrice != null && afterHourLimit != null) {
+      return hour < beforeHourLimit ? beforePrice : afterPrice;
     }
-    
-    // Dacă doar condiția "înainte de" este specificată
     if (beforePrice != null && beforeHourLimit != null) {
-      if (hour < beforeHourLimit) {
-        return beforePrice;
-      }
+      return beforePrice;
     }
-
-    // Dacă doar condiția "după" este specificată
     if (afterPrice != null && afterHourLimit != null) {
-      if (hour >= afterHourLimit) {
-        return afterPrice;
-      }
+      return afterPrice;
     }
 
-    // Fallback la valori specifice deduse individual
-    if (beforePrice != null) return beforePrice;
-    if (afterPrice != null) return afterPrice;
-
-    // Fallback: extragere primul număr valid din șir
-    final numberRegExp = RegExp(r'\d+(?:\.\d+)?');
-    final fallbackMatch = numberRegExp.firstMatch(text);
-    if (fallbackMatch != null) {
-      return double.tryParse(fallbackMatch.group(0) ?? '') ?? 20.0;
-    }
+    // Tarif fix simplu: "50 RON/oră", "30 lei" etc.
+    final flat = firstNum(text);
+    if (flat != null && flat > 0) return flat;
 
     return 20.0;
   }
 
   /// Calculează costul total al rezervării pe baza intervalului de ore [startHour, endHour)
   static double calculateTotalBookingPrice(String priceText, int startHour, int endHour) {
+    if (startHour >= endHour) return 0.0;
     double total = 0.0;
     for (int h = startHour; h < endHour; h++) {
       total += getHourlyPrice(priceText, h);
     }
     return total;
   }
+}
+
+/// Structură internă: prețul și ora dintr-un segment de tarif
+class _PriceHour {
+  final double price;
+  final int hour;
+  const _PriceHour(this.price, this.hour);
 }
