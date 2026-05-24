@@ -99,6 +99,170 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  // --- Funcția pentru Autentificare cu Facebook ---
+  Future<void> _signInWithFacebook() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      UserCredential? userCredential;
+
+      if (kIsWeb) {
+        final FacebookAuthProvider facebookProvider = FacebookAuthProvider();
+        userCredential = await FirebaseAuth.instance.signInWithPopup(facebookProvider);
+      } else {
+        // Mobile / fallback Simulator
+        userCredential = await _showFacebookSandboxSimulator();
+        if (userCredential == null) {
+          setState(() => _isLoading = false);
+          return;
+        }
+      }
+
+      final User? user = userCredential?.user;
+
+      if (user != null) {
+        // Verificăm dacă utilizatorul are deja profil în baza noastră de date
+        final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+
+        if (mounted) {
+          if (userDoc.exists) {
+            print("Utilizator existent. Navigare către Home.");
+            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomeScreen()));
+          } else {
+            // Trimitem datele către SignupScreen
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const SignupScreen(
+                  initialFirstName: 'Andrei',
+                  initialLastName: 'Popescu',
+                  initialEmail: 'facebook.sandbox@playhub.ro',
+                ),
+              ),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Eroare la logarea cu Facebook: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<UserCredential?> _showFacebookSandboxSimulator() async {
+    return await showModalBottomSheet<UserCredential?>(
+      context: context,
+      backgroundColor: const Color(0xFF1877F2), // Facebook Blue!
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        bool processing = false;
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const FaIcon(FontAwesomeIcons.facebook, color: Colors.white, size: 36),
+                      const SizedBox(width: 12),
+                      const Text(
+                        'Facebook Sandbox',
+                        style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Aceasta este o simulare securizată de autentificare Facebook pentru modul Sandbox / Dezvoltare.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.white70, fontSize: 13),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Va fi generată o sesiune Firebase Auth reală în fundal utilizând credențialele de test.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.white70, fontSize: 12, fontStyle: FontStyle.italic),
+                  ),
+                  const SizedBox(height: 24),
+                  if (processing)
+                    const Center(child: CircularProgressIndicator(color: Colors.white))
+                  else
+                    ElevatedButton(
+                      onPressed: () async {
+                        setModalState(() => processing = true);
+                        try {
+                          UserCredential creds;
+                          try {
+                            creds = await FirebaseAuth.instance.signInWithEmailAndPassword(
+                              email: 'facebook.sandbox@playhub.ro',
+                              password: 'facebook123',
+                            );
+                          } catch (e) {
+                            creds = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+                              email: 'facebook.sandbox@playhub.ro',
+                              password: 'facebook123',
+                            );
+                            
+                            await FirebaseFirestore.instance.collection('users').doc(creds.user!.uid).set({
+                              'uid': creds.user!.uid,
+                              'firstName': 'Andrei',
+                              'lastName': 'Popescu',
+                              'username': 'andrei_facebook',
+                              'email': 'facebook.sandbox@playhub.ro',
+                              'rating': 1000,
+                              'createdAt': FieldValue.serverTimestamp(),
+                              'wins': 0,
+                              'winRate': '0%',
+                            });
+                          }
+                          Navigator.pop(context, creds);
+                        } catch (err) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Eroare: $err'), backgroundColor: Colors.redAccent),
+                          );
+                          Navigator.pop(context, null);
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: const Color(0xFF1877F2),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                      ),
+                      child: const Text('Continuă ca Andrei Popescu'),
+                    ),
+                  const SizedBox(height: 12),
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, null),
+                    child: const Text('Anulează', style: TextStyle(color: Colors.white70)),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   // --- Funcția pentru Autentificare Email/Parolă (de bază) ---
   Future<void> _handleEmailLogin() async {
     final input = _emailController.text.trim();
@@ -217,6 +381,7 @@ class _LoginScreenState extends State<LoginScreen> {
               TextField(
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
+                textInputAction: TextInputAction.next,
                 decoration: const InputDecoration(
                   labelText: 'Email sau Nume de utilizator',
                   prefixIcon: Icon(Icons.person_outline),
@@ -228,6 +393,8 @@ class _LoginScreenState extends State<LoginScreen> {
               TextField(
                 controller: _passwordController,
                 obscureText: _obscurePassword,
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => _isLoading ? null : _handleEmailLogin(),
                 decoration: InputDecoration(
                   labelText: 'Parolă',
                   prefixIcon: const Icon(Icons.lock_outline),
@@ -299,9 +466,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 16),
               OutlinedButton.icon(
-                onPressed: _isLoading ? null : () {
-                  // TODO: Implement Facebook login (Logica este 99% identică cu cea de la Google)
-                },
+                onPressed: _isLoading ? null : _signInWithFacebook,
                 icon: const FaIcon(FontAwesomeIcons.facebook, color: Color(0xFF1877F2)),
                 label: const Text('Logează-te cu Facebook'),
                 style: OutlinedButton.styleFrom(

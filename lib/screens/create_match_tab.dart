@@ -8,7 +8,14 @@ import '../utils/level_utils.dart';
 import '../widgets/city_selector.dart';
 
 class CreateMatchTab extends StatefulWidget {
-  const CreateMatchTab({super.key});
+  final String? preselectedCity;
+  final String? preselectedVenueId;
+
+  const CreateMatchTab({
+    super.key,
+    this.preselectedCity,
+    this.preselectedVenueId,
+  });
 
   @override
   State<CreateMatchTab> createState() => _CreateMatchTabState();
@@ -22,19 +29,52 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
   // Step 1: Locatie
   String? _selectedCity;
   PingPongLocation? _selectedLocation;
+  String? _selectedTableType; // null = not chosen, 'indoor' or 'outdoor'
   int _maxPlayers = 2;
   String _visibility = 'Public';
   String _matchType = 'Competitiv';
 
   // Step 2: Data, Ora si Masa
   DateTime _selectedDate = DateTime.now();
-  int? _startHour;
-  int? _endHour;
-  List<int> _selectedHours = [];
+  num? _startHour;
+  num? _endHour;
+  List<num> _selectedHours = [];
   int? _selectedTable;
   List<int> _reservedTables = [];
   bool _isDayBlockedFlag = false;
   String? _overlappingTournament;
+
+  List<Map<String, dynamic>> _venueCustomTables = [];
+  Map<String, dynamic>? _venueTrainingConfig;
+  Map<String, dynamic>? _venueData;
+
+  String _formatHour(num hour) {
+    final int h = hour.toInt();
+    final int m = ((hour - h) * 60).round();
+    return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
+  }
+
+  bool _isTrainingActiveForHour(num hour, Map<String, dynamic> config) {
+    if (config['enabled'] == false) return false;
+    final int weekday = _selectedDate.weekday; // 1 = Monday, 7 = Sunday
+    final List<dynamic> days = config['weekdays'] ?? [];
+    if (!days.contains(weekday)) return false;
+
+    final int start = config['startHour'] ?? 17;
+    final int end = config['endHour'] ?? 19;
+    return hour >= start && hour < end;
+  }
+
+  bool _isTableReservedForTraining(Map<String, dynamic> table, Map<String, dynamic>? config) {
+    if (table['type'] != 'training' || config == null) return false;
+    if (_startHour == null || _endHour == null) return false;
+    for (num hour = _startHour!; hour < _endHour!; hour += 0.5) {
+      if (_isTrainingActiveForHour(hour, config)) {
+        return true;
+      }
+    }
+    return false;
+  }
 
   // Step 3: Plata
   String _paymentMethod = 'Cash la locație';
@@ -44,6 +84,9 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
   @override
   void initState() {
     super.initState();
+    if (widget.preselectedCity != null) {
+      _selectedCity = widget.preselectedCity;
+    }
     _loadFirestoreLocations();
   }
 
@@ -75,6 +118,10 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
           closeHour = int.tryParse(endStr) ?? 22;
         }
 
+        final int indoorTables = data['indoorTables'] as int? ?? numTables;
+        final int outdoorTables = data['outdoorTables'] as int? ?? 0;
+        final bool allowHalfHour = data['allowHalfHour'] as bool? ?? false;
+
         fetched.add(PingPongLocation(
           id: id,
           city: city,
@@ -82,8 +129,11 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
           openHour: openHour,
           closeHour: closeHour,
           numTables: numTables,
+          indoorTables: indoorTables,
+          outdoorTables: outdoorTables,
           pricePerHour: (data['pricePerHour'] as num?)?.toDouble() ?? 20.0,
           pricePerHourText: data['pricePerHourText'] as String? ?? '20 RON/oră',
+          allowHalfHour: allowHalfHour,
         ));
       }
 
@@ -99,6 +149,13 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
       if (mounted) {
         setState(() {
           _allLocations = merged;
+          if (widget.preselectedVenueId != null) {
+            final found = merged.any((l) => l.id == widget.preselectedVenueId);
+            if (found) {
+              _selectedLocation = merged.firstWhere((l) => l.id == widget.preselectedVenueId);
+              _selectedCity = _selectedLocation?.city;
+            }
+          }
         });
       }
     } catch (e) {
@@ -131,14 +188,16 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
   }
 
   // --- Step 2 Helpers ---
-  List<int> get _availableHours {
+  List<num> get _availableHours {
     if (_selectedLocation == null) return [];
-    List<int> hours = [];
+    List<num> hours = [];
     final now = DateTime.now();
     bool isToday = _selectedDate.year == now.year && _selectedDate.month == now.month && _selectedDate.day == now.day;
-    int minHour = (now.minute == 0) ? now.hour : now.hour + 1;
+    double minHour = now.hour + (now.minute >= 30 ? 1.0 : (now.minute > 0 ? 0.5 : 0.0));
 
-    for (int i = _selectedLocation!.openHour; i < _selectedLocation!.closeHour; i++) {
+    final double step = _selectedLocation!.allowHalfHour ? 0.5 : 1.0;
+
+    for (double i = _selectedLocation!.openHour.toDouble(); i < _selectedLocation!.closeHour.toDouble(); i += step) {
       if (isToday && i < minHour) continue;
       hours.add(i);
     }
@@ -152,18 +211,43 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
     try {
       final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
       
-      // 1. Verificăm dacă întreaga zi e blocată
+      // 1. Verificăm dacă întreaga zi e blocată și preluăm planul personalizat de mese & configul de antrenament
       bool isDayBlocked = false;
-      final venueQuery = await FirebaseFirestore.instance
-          .collection('venues')
-          .where('venueName', isEqualTo: _selectedLocation!.name)
-          .get();
+      List<Map<String, dynamic>> customTables = [];
+      Map<String, dynamic>? trainingConfig;
 
-      if (venueQuery.docs.isNotEmpty) {
-        final data = venueQuery.docs.first.data();
-        final blockedDates = List<dynamic>.from(data['blockedDates'] ?? []);
+      Map<String, dynamic>? venueData;
+      try {
+        final venueDoc = await FirebaseFirestore.instance
+            .collection('venues')
+            .doc(_selectedLocation!.id)
+            .get();
+        if (venueDoc.exists) {
+          venueData = venueDoc.data();
+        }
+      } catch (_) {}
+
+      if (venueData == null) {
+        // Fallback la căutare după nume în cazul locațiilor fictive / mock
+        final venueQuery = await FirebaseFirestore.instance
+            .collection('venues')
+            .where('venueName', isEqualTo: _selectedLocation!.name)
+            .get();
+        if (venueQuery.docs.isNotEmpty) {
+          venueData = venueQuery.docs.first.data();
+        }
+      }
+
+      if (venueData != null) {
+        final blockedDates = List<dynamic>.from(venueData['blockedDates'] ?? []);
         if (blockedDates.contains(dateStr)) {
           isDayBlocked = true;
+        }
+        if (venueData.containsKey('customTables')) {
+          customTables = List<Map<String, dynamic>>.from(venueData['customTables'] ?? []);
+        }
+        if (venueData.containsKey('trainingConfig')) {
+          trainingConfig = Map<String, dynamic>.from(venueData['trainingConfig'] ?? {});
         }
       }
 
@@ -217,8 +301,21 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
         _reservedTables = reserved;
         _isDayBlockedFlag = isDayBlocked;
         _overlappingTournament = overlappingTournamentTitle;
-        if (_selectedTable != null && (reserved.contains(_selectedTable) || isDayBlocked || overlappingTournamentTitle != null)) {
-          _selectedTable = null; // deselect if it became reserved or blocked
+        _venueCustomTables = customTables;
+        _venueTrainingConfig = trainingConfig;
+        _venueData = venueData;
+
+        if (_selectedTable != null) {
+          bool stillAvailable = !reserved.contains(_selectedTable);
+          if (stillAvailable && customTables.isNotEmpty) {
+            final tbl = customTables.firstWhere((t) => t['tableId'] == _selectedTable, orElse: () => {});
+            if (tbl.isNotEmpty && _isTableReservedForTraining(tbl, trainingConfig)) {
+              stillAvailable = false;
+            }
+          }
+          if (!stillAvailable || isDayBlocked || overlappingTournamentTitle != null) {
+            _selectedTable = null; // deselect if blocked, reserved or in training
+          }
         }
       });
     } catch (e) {
@@ -328,6 +425,23 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
         'role': 'host'
       };
 
+      double totalAmount = 0.0;
+      if (_selectedLocation != null && _startHour != null && _endHour != null) {
+        if (_venueData != null) {
+          totalAmount = LevelUtils.calculateVenueBookingPrice(
+            venueData: _venueData!,
+            startHour: _startHour!,
+            endHour: _endHour!,
+          );
+        } else {
+          totalAmount = LevelUtils.calculateTotalBookingPrice(
+            _selectedLocation!.pricePerHourText,
+            _startHour!,
+            _endHour!,
+          );
+        }
+      }
+
       await FirebaseFirestore.instance.collection('matches').add({
         'hostUid': user.uid,
         'hostUsername': username,
@@ -346,9 +460,12 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
         'startHour': _startHour,
         'endHour': _endHour,
         'tableId': _selectedTable,
+        'tableType': _selectedTableType,
         'paymentMethod': _paymentMethod,
         'paymentSplit': 'Achitat integral',
+        'paymentStatus': _paymentMethod.contains('Card') ? 'confirmed' : 'pending',
         'status': 'open',
+        'price': totalAmount,
         'createdAt': FieldValue.serverTimestamp(),
       });
 
@@ -361,6 +478,7 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
           _currentStep = 0;
           _selectedCity = null;
           _selectedLocation = null;
+          _selectedTableType = null;
           _startHour = null;
           _endHour = null;
           _selectedHours.clear();
@@ -392,6 +510,10 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
           if (_currentStep == 0) {
             if (_selectedCity == null || _selectedLocation == null) {
               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Alege orașul și locația.'), backgroundColor: Colors.redAccent));
+              return;
+            }
+            if (_selectedTableType == null) {
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Alege tipul mesei: Indoor sau Outdoor.'), backgroundColor: Colors.redAccent));
               return;
             }
           } else if (_currentStep == 1) {
@@ -476,6 +598,7 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
                     setState(() {
                       _selectedCity = val;
                       _selectedLocation = null;
+                      _selectedTableType = null;
                     });
                   },
                 ),
@@ -487,6 +610,7 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
                   onChanged: _selectedCity == null ? null : (val) {
                     setState(() {
                       _selectedLocation = val;
+                      _selectedTableType = null;
                       _startHour = null;
                       _endHour = null;
                       _selectedHours.clear();
@@ -494,6 +618,157 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
                     });
                   },
                 ),
+                if (_selectedLocation != null) ...[
+                  const SizedBox(height: 20),
+                  const Text('Tip Masă', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Indoor: ${_selectedLocation!.indoorTables} mese  •  Outdoor: ${_selectedLocation!.outdoorTables} mese',
+                    style: const TextStyle(color: Colors.grey, fontSize: 12),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: _selectedLocation!.indoorTables > 0
+                              ? () => setState(() {
+                                    _selectedTableType = 'indoor';
+                                    _selectedTable = null;
+                                  })
+                              : null,
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            decoration: BoxDecoration(
+                              color: _selectedTableType == 'indoor'
+                                  ? const Color(0xFF00E5FF).withValues(alpha: 0.2)
+                                  : _selectedLocation!.indoorTables == 0
+                                      ? Colors.grey.withValues(alpha: 0.1)
+                                      : const Color(0xFF1E293B),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: _selectedTableType == 'indoor'
+                                    ? const Color(0xFF00E5FF)
+                                    : _selectedLocation!.indoorTables == 0
+                                        ? Colors.grey.withValues(alpha: 0.3)
+                                        : Colors.grey[700]!,
+                                width: _selectedTableType == 'indoor' ? 2 : 1,
+                              ),
+                            ),
+                            child: Column(
+                              children: [
+                                Icon(
+                                  Icons.house_outlined,
+                                  color: _selectedTableType == 'indoor'
+                                      ? const Color(0xFF00E5FF)
+                                      : _selectedLocation!.indoorTables == 0
+                                          ? Colors.grey[600]
+                                          : Colors.white70,
+                                  size: 28,
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  'Indoor',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: _selectedTableType == 'indoor'
+                                        ? const Color(0xFF00E5FF)
+                                        : _selectedLocation!.indoorTables == 0
+                                            ? Colors.grey[600]
+                                            : Colors.white,
+                                  ),
+                                ),
+                                Text(
+                                  '${_selectedLocation!.indoorTables} mese',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: _selectedLocation!.indoorTables == 0
+                                        ? Colors.grey[600]
+                                        : Colors.grey,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: _selectedLocation!.outdoorTables > 0
+                              ? () => setState(() {
+                                    _selectedTableType = 'outdoor';
+                                    _selectedTable = null;
+                                  })
+                              : null,
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            decoration: BoxDecoration(
+                              color: _selectedTableType == 'outdoor'
+                                  ? const Color(0xFF00FF66).withValues(alpha: 0.2)
+                                  : _selectedLocation!.outdoorTables == 0
+                                      ? Colors.grey.withValues(alpha: 0.1)
+                                      : const Color(0xFF1E293B),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: _selectedTableType == 'outdoor'
+                                    ? const Color(0xFF00FF66)
+                                    : _selectedLocation!.outdoorTables == 0
+                                        ? Colors.grey.withValues(alpha: 0.3)
+                                        : Colors.grey[700]!,
+                                width: _selectedTableType == 'outdoor' ? 2 : 1,
+                              ),
+                            ),
+                            child: Column(
+                              children: [
+                                Icon(
+                                  Icons.park_outlined,
+                                  color: _selectedTableType == 'outdoor'
+                                      ? const Color(0xFF00FF66)
+                                      : _selectedLocation!.outdoorTables == 0
+                                          ? Colors.grey[600]
+                                          : Colors.white70,
+                                  size: 28,
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  'Outdoor',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: _selectedTableType == 'outdoor'
+                                        ? const Color(0xFF00FF66)
+                                        : _selectedLocation!.outdoorTables == 0
+                                            ? Colors.grey[600]
+                                            : Colors.white,
+                                  ),
+                                ),
+                                Text(
+                                  '${_selectedLocation!.outdoorTables} mese',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: _selectedLocation!.outdoorTables == 0
+                                        ? Colors.grey[600]
+                                        : Colors.grey,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (_selectedTableType == null)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 6),
+                      child: Text(
+                        '⬆ Selectează Indoor sau Outdoor',
+                        style: TextStyle(color: Colors.orangeAccent, fontSize: 12, fontStyle: FontStyle.italic),
+                      ),
+                    ),
+                ],
                 const SizedBox(height: 24),
                 const Text('Setări Meci', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                 const SizedBox(height: 8),
@@ -591,17 +866,18 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
                         children: _availableHours.map((h) {
                           final isSelected = _selectedHours.contains(h);
                           return ChoiceChip(
-                            label: Text('$h:00'),
+                            label: Text(_formatHour(h)),
                             selected: isSelected,
                             selectedColor: const Color(0xFF00E5FF),
                             labelStyle: TextStyle(color: isSelected ? Colors.black : Colors.white),
                             onSelected: (selected) {
                               setState(() {
+                                final double step = (_selectedLocation?.allowHalfHour ?? false) ? 0.5 : 1.0;
                                 if (selected) {
                                   if (_selectedHours.isEmpty) {
                                     _selectedHours.add(h);
                                   } else {
-                                    if (h == _selectedHours.first - 1 || h == _selectedHours.last + 1) {
+                                    if ((h - _selectedHours.first).abs() < step + 0.01 || (h - _selectedHours.last).abs() < step + 0.01) {
                                       _selectedHours.add(h);
                                       _selectedHours.sort();
                                     } else {
@@ -609,7 +885,7 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
                                     }
                                   }
                                 } else {
-                                  if (h == _selectedHours.first || h == _selectedHours.last) {
+                                  if ((h - _selectedHours.first).abs() < 0.01 || (h - _selectedHours.last).abs() < 0.01) {
                                     _selectedHours.remove(h);
                                   } else {
                                     _selectedHours.clear();
@@ -618,7 +894,7 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
 
                                 if (_selectedHours.isNotEmpty) {
                                   _startHour = _selectedHours.first;
-                                  _endHour = _selectedHours.last + 1;
+                                  _endHour = _selectedHours.last + step;
                                 } else {
                                   _startHour = null;
                                   _endHour = null;
@@ -645,58 +921,156 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(color: Colors.grey[800]!),
                           ),
-                          child: GridView.builder(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 3,
-                              crossAxisSpacing: 12,
-                              mainAxisSpacing: 12,
-                              childAspectRatio: 1.2,
-                            ),
-                            itemCount: _selectedLocation!.numTables,
-                            itemBuilder: (context, index) {
-                              final tableId = index + 1;
-                              final isReserved = _reservedTables.contains(tableId);
-                              final isTableBlocked = isReserved || _isDayBlockedFlag || _overlappingTournament != null;
-                              final isSelected = _selectedTable == tableId;
+                          child: Builder(
+                            builder: (context) {
+                              if (_venueCustomTables.isNotEmpty) {
+                                final List<Map<String, dynamic>> visibleTables = _venueCustomTables.where((table) {
+                                  final type = table['type'] ?? 'indoor';
+                                  if (_selectedTableType == 'outdoor') {
+                                    return type == 'outdoor';
+                                  } else {
+                                    // Treat indoor and training as indoor category
+                                    return type == 'indoor' || type == 'training';
+                                  }
+                                }).toList();
 
-                              String statusText = 'Liberă';
-                              if (_isDayBlockedFlag) {
-                                statusText = 'Zi închisă';
-                              } else if (_overlappingTournament != null) {
-                                statusText = 'Turneu';
-                              } else if (isReserved) {
-                                statusText = 'Ocupată';
+                                return GridView.builder(
+                                  shrinkWrap: true,
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: 3,
+                                    crossAxisSpacing: 12,
+                                    mainAxisSpacing: 12,
+                                    childAspectRatio: 1.2,
+                                  ),
+                                  itemCount: visibleTables.length,
+                                  itemBuilder: (context, index) {
+                                    final table = visibleTables[index];
+                                    final tableId = table['tableId'] as int;
+                                    final tableName = table['name'] ?? 'Masa $tableId';
+                                    final isReserved = _reservedTables.contains(tableId);
+                                    final isTrainingBlocked = _isTableReservedForTraining(table, _venueTrainingConfig);
+                                    final isTableBlocked = isReserved || isTrainingBlocked || _isDayBlockedFlag || _overlappingTournament != null;
+                                    final isSelected = _selectedTable == tableId;
+
+                                    String statusText = 'Liberă';
+                                    if (_isDayBlockedFlag) {
+                                      statusText = 'Zi închisă';
+                                    } else if (_overlappingTournament != null) {
+                                      statusText = 'Turneu';
+                                    } else if (isReserved) {
+                                      statusText = 'Ocupată';
+                                    } else if (isTrainingBlocked) {
+                                      statusText = 'Antrenament';
+                                    }
+
+                                    final Color blockedColor = isTrainingBlocked ? Colors.purpleAccent : Colors.redAccent;
+                                    final Color blockedBgColor = isTrainingBlocked ? Colors.purple.withOpacity(0.15) : Colors.red.withOpacity(0.15);
+                                    final Color activeBorderColor = isTableBlocked ? blockedColor : (isSelected ? const Color(0xFF00E5FF) : Colors.grey[800]!);
+                                    final Color activeBgColor = isTableBlocked ? blockedBgColor : (isSelected ? const Color(0xFF00E5FF).withOpacity(0.3) : const Color(0xFF1E293B));
+                                    final Color contentColor = isTableBlocked ? blockedColor : (isSelected ? const Color(0xFF00E5FF) : Colors.grey);
+
+                                    final IconData tableIcon = table['type'] == 'training' 
+                                        ? Icons.school 
+                                        : (table['type'] == 'outdoor' ? Icons.wb_sunny : Icons.table_restaurant);
+
+                                    return GestureDetector(
+                                      onTap: isTableBlocked ? () {
+                                        if (isTrainingBlocked) {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(
+                                              content: Text('$tableName este rezervată automat pentru antrenamentul copiilor.'),
+                                              backgroundColor: Colors.purple,
+                                            ),
+                                          );
+                                        }
+                                      } : () {
+                                        setState(() => _selectedTable = tableId);
+                                      },
+                                      child: AnimatedContainer(
+                                        duration: const Duration(milliseconds: 200),
+                                        decoration: BoxDecoration(
+                                          color: activeBgColor,
+                                          border: Border.all(
+                                            color: activeBorderColor,
+                                            width: 1.5,
+                                          ),
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                        child: Center(
+                                          child: Column(
+                                            mainAxisAlignment: MainAxisAlignment.center,
+                                            children: [
+                                              Icon(tableIcon, size: 20, color: contentColor),
+                                              const SizedBox(height: 4),
+                                              Text(tableName, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isTableBlocked ? blockedColor : Colors.white), overflow: TextOverflow.ellipsis, textAlign: TextAlign.center),
+                                              Text(statusText, style: TextStyle(fontSize: 10, color: isTableBlocked ? blockedColor : Colors.grey)),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                );
+                              } else {
+                                // Fallback secvențial clasic
+                                return GridView.builder(
+                                  shrinkWrap: true,
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: 3,
+                                    crossAxisSpacing: 12,
+                                    mainAxisSpacing: 12,
+                                    childAspectRatio: 1.2,
+                                  ),
+                                  itemCount: _selectedTableType == 'outdoor'
+                                      ? _selectedLocation!.outdoorTables
+                                      : _selectedLocation!.indoorTables,
+                                  itemBuilder: (context, index) {
+                                    final tableId = index + 1;
+                                    final isReserved = _reservedTables.contains(tableId);
+                                    final isTableBlocked = isReserved || _isDayBlockedFlag || _overlappingTournament != null;
+                                    final isSelected = _selectedTable == tableId;
+
+                                    String statusText = 'Liberă';
+                                    if (_isDayBlockedFlag) {
+                                      statusText = 'Zi închisă';
+                                    } else if (_overlappingTournament != null) {
+                                      statusText = 'Turneu';
+                                    } else if (isReserved) {
+                                      statusText = 'Ocupată';
+                                    }
+
+                                    return GestureDetector(
+                                      onTap: isTableBlocked ? null : () {
+                                        setState(() => _selectedTable = tableId);
+                                      },
+                                      child: AnimatedContainer(
+                                        duration: const Duration(milliseconds: 200),
+                                        decoration: BoxDecoration(
+                                          color: isTableBlocked ? Colors.red.withOpacity(0.15) : (isSelected ? const Color(0xFF00E5FF).withOpacity(0.3) : const Color(0xFF1E293B)),
+                                          border: Border.all(
+                                            color: isTableBlocked ? Colors.redAccent : (isSelected ? const Color(0xFF00E5FF) : Colors.grey[800]!),
+                                            width: 1.5,
+                                          ),
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                        child: Center(
+                                          child: Column(
+                                            mainAxisAlignment: MainAxisAlignment.center,
+                                            children: [
+                                              Icon(Icons.table_restaurant, size: 20, color: isTableBlocked ? Colors.redAccent : (isSelected ? const Color(0xFF00E5FF) : Colors.grey)),
+                                              const SizedBox(height: 4),
+                                              Text('Masa $tableId', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isTableBlocked ? Colors.redAccent : Colors.white)),
+                                              Text(statusText, style: TextStyle(fontSize: 10, color: isTableBlocked ? Colors.redAccent : Colors.grey)),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                );
                               }
-
-                              return GestureDetector(
-                                onTap: isTableBlocked ? null : () {
-                                  setState(() => _selectedTable = tableId);
-                                },
-                                child: AnimatedContainer(
-                                  duration: const Duration(milliseconds: 200),
-                                  decoration: BoxDecoration(
-                                    color: isTableBlocked ? Colors.red.withOpacity(0.15) : (isSelected ? const Color(0xFF00E5FF).withOpacity(0.3) : const Color(0xFF1E293B)),
-                                    border: Border.all(
-                                      color: isTableBlocked ? Colors.redAccent : (isSelected ? const Color(0xFF00E5FF) : Colors.grey[800]!),
-                                      width: 1.5,
-                                    ),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Center(
-                                    child: Column(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: [
-                                        Icon(Icons.table_restaurant, size: 20, color: isTableBlocked ? Colors.redAccent : (isSelected ? const Color(0xFF00E5FF) : Colors.grey)),
-                                        const SizedBox(height: 4),
-                                        Text('Masa $tableId', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isTableBlocked ? Colors.redAccent : Colors.white)),
-                                        Text(statusText, style: TextStyle(fontSize: 10, color: isTableBlocked ? Colors.redAccent : Colors.grey)),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              );
                             },
                           ),
                         ),
@@ -716,11 +1090,19 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
                     double totalAmount = 0.0;
                     String priceInfo = 'Tarif pe oră: ${_selectedLocation?.pricePerHourText ?? "20 RON/oră"}';
                     if (_selectedLocation != null && _startHour != null && _endHour != null) {
-                      totalAmount = LevelUtils.calculateTotalBookingPrice(
-                        _selectedLocation!.pricePerHourText,
-                        _startHour!,
-                        _endHour!,
-                      );
+                      if (_venueData != null) {
+                        totalAmount = LevelUtils.calculateVenueBookingPrice(
+                          venueData: _venueData!,
+                          startHour: _startHour!,
+                          endHour: _endHour!,
+                        );
+                      } else {
+                        totalAmount = LevelUtils.calculateTotalBookingPrice(
+                          _selectedLocation!.pricePerHourText,
+                          _startHour!,
+                          _endHour!,
+                        );
+                      }
                     }
                     return Container(
                       padding: const EdgeInsets.all(12),
@@ -780,7 +1162,8 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
                   _summaryRow(Icons.location_on, 'Locație', '${_selectedLocation?.name ?? '-'} (${_selectedCity ?? '-'})'),
                   _summaryRow(Icons.calendar_today, 'Data', DateFormat('dd MMM yyyy').format(_selectedDate)),
                   _summaryRow(Icons.access_time, 'Interval Orare', '${_startHour ?? '-'}:00 - ${_endHour ?? '-'}:00 (${((_endHour ?? 0) - (_startHour ?? 0))} ore)'),
-                  _summaryRow(Icons.table_restaurant, 'Masa', _selectedTable != null ? 'Masa $_selectedTable' : '-'),
+                  _summaryRow(Icons.table_restaurant, 'Masa', _selectedTable != null ? 'Masa $_selectedTable (${_selectedTableType ?? 'N/A'})' : '-'),
+                  _summaryRow(Icons.house_outlined, 'Tip', _selectedTableType == 'indoor' ? '🏠 Indoor' : _selectedTableType == 'outdoor' ? '🌳 Outdoor' : '-'),
                   const Divider(color: Colors.grey),
                   _summaryRow(Icons.emoji_events, 'Tip Meci', _matchType),
                   _summaryRow(Icons.payment, 'Plată', _paymentMethod),
@@ -788,11 +1171,17 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
                     Icons.monetization_on,
                     'Cost Total',
                     '${_selectedLocation != null && _startHour != null && _endHour != null
-                        ? LevelUtils.calculateTotalBookingPrice(
-                            _selectedLocation!.pricePerHourText,
-                            _startHour!,
-                            _endHour!,
-                          ).toStringAsFixed(0)
+                        ? (_venueData != null
+                            ? LevelUtils.calculateVenueBookingPrice(
+                                venueData: _venueData!,
+                                startHour: _startHour!,
+                                endHour: _endHour!,
+                              )
+                            : LevelUtils.calculateTotalBookingPrice(
+                                _selectedLocation!.pricePerHourText,
+                                _startHour!,
+                                _endHour!,
+                              )).toStringAsFixed(0)
                         : ((_endHour ?? 0) - (_startHour ?? 0)) * 20} RON',
                   ),
                 ],

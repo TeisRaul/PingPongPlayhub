@@ -13,6 +13,8 @@ import 'notifications_screen.dart';
 import 'inbox_screen.dart';
 import 'tournaments_screen.dart';
 import 'venue_profile_screen.dart';
+import 'venue_booking_history_screen.dart';
+import 'venue_tables_layout_screen.dart';
 import '../widgets/player_drawer.dart';
 
 class ParallelogramClipper extends CustomClipper<Path> {
@@ -426,10 +428,30 @@ class _HomeScreenState extends State<HomeScreen> {
         List<QueryDocumentSnapshot> activeMatches = [];
 
         if (snapshot.hasData) {
+          final now = DateTime.now();
           activeMatches = snapshot.data!.docs.where((doc) {
             final data = doc.data() as Map<String, dynamic>;
             final String status = data['status'] ?? 'open';
-            return status != 'cancelled' && status != 'completed';
+            if (status == 'cancelled' || status == 'completed') return false;
+
+            // Filter out past matches
+            final String dateStr = data['date'] ?? '';
+            final int endHour = data['endHour'] ?? 0;
+            if (dateStr.isNotEmpty) {
+              try {
+                final parts = dateStr.split('-');
+                if (parts.length == 3) {
+                  final matchEnd = DateTime(
+                    int.parse(parts[0]),
+                    int.parse(parts[1]),
+                    int.parse(parts[2]),
+                    endHour,
+                  );
+                  if (matchEnd.isBefore(now)) return false;
+                }
+              } catch (_) {}
+            }
+            return true;
           }).toList();
           scheduledMatchesCount = activeMatches.length;
         }
@@ -682,6 +704,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     final List<dynamic> joined = matchData['joinedPlayers'] ?? [];
                     final String visibility = matchData['visibility'] ?? 'Public';
                     final bool isPrivate = visibility.toLowerCase() == 'private';
+                    final double price = (matchData['price'] as num?)?.toDouble() ?? 0.0;
 
                     Color statusColor = const Color(0xFF00E5FF);
                     if (status == 'matched') {
@@ -724,11 +747,15 @@ class _HomeScreenState extends State<HomeScreen> {
                                         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.white),
                                         overflow: TextOverflow.ellipsis,
                                       ),
-                                      Text(
-                                        matchData['hostLevel'] ?? 'Jucător',
-                                        style: const TextStyle(fontSize: 12, color: Color(0xFF00E5FF)),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
+                                      if (!((matchData['hostUid'] ?? '').toString().startsWith('offline_') ||
+                                          matchData['hostLevel'] == '' ||
+                                          matchData['hostLevel'] == '-' ||
+                                          matchData['hostUid'] == matchData['locationId']))
+                                        Text(
+                                          matchData['hostLevel'] ?? 'Jucător',
+                                          style: const TextStyle(fontSize: 12, color: Color(0xFF00E5FF)),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
                                     ],
                                   ),
                                 ),
@@ -828,6 +855,12 @@ class _HomeScreenState extends State<HomeScreen> {
                                   isFriendly ? 'Amical' : 'Competitiv',
                                   isFriendly ? Colors.purpleAccent : const Color(0xFF00E5FF),
                                 ),
+                                if (price > 0)
+                                  _buildBadge(
+                                    Icons.payments_outlined,
+                                    'De plată: ${price.toStringAsFixed(0)} RON',
+                                    const Color(0xFFFFD700),
+                                  ),
                               ],
                             ),
                           ],
@@ -1156,6 +1189,31 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ],
           ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => VenueBookingHistoryScreen(
+                      venueName: userData?['venueName'] ?? '',
+                    ),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.history_outlined, size: 20),
+              label: const Text('Istoric Rezervări & Meciuri'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF131A2A),
+                foregroundColor: const Color(0xFF00E5FF),
+                side: const BorderSide(color: Color(0xFF00E5FF), width: 1.2),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+            ),
+          ),
 
           if (blockedDates.isNotEmpty) ...[
             const SizedBox(height: 16),
@@ -1222,10 +1280,19 @@ class _HomeScreenState extends State<HomeScreen> {
 
               final rawDocs = snapshot.data?.docs ?? [];
               
-              // Filter active bookings client side
+              // Filter active bookings client side (exclude completed, cancelled, and past bookings)
               final docs = rawDocs.where((doc) {
                 final data = doc.data() as Map<String, dynamic>;
-                return data['status'] != 'completed';
+                final String status = data['status'] ?? 'open';
+                if (status == 'completed' || status == 'cancelled') return false;
+                try {
+                  final dateStr = data['date'] as String;
+                  final endHour = data['endHour'] as int;
+                  final matchEnd = DateTime.parse('$dateStr ${endHour.toString().padLeft(2, '0')}:00:00');
+                  return DateTime.now().isBefore(matchEnd);
+                } catch (_) {
+                  return true;
+                }
               }).toList();
 
               // Sort by date (ascending) and hour
@@ -1277,126 +1344,141 @@ class _HomeScreenState extends State<HomeScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // --- TODAY SUMMARY CARD ---
-                  Card(
-                    color: const Color(0xFF0D1424),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      side: const BorderSide(color: Color(0xFF00E5FF), width: 1.5),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              const Icon(Icons.today, color: Color(0xFF00E5FF), size: 24),
-                              const SizedBox(width: 8),
-                              const Text(
-                                'ASTĂZI LA CLUB',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 1.2,
-                                ),
-                              ),
-                              const Spacer(),
-                              Text(
-                                DateFormat('dd MMM yyyy').format(DateTime.now()),
-                                style: const TextStyle(color: Colors.grey, fontSize: 13),
-                              ),
-                            ],
+                  InkWell(
+                    borderRadius: BorderRadius.circular(16),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => VenueTablesLayoutScreen(
+                            venueId: FirebaseAuth.instance.currentUser!.uid,
+                            venueName: userData?['venueName'] ?? 'Sală de Ping-Pong',
+                            isAdmin: true,
                           ),
-                          const Divider(color: Color(0xFF00E5FF), height: 24, thickness: 1),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Text('Meciuri azi', style: TextStyle(color: Colors.grey, fontSize: 11)),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      '$todayMatchesCount',
-                                      style: const TextStyle(
-                                        color: Color(0xFF00E5FF),
-                                        fontSize: 28,
-                                        fontWeight: FontWeight.bold,
-                                        shadows: [
-                                          Shadow(color: Color(0xFF00E5FF), blurRadius: 8),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
+                        ),
+                      );
+                    },
+                    child: Card(
+                      color: const Color(0xFF0D1424),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        side: const BorderSide(color: Color(0xFF00E5FF), width: 1.5),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(Icons.today, color: Color(0xFF00E5FF), size: 24),
+                                const SizedBox(width: 8),
+                                const Text(
+                                  'ASTĂZI LA CLUB',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 1.2,
+                                  ),
                                 ),
-                              ),
-                              Container(width: 1, height: 40, color: Colors.grey[800]),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                flex: 2,
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Text('Mese ocupate', style: TextStyle(color: Colors.grey, fontSize: 11)),
-                                    const SizedBox(height: 6),
-                                    todayReservedTables.isEmpty
-                                        ? const Text('Nicio masă ocupată', style: TextStyle(color: Colors.grey, fontSize: 13))
-                                        : Wrap(
-                                            spacing: 6,
-                                            runSpacing: 6,
-                                            children: todayReservedTables.map((t) {
-                                              return Container(
-                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                                decoration: BoxDecoration(
-                                                  color: const Color(0xFFFF0055).withOpacity(0.15),
-                                                  border: Border.all(color: const Color(0xFFFF0055), width: 1),
-                                                  borderRadius: BorderRadius.circular(6),
-                                                ),
-                                                child: Text(
-                                                  'Masa $t',
-                                                  style: const TextStyle(
-                                                    color: Color(0xFFFF0055),
-                                                    fontSize: 10,
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                ),
-                                              );
-                                            }).toList(),
-                                          ),
-                                  ],
+                                const Spacer(),
+                                Text(
+                                  DateFormat('dd MMM yyyy').format(DateTime.now()),
+                                  style: const TextStyle(color: Colors.grey, fontSize: 13),
                                 ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          const Text('Intervale active azi:', style: TextStyle(color: Colors.grey, fontSize: 11)),
-                          const SizedBox(height: 6),
-                          todayIntervals.isEmpty
-                              ? const Text('Niciun interval rezervat', style: TextStyle(color: Colors.grey, fontSize: 13))
-                              : Wrap(
-                                  spacing: 6,
-                                  runSpacing: 6,
-                                  children: todayIntervals.map((interval) {
-                                    return Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFF00E5FF).withOpacity(0.1),
-                                        border: Border.all(color: const Color(0xFF00E5FF).withOpacity(0.5), width: 1),
-                                        borderRadius: BorderRadius.circular(6),
-                                      ),
-                                      child: Text(
-                                        interval,
+                              ],
+                            ),
+                            const Divider(color: Color(0xFF00E5FF), height: 24, thickness: 1),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Text('Meciuri azi', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        '$todayMatchesCount',
                                         style: const TextStyle(
-                                          color: Colors.white70,
-                                          fontSize: 11,
+                                          color: Color(0xFF00E5FF),
+                                          fontSize: 28,
                                           fontWeight: FontWeight.bold,
+                                          shadows: [
+                                            Shadow(color: Color(0xFF00E5FF), blurRadius: 8),
+                                          ],
                                         ),
                                       ),
-                                    );
-                                  }).toList(),
+                                    ],
+                                  ),
                                 ),
-                        ],
+                                Container(width: 1, height: 40, color: Colors.grey[800]),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  flex: 2,
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Text('Mese ocupate', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                                      const SizedBox(height: 6),
+                                      todayReservedTables.isEmpty
+                                          ? const Text('Nicio masă ocupată', style: TextStyle(color: Colors.grey, fontSize: 13))
+                                          : Wrap(
+                                              spacing: 6,
+                                              runSpacing: 6,
+                                              children: todayReservedTables.map((t) {
+                                                return Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                  decoration: BoxDecoration(
+                                                    color: const Color(0xFFFF0055).withOpacity(0.15),
+                                                    border: Border.all(color: const Color(0xFFFF0055), width: 1),
+                                                    borderRadius: BorderRadius.circular(6),
+                                                  ),
+                                                  child: Text(
+                                                    'Masa $t',
+                                                    style: const TextStyle(
+                                                      color: Color(0xFFFF0055),
+                                                      fontSize: 10,
+                                                      fontWeight: FontWeight.bold,
+                                                    ),
+                                                  ),
+                                                );
+                                              }).toList(),
+                                            ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            const Text('Intervale active azi:', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                            const SizedBox(height: 6),
+                            todayIntervals.isEmpty
+                                ? const Text('Niciun interval rezervat', style: TextStyle(color: Colors.grey, fontSize: 13))
+                                : Wrap(
+                                    spacing: 6,
+                                    runSpacing: 6,
+                                    children: todayIntervals.map((interval) {
+                                      return Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFF00E5FF).withOpacity(0.1),
+                                          border: Border.all(color: const Color(0xFF00E5FF).withOpacity(0.5), width: 1),
+                                          borderRadius: BorderRadius.circular(6),
+                                        ),
+                                        child: Text(
+                                          interval,
+                                          style: const TextStyle(
+                                            color: Colors.white70,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      );
+                                    }).toList(),
+                                  ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -1450,6 +1532,12 @@ class _HomeScreenState extends State<HomeScreen> {
                         final String payment = data['paymentMethod'] ?? 'Cash la locație';
                         final bool isCard = payment.contains('Card');
 
+                        final String paymentStatus = data['paymentStatus'] ?? 'pending';
+                        final bool isPaid = isCard || paymentStatus == 'confirmed';
+                        final double price = (data['price'] as num?)?.toDouble() ?? 0.0;
+                        
+                        final bool canConfirmCash = !isPaid && !isCard && status != 'cancelled';
+
                         Color statusColor = const Color(0xFF00E5FF);
                         if (isCancelled) {
                           statusColor = Colors.redAccent;
@@ -1494,11 +1582,15 @@ class _HomeScreenState extends State<HomeScreen> {
                                             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
                                             overflow: TextOverflow.ellipsis,
                                           ),
-                                          Text(
-                                            data['hostLevel'] ?? 'Jucător',
-                                            style: const TextStyle(fontSize: 12, color: Color(0xFF00E5FF)),
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
+                                          if (!((data['hostUid'] ?? '').toString().startsWith('offline_') ||
+                                              data['hostUid'] == FirebaseAuth.instance.currentUser?.uid ||
+                                              data['hostLevel'] == '' ||
+                                              data['hostLevel'] == '-'))
+                                            Text(
+                                              data['hostLevel'] ?? 'Jucător',
+                                              style: const TextStyle(fontSize: 12, color: Color(0xFF00E5FF)),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
                                         ],
                                       ),
                                     ),
@@ -1582,26 +1674,49 @@ class _HomeScreenState extends State<HomeScreen> {
                                       isFriendly ? Colors.purpleAccent : const Color(0xFF00E5FF),
                                     ),
                                     _buildBadge(
-                                      isCard ? Icons.credit_card : Icons.payments_outlined,
-                                      isCard ? 'Card (Achitat)' : 'Cash la club',
-                                      isCard ? const Color(0xFF00FF66) : Colors.orangeAccent,
+                                      isPaid ? (isCard ? Icons.credit_card : Icons.check_circle_outline) : Icons.payments_outlined,
+                                      isPaid
+                                          ? (isCard ? 'Card (Achitat)' : 'Cash (Achitat)')
+                                          : 'Cash (Neachitat)',
+                                      isPaid ? const Color(0xFF00FF66) : Colors.orangeAccent,
                                     ),
+                                    if (price > 0)
+                                      _buildBadge(
+                                        Icons.payments_outlined,
+                                        'De plată: ${price.toStringAsFixed(0)} RON',
+                                        const Color(0xFFFFD700),
+                                      ),
                                   ],
                                 ),
                                 if (!isCancelled) ...[
                                   const SizedBox(height: 16),
-                                  Align(
-                                    alignment: Alignment.centerRight,
-                                    child: OutlinedButton.icon(
-                                      style: OutlinedButton.styleFrom(
-                                        side: const BorderSide(color: Colors.redAccent),
-                                        foregroundColor: Colors.redAccent,
-                                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.end,
+                                    children: [
+                                      if (canConfirmCash) ...[
+                                        ElevatedButton.icon(
+                                          onPressed: () => _confirmBookingPayment(docId),
+                                          icon: const Icon(Icons.check, size: 16),
+                                          label: const Text('CONFIRMĂ PLATĂ CASH', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: const Color(0xFF00FF66),
+                                            foregroundColor: Colors.black,
+                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                      ],
+                                      OutlinedButton.icon(
+                                        style: OutlinedButton.styleFrom(
+                                          side: const BorderSide(color: Colors.redAccent),
+                                          foregroundColor: Colors.redAccent,
+                                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                        ),
+                                        icon: const Icon(Icons.cancel_outlined, size: 18),
+                                        label: const Text('ANULEAZĂ REZERVAREA'),
+                                        onPressed: () => _cancelBooking(docId, data),
                                       ),
-                                      icon: const Icon(Icons.cancel_outlined, size: 18),
-                                      label: const Text('ANULEAZĂ REZERVAREA'),
-                                      onPressed: () => _cancelBooking(docId, data),
-                                    ),
+                                    ],
                                   ),
                                 ]
                               ],
@@ -1825,5 +1940,24 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       onTap: onTap,
     );
+  }
+
+  Future<void> _confirmBookingPayment(String docId) async {
+    try {
+      await FirebaseFirestore.instance.collection('matches').doc(docId).update({
+        'paymentStatus': 'confirmed',
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Plată cash confirmată cu succes!'), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Eroare la confirmarea plății: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
   }
 }

@@ -209,12 +209,48 @@ class LevelUtils {
   }
 
   /// Calculează costul total al rezervării pe baza intervalului de ore [startHour, endHour)
-  static double calculateTotalBookingPrice(String priceText, int startHour, int endHour) {
+  static double calculateTotalBookingPrice(String priceText, num startHour, num endHour) {
     if (startHour >= endHour) return 0.0;
     double total = 0.0;
-    for (int h = startHour; h < endHour; h++) {
-      total += getHourlyPrice(priceText, h);
+    num current = startHour;
+    while (current < endHour) {
+      total += getHourlyPrice(priceText, current.floor()) * 0.5;
+      current += 0.5;
     }
+    return total;
+  }
+
+  /// Calculează costul total al rezervării folosind prețurile structurate ale sălii
+  static double calculateVenueBookingPrice({
+    required Map<String, dynamic> venueData,
+    required num startHour,
+    required num endHour,
+  }) {
+    if (startHour >= endHour) return 0.0;
+
+    final String priceType = venueData['priceType'] ?? 'flat';
+    final double flatHalf = (venueData['flatPriceHalf'] as num?)?.toDouble() ?? 15.0;
+
+    final int limitHour = (venueData['dynamicHourLimit'] as num?)?.toInt() ?? 17;
+    final double dynHalfBefore = (venueData['dynamicPriceHalfBefore'] as num?)?.toDouble() ?? 15.0;
+    final double dynHalfAfter = (venueData['dynamicPriceHalfAfter'] as num?)?.toDouble() ?? 20.0;
+
+    double total = 0.0;
+    num current = startHour;
+
+    while (current < endHour) {
+      if (priceType == 'dynamic') {
+        if (current < limitHour) {
+          total += dynHalfBefore;
+        } else {
+          total += dynHalfAfter;
+        }
+      } else {
+        total += flatHalf;
+      }
+      current += 0.5;
+    }
+
     return total;
   }
 }

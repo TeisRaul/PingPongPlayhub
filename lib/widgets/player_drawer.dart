@@ -13,6 +13,7 @@ import '../screens/tournaments_screen.dart';
 import '../screens/venue_profile_screen.dart';
 import '../screens/login_screen.dart';
 import '../screens/venue_map_screen.dart';
+import '../screens/venue_tables_layout_screen.dart';
 
 class PlayerDrawer extends StatefulWidget {
   final String activePage;
@@ -234,6 +235,20 @@ class _PlayerDrawerState extends State<PlayerDrawer> {
                       title: 'Dashboard Sală',
                       pageKey: 'dashboard',
                       onTap: () => _navigateTo('dashboard', const HomeScreen()),
+                    ),
+                    _buildDrawerItem(
+                      icon: Icons.calendar_month_outlined,
+                      title: 'Plan Cameră & Rezervări',
+                      pageKey: 'tables_layout',
+                      onTap: () => _navigateTo(
+                        'tables_layout',
+                        VenueTablesLayoutScreen(
+                          venueId: FirebaseAuth.instance.currentUser!.uid,
+                          venueName: userData?['venueName'] ?? 'Sală de Ping-Pong',
+                          isAdmin: true,
+                          showBackButton: false,
+                        ),
+                      ),
                     ),
                     _buildDrawerItem(
                       icon: Icons.business_outlined,

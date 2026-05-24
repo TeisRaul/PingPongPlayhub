@@ -3,6 +3,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:html' as html;
+import 'create_match_screen.dart';
+
 // ── Coordonate pentru marile oraşe din România ──────────────────────────────
 const Map<String, LatLng> _cityCoords = {
   'alba iulia':          LatLng(46.0667,  23.5833),
@@ -56,6 +60,7 @@ LatLng? _coordsForCity(String? city) {
 // ────────────────────────────────────────────────────────────────────────────
 
 class _VenueMarker {
+  final String id;
   final String name;
   final String city;
   final String address;
@@ -63,6 +68,7 @@ class _VenueMarker {
   final LatLng coords;
 
   const _VenueMarker({
+    required this.id,
     required this.name,
     required this.city,
     required this.address,
@@ -80,16 +86,40 @@ class VenueMapScreen extends StatefulWidget {
 
 class _VenueMapScreenState extends State<VenueMapScreen> {
   final MapController _mapController = MapController();
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   List<_VenueMarker> _markers = [];
   _VenueMarker? _selected;
   bool _loading = true;
   String _filterCity = '';
+  LatLng? _userLocation;
+  String _drawerSearchQuery = '';
+  bool _onlyVisibleInBounds = true;
 
   @override
   void initState() {
     super.initState();
     _loadVenues();
+    _getUserLocation();
+  }
+
+  void _getUserLocation() {
+    try {
+      html.window.navigator.geolocation.getCurrentPosition().then((pos) {
+        if (mounted) {
+          setState(() {
+            _userLocation = LatLng(
+              pos.coords!.latitude! as double,
+              pos.coords!.longitude! as double,
+            );
+          });
+        }
+      }).catchError((_) {
+        if (mounted) setState(() {});
+      });
+    } catch (_) {
+      // Geolocation not available
+    }
   }
 
   Future<void> _loadVenues() async {
@@ -110,6 +140,7 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
         // Add a tiny random offset so venues in the same city don't overlap
         final offset = _markerOffset(result.length);
         result.add(_VenueMarker(
+          id: doc.id,
           name: name,
           city: city,
           address: address,
@@ -153,6 +184,27 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
     ).toList();
   }
 
+  List<_VenueMarker> get _drawerFilteredMarkers {
+    Iterable<_VenueMarker> result = _markers;
+
+    if (_drawerSearchQuery.isNotEmpty) {
+      final query = _drawerSearchQuery.toLowerCase().trim();
+      result = result.where((m) =>
+          m.name.toLowerCase().contains(query) ||
+          m.city.toLowerCase().contains(query) ||
+          m.address.toLowerCase().contains(query));
+    } else if (_onlyVisibleInBounds) {
+      try {
+        final bounds = _mapController.camera.visibleBounds;
+        result = result.where((m) => bounds.contains(m.coords));
+      } catch (_) {
+        // Camera bounds not ready yet
+      }
+    }
+
+    return result.toList();
+  }
+
   void _moveTo(_VenueMarker m) {
     setState(() => _selected = m);
     _mapController.move(m.coords, 13.0);
@@ -161,6 +213,7 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: _scaffoldKey,
       backgroundColor: const Color(0xFF0A0E17),
       appBar: AppBar(
         backgroundColor: const Color(0xFF131A2A),
@@ -222,6 +275,9 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
                     initialCenter: const LatLng(45.9432, 24.9668),
                     initialZoom: 6.5,
                     onTap: (_, __) => setState(() => _selected = null),
+                    onPositionChanged: (_, __) {
+                      if (mounted) setState(() {});
+                    },
                   ),
                   children: [
                     TileLayer(
@@ -230,9 +286,25 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
                       userAgentPackageName: 'com.pingpongplayhub.app',
                     ),
                     MarkerLayer(
-                      markers: _filteredMarkers
-                          .map((m) => _buildMarker(m))
-                          .toList(),
+                      markers: [
+                        ..._filteredMarkers.map((m) => _buildMarker(m)),
+                        if (_userLocation != null)
+                          Marker(
+                            point: _userLocation!,
+                            width: 30,
+                            height: 30,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: Colors.blue.withValues(alpha: 0.3),
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.blue, width: 2),
+                              ),
+                              child: const Center(
+                                child: Icon(Icons.my_location, color: Colors.blue, size: 16),
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                   ],
                 ),
@@ -319,12 +391,31 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
 
       // ── Drawer lateral cu lista sălilor ─────────────────────────────────
       endDrawer: _buildVenueList(),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: const Color(0xFF00E5FF),
-        foregroundColor: Colors.black,
-        icon: const Icon(Icons.list),
-        label: const Text('Listă Săli', style: TextStyle(fontWeight: FontWeight.bold)),
-        onPressed: () => Scaffold.of(context).openEndDrawer(),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (_userLocation != null)
+            FloatingActionButton(
+              heroTag: 'myLocationBtn',
+              mini: true,
+              backgroundColor: const Color(0xFF131A2A),
+              foregroundColor: Colors.blue,
+              onPressed: () {
+                _mapController.move(_userLocation!, 13.0);
+                setState(() => _selected = null);
+              },
+              child: const Icon(Icons.my_location),
+            ),
+          const SizedBox(height: 8),
+          FloatingActionButton.extended(
+            heroTag: 'listBtn',
+            backgroundColor: const Color(0xFF00E5FF),
+            foregroundColor: Colors.black,
+            icon: const Icon(Icons.list),
+            label: const Text('Listă Săli', style: TextStyle(fontWeight: FontWeight.bold)),
+            onPressed: () => _scaffoldKey.currentState?.openEndDrawer(),
+          ),
+        ],
       ),
     );
   }
@@ -388,7 +479,7 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF00E5FF).withOpacity(0.15),
+                  color: const Color(0xFF00E5FF).withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Icon(Icons.sports_tennis, color: Color(0xFF00E5FF), size: 22),
@@ -450,17 +541,43 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
               ],
             ),
           ],
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => CreateMatchScreen(
+                      preselectedCity: m.city,
+                      preselectedVenueId: m.id,
+                    ),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.sports_tennis, size: 18),
+              label: const Text('Rezervă aici', style: TextStyle(fontWeight: FontWeight.bold)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF00E5FF),
+                foregroundColor: Colors.black,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 
   Widget _buildVenueList() {
-    final list = _filteredMarkers;
+    final list = _drawerFilteredMarkers;
     return Drawer(
       backgroundColor: const Color(0xFF0A0E17),
       child: Column(
         children: [
+          // Drawer Header
           Container(
             padding: const EdgeInsets.fromLTRB(16, 48, 16, 16),
             decoration: const BoxDecoration(
@@ -471,23 +588,102 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
               children: [
                 const Icon(Icons.sports_tennis, color: Color(0xFF00E5FF)),
                 const SizedBox(width: 12),
-                Text(
-                  '${list.length} Săli de Ping-Pong',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
+                Expanded(
+                  child: Text(
+                    '${list.length} Săli de Ping-Pong',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
                   ),
                 ),
               ],
             ),
           ),
+          
+          // Drawer Search
+          Container(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            color: const Color(0xFF131A2A),
+            child: TextField(
+              style: const TextStyle(color: Colors.white, fontSize: 13),
+              decoration: InputDecoration(
+                hintText: 'Caută după nume sau oraș...',
+                hintStyle: const TextStyle(color: Colors.white38, fontSize: 12),
+                prefixIcon: const Icon(Icons.search, color: Color(0xFF00E5FF), size: 16),
+                filled: true,
+                fillColor: const Color(0xFF0A0E17),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Color(0xFF00E5FF), width: 1),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Color(0xFF1A2A3A), width: 1),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Color(0xFF00E5FF), width: 1.2),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              ),
+              onChanged: (val) => setState(() {
+                _drawerSearchQuery = val;
+              }),
+            ),
+          ),
+
+          // Drawer Bounds Filter Toggle
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            color: const Color(0xFF131A2A),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.zoom_in, color: Colors.white54, size: 14),
+                    SizedBox(width: 8),
+                    Text(
+                      'Doar cele vizibile pe hartă',
+                      style: TextStyle(color: Colors.white70, fontSize: 11),
+                    ),
+                  ],
+                ),
+                Transform.scale(
+                  scale: 0.8,
+                  child: Switch(
+                    value: _onlyVisibleInBounds,
+                    activeThumbColor: const Color(0xFF00E5FF),
+                    activeTrackColor: const Color(0xFF00E5FF).withValues(alpha: 0.3),
+                    inactiveThumbColor: Colors.grey,
+                    inactiveTrackColor: Colors.white10,
+                    onChanged: (val) => setState(() {
+                      _onlyVisibleInBounds = val;
+                    }),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Divider below options
+          Container(
+            height: 1,
+            color: const Color(0xFF00E5FF).withOpacity(0.3),
+          ),
+
           Expanded(
             child: list.isEmpty
                 ? const Center(
-                    child: Text(
-                      'Nicio sală găsită.',
-                      style: TextStyle(color: Colors.white54),
+                    child: Padding(
+                      padding: EdgeInsets.all(24.0),
+                      child: Text(
+                        'Nicio sală găsită.\n(Încearcă să dezactivezi filtrul de hartă sau să cauți alt oraș)',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.white54, fontSize: 12),
+                      ),
                     ),
                   )
                 : ListView.separated(

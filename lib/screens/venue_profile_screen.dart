@@ -18,6 +18,7 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _isEditing = false;
   bool _isSaving = false;
+  bool _allowHalfHour = false;
 
   // Form Controllers
   final _venueNameController = TextEditingController();
@@ -28,7 +29,15 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
   final _websiteController = TextEditingController();
   final _indoorTablesController = TextEditingController();
   final _outdoorTablesController = TextEditingController();
-  final _priceController = TextEditingController();
+  String _priceType = 'flat';
+  final _flatPriceHourController = TextEditingController(text: '30');
+  final _flatPriceHalfController = TextEditingController(text: '15');
+  int _dynamicHourLimit = 17;
+  final _dynamicPriceHourBeforeController = TextEditingController(text: '30');
+  final _dynamicPriceHalfBeforeController = TextEditingController(text: '15');
+  final _dynamicPriceHourAfterController = TextEditingController(text: '40');
+  final _dynamicPriceHalfAfterController = TextEditingController(text: '20');
+
   final _cuiController = TextEditingController();
   final _ibanController = TextEditingController();
 
@@ -60,7 +69,12 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
     _websiteController.dispose();
     _indoorTablesController.dispose();
     _outdoorTablesController.dispose();
-    _priceController.dispose();
+    _flatPriceHourController.dispose();
+    _flatPriceHalfController.dispose();
+    _dynamicPriceHourBeforeController.dispose();
+    _dynamicPriceHalfBeforeController.dispose();
+    _dynamicPriceHourAfterController.dispose();
+    _dynamicPriceHalfAfterController.dispose();
     _cuiController.dispose();
     _ibanController.dispose();
     _lvOpenCtrl.dispose();
@@ -82,9 +96,18 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
     _websiteController.text = data['website'] ?? '';
     _indoorTablesController.text = (data['indoorTables'] ?? 0).toString();
     _outdoorTablesController.text = (data['outdoorTables'] ?? 0).toString();
-    _priceController.text = data['pricePerHourText'] ?? (data['pricePerHour']?.toString() ?? '');
+    _priceType = data['priceType'] ?? 'flat';
+    final double defaultHour = (data['pricePerHour'] ?? 30.0).toDouble();
+    _flatPriceHourController.text = (data['flatPriceHour'] ?? defaultHour).toString();
+    _flatPriceHalfController.text = (data['flatPriceHalf'] ?? (defaultHour / 2)).toString();
+    _dynamicHourLimit = (data['dynamicHourLimit'] ?? 17) as int;
+    _dynamicPriceHourBeforeController.text = (data['dynamicPriceHourBefore'] ?? defaultHour).toString();
+    _dynamicPriceHalfBeforeController.text = (data['dynamicPriceHalfBefore'] ?? (defaultHour / 2)).toString();
+    _dynamicPriceHourAfterController.text = (data['dynamicPriceHourAfter'] ?? (defaultHour + 10.0)).toString();
+    _dynamicPriceHalfAfterController.text = (data['dynamicPriceHalfAfter'] ?? ((defaultHour + 10.0) / 2)).toString();
     _cuiController.text = data['cui'] ?? '';
     _ibanController.text = data['iban'] ?? '';
+    _allowHalfHour = data['allowHalfHour'] ?? false;
 
     // Schedule Parsing
     final schedule = data['schedule'] ?? {};
@@ -157,9 +180,23 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
-        // Parse hourly price as best as we can using LevelUtils
-        final priceText = _priceController.text;
-        double parsedPrice = LevelUtils.getHourlyPrice(priceText, 12); // Noon reference baseline
+        // Parse structured hourly and half-hourly prices
+        final String priceText;
+        double mainPrice = 30.0;
+        final double flatPriceHour = double.tryParse(_flatPriceHourController.text) ?? 30.0;
+        final double flatPriceHalf = double.tryParse(_flatPriceHalfController.text) ?? 15.0;
+        final double dynamicPriceHourBefore = double.tryParse(_dynamicPriceHourBeforeController.text) ?? 30.0;
+        final double dynamicPriceHalfBefore = double.tryParse(_dynamicPriceHalfBeforeController.text) ?? 15.0;
+        final double dynamicPriceHourAfter = double.tryParse(_dynamicPriceHourAfterController.text) ?? 40.0;
+        final double dynamicPriceHalfAfter = double.tryParse(_dynamicPriceHalfAfterController.text) ?? 20.0;
+
+        if (_priceType == 'flat') {
+          priceText = '${flatPriceHour.toStringAsFixed(0)} RON/oră, ${flatPriceHalf.toStringAsFixed(0)} RON/jumătate de oră';
+          mainPrice = flatPriceHour;
+        } else {
+          priceText = '${dynamicPriceHourBefore.toStringAsFixed(0)} RON/oră înainte de $_dynamicHourLimit:00, ${dynamicPriceHourAfter.toStringAsFixed(0)} RON/oră după $_dynamicHourLimit:00';
+          mainPrice = dynamicPriceHourBefore;
+        }
 
         final int indoor = int.tryParse(_indoorTablesController.text) ?? 0;
         final int outdoor = int.tryParse(_outdoorTablesController.text) ?? 0;
@@ -184,7 +221,15 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
           'outdoorTables': outdoor,
           'totalTables': total,
           'facilities': updatedFacilities,
-          'pricePerHour': parsedPrice,
+          'priceType': _priceType,
+          'flatPriceHour': flatPriceHour,
+          'flatPriceHalf': flatPriceHalf,
+          'dynamicHourLimit': _dynamicHourLimit,
+          'dynamicPriceHourBefore': dynamicPriceHourBefore,
+          'dynamicPriceHalfBefore': dynamicPriceHalfBefore,
+          'dynamicPriceHourAfter': dynamicPriceHourAfter,
+          'dynamicPriceHalfAfter': dynamicPriceHalfAfter,
+          'pricePerHour': mainPrice,
           'pricePerHourText': priceText,
           'schedule': {
             'Luni-Vineri': '${_lvOpenCtrl.text} - ${_lvCloseCtrl.text}',
@@ -193,6 +238,7 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
           },
           'cui': _cuiController.text.trim(),
           'iban': _ibanController.text.trim(),
+          'allowHalfHour': _allowHalfHour,
         });
 
         setState(() {
@@ -917,11 +963,149 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
           ),
           const SizedBox(height: 12),
 
-          _buildTextField(
-            controller: _priceController,
-            label: 'Tarif pe oră (ex: 30 RON/oră înainte de 17:00, 40 RON/oră după 17:00)',
-            validator: (value) => value!.isEmpty ? 'Introdu prețul!' : null,
+          DropdownButtonFormField<String>(
+            value: _priceType,
+            dropdownColor: const Color(0xFF131A2A),
+            style: const TextStyle(color: Colors.white, fontSize: 14),
+            decoration: const InputDecoration(
+              labelText: 'Tip Tarifare',
+              prefixIcon: Icon(Icons.payments_outlined),
+            ),
+            items: const [
+              DropdownMenuItem(value: 'flat', child: Text('Preț Fix (Același tarif oricând)')),
+              DropdownMenuItem(value: 'dynamic', child: Text('Preț Dinamic (Tarife diferite în funcție de oră)')),
+            ],
+            onChanged: (val) {
+              setState(() {
+                _priceType = val ?? 'flat';
+              });
+            },
           ),
+          if (_priceType == 'flat') ...[
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: _flatPriceHourController,
+                    keyboardType: TextInputType.number,
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    decoration: const InputDecoration(
+                      labelText: 'Tarif 1 Oră (RON)',
+                      prefixIcon: Icon(Icons.monetization_on_outlined),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) return 'Introdu prețul';
+                      if (double.tryParse(value) == null) return 'Valoare invalidă';
+                      return null;
+                    },
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: TextFormField(
+                    controller: _flatPriceHalfController,
+                    keyboardType: TextInputType.number,
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    decoration: const InputDecoration(
+                      labelText: 'Tarif 0.5 Oră (RON)',
+                      prefixIcon: Icon(Icons.monetization_on_outlined),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) return 'Introdu prețul';
+                      if (double.tryParse(value) == null) return 'Valoare invalidă';
+                      return null;
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ] else ...[
+            const SizedBox(height: 16),
+            DropdownButtonFormField<int>(
+              value: _dynamicHourLimit,
+              dropdownColor: const Color(0xFF131A2A),
+              style: const TextStyle(color: Colors.white, fontSize: 14),
+              decoration: const InputDecoration(
+                labelText: 'Oră Limită Preț',
+                prefixIcon: Icon(Icons.access_time),
+              ),
+              items: List.generate(24, (i) => DropdownMenuItem(value: i, child: Text('$i:00'))),
+              onChanged: (val) => setState(() => _dynamicHourLimit = val ?? 17),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: _dynamicPriceHourBeforeController,
+                    keyboardType: TextInputType.number,
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    decoration: const InputDecoration(
+                      labelText: 'Tarif 1 Oră Înainte (RON)',
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) return 'Introdu prețul';
+                      if (double.tryParse(value) == null) return 'Valoare invalidă';
+                      return null;
+                    },
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: TextFormField(
+                    controller: _dynamicPriceHalfBeforeController,
+                    keyboardType: TextInputType.number,
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    decoration: const InputDecoration(
+                      labelText: 'Tarif 0.5 Oră Înainte (RON)',
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) return 'Introdu prețul';
+                      if (double.tryParse(value) == null) return 'Valoare invalidă';
+                      return null;
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: _dynamicPriceHourAfterController,
+                    keyboardType: TextInputType.number,
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    decoration: const InputDecoration(
+                      labelText: 'Tarif 1 Oră După (RON)',
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) return 'Introdu prețul';
+                      if (double.tryParse(value) == null) return 'Valoare invalidă';
+                      return null;
+                    },
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: TextFormField(
+                    controller: _dynamicPriceHalfAfterController,
+                    keyboardType: TextInputType.number,
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    decoration: const InputDecoration(
+                      labelText: 'Tarif 0.5 Oră După (RON)',
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) return 'Introdu prețul';
+                      if (double.tryParse(value) == null) return 'Valoare invalidă';
+                      return null;
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 16),
 
           _buildTextField(
@@ -934,6 +1118,14 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
             controller: _ibanController,
             label: 'IBAN de Plată',
             validator: (value) => value!.isEmpty ? 'Introdu codul IBAN pentru viramente!' : null,
+          ),
+          const SizedBox(height: 16),
+          SwitchListTile(
+            title: const Text('Permite Rezervări la Jumătate de Oră', style: TextStyle(color: Colors.white, fontSize: 14)),
+            subtitle: const Text('Jucătorii pot alege intervale de tip 16:30 - 17:30', style: TextStyle(color: Colors.white54, fontSize: 11)),
+            value: _allowHalfHour,
+            activeColor: const Color(0xFF00E5FF),
+            onChanged: (val) => setState(() => _allowHalfHour = val),
           ),
           const SizedBox(height: 35),
 

@@ -206,6 +206,7 @@ class _FindMatchTabState extends State<FindMatchTab> {
                 children: [
                   Expanded(
                     child: CitySelectorField(
+                      labelText: 'Selectează orașul',
                       selectedCity: _filterCity,
                       cityOptions: _cityOptions,
                       onCitySelected: (val) {

@@ -461,7 +461,7 @@ class _SignupScreenState extends State<SignupScreen> {
 
                 // Oraș
                 CitySelectorField(
-                  label: 'Orașul tău',
+                  labelText: 'Orașul tău',
                   selectedCity: _selectedCity,
                   cityOptions: romanianCities,
                   onCitySelected: (city) => setState(() => _selectedCity = city),
