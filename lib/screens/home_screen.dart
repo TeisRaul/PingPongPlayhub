@@ -241,10 +241,21 @@ class _HomeScreenState extends State<HomeScreen> {
               onPressed: () async {
                 Navigator.pop(context);
                 try {
-                  // 1. Update match status in Firestore
-                  await FirebaseFirestore.instance.collection('matches').doc(matchId).update({
+                  // 1. Update match status and handle refund in Firestore
+                  final String paymentMethod = matchData['paymentMethod'] ?? '';
+                  final String paymentStatus = matchData['paymentStatus'] ?? '';
+                  final double price = (matchData['price'] as num?)?.toDouble() ?? 0.0;
+                  
+                  Map<String, dynamic> updates = {
                     'status': 'cancelled',
-                  });
+                  };
+
+                  if (paymentMethod.contains('Card') && paymentStatus == 'confirmed') {
+                    updates['paymentStatus'] = 'refunded';
+                    updates['refundedAmount'] = price;
+                  }
+
+                  await FirebaseFirestore.instance.collection('matches').doc(matchId).update(updates);
 
                   // 2. Send notifications to all participants
                   final batch = FirebaseFirestore.instance.batch();

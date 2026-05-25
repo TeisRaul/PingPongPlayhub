@@ -78,8 +78,24 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
 
   // Step 3: Plata
   String _paymentMethod = 'Cash la locație';
+  bool _wantsInvoice = false;
+  final _invoiceCompanyController = TextEditingController();
+  final _invoiceCuiController = TextEditingController();
+  final _invoiceRegController = TextEditingController();
+  final _invoiceAddressController = TextEditingController();
+  final _invoiceEmailController = TextEditingController();
 
   List<PingPongLocation> _allLocations = List.from(mockLocations);
+
+  @override
+  void dispose() {
+    _invoiceCompanyController.dispose();
+    _invoiceCuiController.dispose();
+    _invoiceRegController.dispose();
+    _invoiceAddressController.dispose();
+    _invoiceEmailController.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -390,6 +406,15 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
     return fallbackHour;
   }
 
+  Map<String, dynamic>? _getTableAt(int x, int y, List<Map<String, dynamic>> tables) {
+    for (var t in tables) {
+      if (t['x'] == x && t['y'] == y) {
+        return t;
+      }
+    }
+    return null;
+  }
+
   // --- Step 4 (Save) ---
   Future<void> _createMatch() async {
     final user = FirebaseAuth.instance.currentUser;
@@ -442,7 +467,7 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
         }
       }
 
-      await FirebaseFirestore.instance.collection('matches').add({
+      final matchData = {
         'hostUid': user.uid,
         'hostUsername': username,
         'hostAvatarUrl': avatarUrl,
@@ -467,7 +492,19 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
         'status': 'open',
         'price': totalAmount,
         'createdAt': FieldValue.serverTimestamp(),
-      });
+      };
+
+      if (_wantsInvoice) {
+        matchData['invoiceData'] = {
+          'companyName': _invoiceCompanyController.text.trim(),
+          'cui': _invoiceCuiController.text.trim(),
+          'regCom': _invoiceRegController.text.trim(),
+          'address': _invoiceAddressController.text.trim(),
+          'email': _invoiceEmailController.text.trim(),
+        };
+      }
+
+      await FirebaseFirestore.instance.collection('matches').add(matchData);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -486,6 +523,12 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
           _maxPlayers = 2;
           _visibility = 'Public';
           _matchType = 'Competitiv';
+          _wantsInvoice = false;
+          _invoiceCompanyController.clear();
+          _invoiceCuiController.clear();
+          _invoiceRegController.clear();
+          _invoiceAddressController.clear();
+          _invoiceEmailController.clear();
         });
       }
     } catch (e) {
@@ -917,100 +960,51 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
                         Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF131A2A),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.grey[800]!),
+                            color: const Color(0xFF131A2A).withValues(alpha: 0.8),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: const Color(0xFF1E293B), width: 2),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF00E5FF).withValues(alpha: 0.05),
+                                blurRadius: 20,
+                                spreadRadius: 2,
+                              )
+                            ],
                           ),
                           child: Builder(
                             builder: (context) {
                               if (_venueCustomTables.isNotEmpty) {
-                                final List<Map<String, dynamic>> visibleTables = _venueCustomTables.where((table) {
-                                  final type = table['type'] ?? 'indoor';
-                                  if (_selectedTableType == 'outdoor') {
-                                    return type == 'outdoor';
-                                  } else {
-                                    // Treat indoor and training as indoor category
-                                    return type == 'indoor' || type == 'training';
-                                  }
-                                }).toList();
-
-                                return GridView.builder(
-                                  shrinkWrap: true,
-                                  physics: const NeverScrollableScrollPhysics(),
-                                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount: 3,
-                                    crossAxisSpacing: 12,
-                                    mainAxisSpacing: 12,
-                                    childAspectRatio: 1.2,
-                                  ),
-                                  itemCount: visibleTables.length,
-                                  itemBuilder: (context, index) {
-                                    final table = visibleTables[index];
-                                    final tableId = table['tableId'] as int;
-                                    final tableName = table['name'] ?? 'Masa $tableId';
-                                    final isReserved = _reservedTables.contains(tableId);
-                                    final isTrainingBlocked = _isTableReservedForTraining(table, _venueTrainingConfig);
-                                    final isTableBlocked = isReserved || isTrainingBlocked || _isDayBlockedFlag || _overlappingTournament != null;
-                                    final isSelected = _selectedTable == tableId;
-
-                                    String statusText = 'Liberă';
-                                    if (_isDayBlockedFlag) {
-                                      statusText = 'Zi închisă';
-                                    } else if (_overlappingTournament != null) {
-                                      statusText = 'Turneu';
-                                    } else if (isReserved) {
-                                      statusText = 'Ocupată';
-                                    } else if (isTrainingBlocked) {
-                                      statusText = 'Antrenament';
-                                    }
-
-                                    final Color blockedColor = isTrainingBlocked ? Colors.purpleAccent : Colors.redAccent;
-                                    final Color blockedBgColor = isTrainingBlocked ? Colors.purple.withOpacity(0.15) : Colors.red.withOpacity(0.15);
-                                    final Color activeBorderColor = isTableBlocked ? blockedColor : (isSelected ? const Color(0xFF00E5FF) : Colors.grey[800]!);
-                                    final Color activeBgColor = isTableBlocked ? blockedBgColor : (isSelected ? const Color(0xFF00E5FF).withOpacity(0.3) : const Color(0xFF1E293B));
-                                    final Color contentColor = isTableBlocked ? blockedColor : (isSelected ? const Color(0xFF00E5FF) : Colors.grey);
-
-                                    final IconData tableIcon = table['type'] == 'training' 
-                                        ? Icons.school 
-                                        : (table['type'] == 'outdoor' ? Icons.wb_sunny : Icons.table_restaurant);
-
-                                    return GestureDetector(
-                                      onTap: isTableBlocked ? () {
-                                        if (isTrainingBlocked) {
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            SnackBar(
-                                              content: Text('$tableName este rezervată automat pentru antrenamentul copiilor.'),
-                                              backgroundColor: Colors.purple,
-                                            ),
-                                          );
-                                        }
-                                      } : () {
-                                        setState(() => _selectedTable = tableId);
-                                      },
-                                      child: AnimatedContainer(
-                                        duration: const Duration(milliseconds: 200),
-                                        decoration: BoxDecoration(
-                                          color: activeBgColor,
-                                          border: Border.all(
-                                            color: activeBorderColor,
-                                            width: 1.5,
-                                          ),
-                                          borderRadius: BorderRadius.circular(12),
-                                        ),
-                                        child: Center(
-                                          child: Column(
-                                            mainAxisAlignment: MainAxisAlignment.center,
-                                            children: [
-                                              Icon(tableIcon, size: 20, color: contentColor),
-                                              const SizedBox(height: 4),
-                                              Text(tableName, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isTableBlocked ? blockedColor : Colors.white), overflow: TextOverflow.ellipsis, textAlign: TextAlign.center),
-                                              Text(statusText, style: TextStyle(fontSize: 10, color: isTableBlocked ? blockedColor : Colors.grey)),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    );
-                                  },
+                                return Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Text(
+                                      'PLAN CAMERĂ CLUB',
+                                      style: TextStyle(color: Colors.white38, fontWeight: FontWeight.bold, fontSize: 10, letterSpacing: 2),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    // 2D Grid
+                                    Table(
+                                      defaultColumnWidth: const FixedColumnWidth(82),
+                                      children: List.generate(5, (y) {
+                                        return TableRow(
+                                          children: List.generate(5, (x) {
+                                            final table = _getTableAt(x, y, _venueCustomTables);
+                                            return _buildGridCell(x, y, table);
+                                          }),
+                                        );
+                                      }),
+                                    ),
+                                    const SizedBox(height: 16),
+                                    // Legends
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                      children: [
+                                        _buildLegendItem('Liberă', const Color(0xFF00FF66)),
+                                        _buildLegendItem('Selectată', const Color(0xFF00E5FF)),
+                                        _buildLegendItem('Ocupată/Antrenament', const Color(0xFFFF0055)),
+                                      ],
+                                    ),
+                                  ],
                                 );
                               } else {
                                 // Fallback secvențial clasic
@@ -1142,6 +1136,66 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
                   groupValue: _paymentMethod,
                   onChanged: (val) => setState(() => _paymentMethod = val.toString()),
                 ),
+                const SizedBox(height: 16),
+                CheckboxListTile(
+                  title: const Text('Doresc factură pe firmă', style: TextStyle(color: Colors.white, fontSize: 14)),
+                  activeColor: const Color(0xFF00E5FF),
+                  checkColor: Colors.black,
+                  value: _wantsInvoice,
+                  onChanged: (val) {
+                    setState(() {
+                      _wantsInvoice = val ?? false;
+                      if (_wantsInvoice && _invoiceEmailController.text.isEmpty) {
+                        _invoiceEmailController.text = FirebaseAuth.instance.currentUser?.email ?? '';
+                      }
+                    });
+                  },
+                  controlAffinity: ListTileControlAffinity.leading,
+                  contentPadding: EdgeInsets.zero,
+                ),
+                if (_wantsInvoice)
+                  Container(
+                    margin: const EdgeInsets.only(top: 8, bottom: 16),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF131A2A),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey[800]!),
+                    ),
+                    child: Column(
+                      children: [
+                        TextField(
+                          controller: _invoiceCompanyController,
+                          decoration: const InputDecoration(labelText: 'Nume Firmă', isDense: true),
+                          style: const TextStyle(fontSize: 13, color: Colors.white),
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _invoiceCuiController,
+                          decoration: const InputDecoration(labelText: 'CUI / CIF', isDense: true),
+                          style: const TextStyle(fontSize: 13, color: Colors.white),
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _invoiceRegController,
+                          decoration: const InputDecoration(labelText: 'Reg. Comerțului', isDense: true),
+                          style: const TextStyle(fontSize: 13, color: Colors.white),
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _invoiceAddressController,
+                          decoration: const InputDecoration(labelText: 'Adresă Sediu', isDense: true),
+                          style: const TextStyle(fontSize: 13, color: Colors.white),
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _invoiceEmailController,
+                          decoration: const InputDecoration(labelText: 'Email pentru factură', isDense: true),
+                          style: const TextStyle(fontSize: 13, color: Colors.white),
+                        ),
+                      ],
+                    ),
+                  ),
               ],
             ),
           ),
@@ -1199,20 +1253,135 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: const Color(0xFF00E5FF), size: 20),
+          Icon(icon, color: const Color(0xFF00E5FF), size: 18),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
                 const SizedBox(height: 2),
-                Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                Text(value, style: const TextStyle(color: Colors.white, fontSize: 14)),
               ],
             ),
           ),
         ],
       ),
     );
+  }
+
+  Widget _buildLegendItem(String label, Color color) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(width: 12, height: 12, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        const SizedBox(width: 6),
+        Text(label, style: const TextStyle(color: Colors.white70, fontSize: 11)),
+      ],
+    );
+  }
+
+  Widget _buildGridCell(int x, int y, Map<String, dynamic>? table) {
+    if (table != null) {
+      final type = table['type'] ?? 'indoor';
+      
+      bool isVisible = false;
+      if (_selectedTableType == 'outdoor') {
+        isVisible = type == 'outdoor';
+      } else {
+        isVisible = type == 'indoor' || type == 'training';
+      }
+
+      final tableId = table['tableId'] as int;
+      final tableName = table['name'] ?? 'Masa $tableId';
+      final isReserved = _reservedTables.contains(tableId);
+      final isTrainingBlocked = _isTableReservedForTraining(table, _venueTrainingConfig);
+      final isTableBlocked = isReserved || isTrainingBlocked || _isDayBlockedFlag || _overlappingTournament != null;
+      final isSelected = _selectedTable == tableId;
+
+      String statusText = 'Liberă';
+      if (_isDayBlockedFlag) {
+        statusText = 'Zi închisă';
+      } else if (_overlappingTournament != null) {
+        statusText = 'Turneu';
+      } else if (isReserved) {
+        statusText = 'Ocupată';
+      } else if (isTrainingBlocked) {
+        statusText = 'Antrenament';
+      }
+
+      final Color blockedColor = isTrainingBlocked ? Colors.purpleAccent : Colors.redAccent;
+      final Color blockedBgColor = isTrainingBlocked ? Colors.purple.withOpacity(0.15) : Colors.red.withOpacity(0.15);
+      final Color activeBorderColor = isTableBlocked ? blockedColor : (isSelected ? const Color(0xFF00E5FF) : const Color(0xFF00FF66));
+      final Color activeBgColor = isTableBlocked ? blockedBgColor : (isSelected ? const Color(0xFF00E5FF).withOpacity(0.3) : const Color(0xFF00FF66).withOpacity(0.1));
+      final Color contentColor = isTableBlocked ? blockedColor : (isSelected ? const Color(0xFF00E5FF) : const Color(0xFF00FF66));
+
+      final IconData tableIcon = type == 'training' 
+          ? Icons.school 
+          : (type == 'outdoor' ? Icons.wb_sunny : Icons.table_restaurant);
+
+      if (!isVisible) {
+        return Container(
+          height: 68,
+          margin: const EdgeInsets.all(3),
+          decoration: BoxDecoration(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.grey.withOpacity(0.2), width: 1),
+          ),
+          child: Center(
+            child: Icon(tableIcon, color: Colors.grey.withOpacity(0.3), size: 16),
+          ),
+        );
+      }
+
+      return GestureDetector(
+        onTap: isTableBlocked ? () {
+          if (isTrainingBlocked) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('$tableName este rezervată automat pentru antrenamentul copiilor.'),
+                backgroundColor: Colors.purple,
+              ),
+            );
+          }
+        } : () {
+          setState(() => _selectedTable = tableId);
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          height: 68,
+          margin: const EdgeInsets.all(3),
+          decoration: BoxDecoration(
+            color: activeBgColor,
+            border: Border.all(
+              color: activeBorderColor,
+              width: 1.5,
+            ),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(tableIcon, size: 16, color: contentColor),
+                const SizedBox(height: 2),
+                Text(tableName, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isTableBlocked ? blockedColor : Colors.white), overflow: TextOverflow.ellipsis, textAlign: TextAlign.center),
+                Text(statusText, style: TextStyle(fontSize: 9, color: isTableBlocked ? blockedColor : Colors.grey)),
+              ],
+            ),
+          ),
+        ),
+      );
+    } else {
+      return Container(
+        height: 68,
+        margin: const EdgeInsets.all(3),
+        decoration: BoxDecoration(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.transparent),
+        ),
+      );
+    }
   }
 }

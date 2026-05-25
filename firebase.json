@@ -1,1 +1,34 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"pingpongplayhub1","appId":"1:265197532784:android:9e57a54d40bd194f8726b5","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"pingpongplayhub1","configurations":{"android":"1:265197532784:android:9e57a54d40bd194f8726b5","ios":"1:265197532784:ios:f512872ff979f6b88726b5","macos":"1:265197532784:ios:f512872ff979f6b88726b5","web":"1:265197532784:web:af8400b9d9849a058726b5","windows":"1:265197532784:web:e30c4ea2a7aaf4c88726b5"}}}}}}
+{
+  "functions": {
+    "source": "functions",
+    "ignore": [
+      "node_modules",
+      ".git",
+      "firebase-debug.log",
+      "firebase-debug.*.log"
+    ]
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "pingpongplayhub1",
+          "appId": "1:265197532784:android:9e57a54d40bd194f8726b5",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "pingpongplayhub1",
+          "configurations": {
+            "android": "1:265197532784:android:9e57a54d40bd194f8726b5",
+            "ios": "1:265197532784:ios:f512872ff979f6b88726b5",
+            "macos": "1:265197532784:ios:f512872ff979f6b88726b5",
+            "web": "1:265197532784:web:af8400b9d9849a058726b5",
+            "windows": "1:265197532784:web:e30c4ea2a7aaf4c88726b5"
+          }
+        }
+      }
+    }
+  }
+}

@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart'; // Pentru kIsWeb
+import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'signup_screen.dart';
 import 'venue_signup_screen.dart';
 import 'google_login_stub.dart' if (dart.library.io) 'google_login_mobile.dart';
@@ -112,15 +113,20 @@ class _LoginScreenState extends State<LoginScreen> {
         final FacebookAuthProvider facebookProvider = FacebookAuthProvider();
         userCredential = await FirebaseAuth.instance.signInWithPopup(facebookProvider);
       } else {
-        // Mobile / fallback Simulator
-        userCredential = await _showFacebookSandboxSimulator();
-        if (userCredential == null) {
+        // Mobile Real Facebook Login
+        final LoginResult result = await FacebookAuth.instance.login(permissions: ['public_profile', 'email']);
+        
+        if (result.status == LoginStatus.success) {
+          final AccessToken accessToken = result.accessToken!;
+          final OAuthCredential credential = FacebookAuthProvider.credential(accessToken.token);
+          userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
+        } else {
           setState(() => _isLoading = false);
           return;
         }
       }
 
-      final User? user = userCredential?.user;
+      final User? user = userCredential.user;
 
       if (user != null) {
         // Verificăm dacă utilizatorul are deja profil în baza noastră de date
@@ -132,13 +138,25 @@ class _LoginScreenState extends State<LoginScreen> {
             Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomeScreen()));
           } else {
             // Trimitem datele către SignupScreen
+            String prefilledFirstName = '';
+            String prefilledLastName = '';
+            String prefilledEmail = user.email ?? '';
+
+            if (user.displayName != null && user.displayName!.isNotEmpty) {
+              List<String> nameParts = user.displayName!.split(' ');
+              prefilledFirstName = nameParts[0];
+              if (nameParts.length > 1) {
+                prefilledLastName = nameParts.sublist(1).join(' ');
+              }
+            }
+
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => const SignupScreen(
-                  initialFirstName: 'Andrei',
-                  initialLastName: 'Popescu',
-                  initialEmail: 'facebook.sandbox@playhub.ro',
+                builder: (context) => SignupScreen(
+                  initialFirstName: prefilledFirstName,
+                  initialLastName: prefilledLastName,
+                  initialEmail: prefilledEmail,
                 ),
               ),
             );
@@ -160,108 +178,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  Future<UserCredential?> _showFacebookSandboxSimulator() async {
-    return await showModalBottomSheet<UserCredential?>(
-      context: context,
-      backgroundColor: const Color(0xFF1877F2), // Facebook Blue!
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        bool processing = false;
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            return Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const FaIcon(FontAwesomeIcons.facebook, color: Colors.white, size: 36),
-                      const SizedBox(width: 12),
-                      const Text(
-                        'Facebook Sandbox',
-                        style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Aceasta este o simulare securizată de autentificare Facebook pentru modul Sandbox / Dezvoltare.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.white70, fontSize: 13),
-                  ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'Va fi generată o sesiune Firebase Auth reală în fundal utilizând credențialele de test.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.white70, fontSize: 12, fontStyle: FontStyle.italic),
-                  ),
-                  const SizedBox(height: 24),
-                  if (processing)
-                    const Center(child: CircularProgressIndicator(color: Colors.white))
-                  else
-                    ElevatedButton(
-                      onPressed: () async {
-                        setModalState(() => processing = true);
-                        try {
-                          UserCredential creds;
-                          try {
-                            creds = await FirebaseAuth.instance.signInWithEmailAndPassword(
-                              email: 'facebook.sandbox@playhub.ro',
-                              password: 'facebook123',
-                            );
-                          } catch (e) {
-                            creds = await FirebaseAuth.instance.createUserWithEmailAndPassword(
-                              email: 'facebook.sandbox@playhub.ro',
-                              password: 'facebook123',
-                            );
-                            
-                            await FirebaseFirestore.instance.collection('users').doc(creds.user!.uid).set({
-                              'uid': creds.user!.uid,
-                              'firstName': 'Andrei',
-                              'lastName': 'Popescu',
-                              'username': 'andrei_facebook',
-                              'email': 'facebook.sandbox@playhub.ro',
-                              'rating': 1000,
-                              'createdAt': FieldValue.serverTimestamp(),
-                              'wins': 0,
-                              'winRate': '0%',
-                            });
-                          }
-                          Navigator.pop(context, creds);
-                        } catch (err) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Eroare: $err'), backgroundColor: Colors.redAccent),
-                          );
-                          Navigator.pop(context, null);
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: const Color(0xFF1877F2),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                      ),
-                      child: const Text('Continuă ca Andrei Popescu'),
-                    ),
-                  const SizedBox(height: 12),
-                  TextButton(
-                    onPressed: () => Navigator.pop(context, null),
-                    child: const Text('Anulează', style: TextStyle(color: Colors.white70)),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
+  // _showFacebookSandboxSimulator removed
 
   // --- Funcția pentru Autentificare Email/Parolă (de bază) ---
   Future<void> _handleEmailLogin() async {
@@ -382,6 +299,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
                 textInputAction: TextInputAction.next,
+                onSubmitted: (_) => FocusScope.of(context).nextFocus(),
                 decoration: const InputDecoration(
                   labelText: 'Email sau Nume de utilizator',
                   prefixIcon: Icon(Icons.person_outline),

@@ -14,6 +14,7 @@ import '../screens/venue_profile_screen.dart';
 import '../screens/login_screen.dart';
 import '../screens/venue_map_screen.dart';
 import '../screens/venue_tables_layout_screen.dart';
+import '../screens/venue_finances_screen.dart';
 
 class PlayerDrawer extends StatefulWidget {
   final String activePage;
@@ -261,6 +262,17 @@ class _PlayerDrawerState extends State<PlayerDrawer> {
                       title: 'Turneele Noastre',
                       pageKey: 'tournaments',
                       onTap: () => _navigateTo('tournaments', const TournamentsScreen()),
+                    ),
+                    _buildDrawerItem(
+                      icon: Icons.monetization_on_outlined,
+                      title: 'Panou Financiar',
+                      pageKey: 'venue_finances',
+                      onTap: () => _navigateTo(
+                        'venue_finances',
+                        VenueFinancesScreen(
+                          venueId: FirebaseAuth.instance.currentUser!.uid,
+                        ),
+                      ),
                     ),
                   ]
                 : [

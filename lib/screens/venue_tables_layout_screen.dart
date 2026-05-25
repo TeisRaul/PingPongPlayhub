@@ -786,7 +786,7 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
     }
   }
 
-  Future<void> _cancelBooking(String matchId) async {
+  Future<void> _cancelBooking(String matchId, Map<String, dynamic> matchData) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -811,9 +811,20 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
 
     setState(() => _loading = true);
     try {
-      await FirebaseFirestore.instance.collection('matches').doc(matchId).update({
+      final String paymentMethod = matchData['paymentMethod'] ?? '';
+      final String paymentStatus = matchData['paymentStatus'] ?? '';
+      final double price = (matchData['price'] as num?)?.toDouble() ?? 0.0;
+      
+      Map<String, dynamic> updates = {
         'status': 'cancelled',
-      });
+      };
+
+      if (paymentMethod.contains('Card') && paymentStatus == 'confirmed') {
+        updates['paymentStatus'] = 'refunded';
+        updates['refundedAmount'] = price;
+      }
+
+      await FirebaseFirestore.instance.collection('matches').doc(matchId).update(updates);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Rezervarea a fost anulată.'), backgroundColor: Colors.orange),
       );
@@ -963,165 +974,166 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
         final bool isPaid = paymentStatus == 'confirmed';
 
         return Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.all(16),
+          margin: const EdgeInsets.only(bottom: 10),
           decoration: BoxDecoration(
-            color: const Color(0xFF131A2A).withValues(alpha: 0.8),
-            borderRadius: BorderRadius.circular(16),
+            color: const Color(0xFF131A2A),
+            borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: isPaid ? const Color(0xFF00FF66).withValues(alpha: 0.3) : const Color(0xFFFF0055).withValues(alpha: 0.3),
-              width: 1.5,
+              color: isPaid ? Colors.greenAccent.withValues(alpha: 0.3) : const Color(0xFFFF0055).withValues(alpha: 0.3),
+              width: 1,
             ),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  CircleAvatar(
-                    backgroundColor: const Color(0xFF0A0E17),
-                    radius: 20,
-                    child: Text(
-                      clientName.isNotEmpty ? clientName[0].toUpperCase() : 'C',
-                      style: const TextStyle(color: Color(0xFF00E5FF), fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          clientName,
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF0A0E17),
-                                borderRadius: BorderRadius.circular(6),
-                                border: Border.all(color: Colors.white12),
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(Icons.table_restaurant, color: Color(0xFF00E5FF), size: 12),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    tableName,
-                                    style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF0A0E17),
-                                borderRadius: BorderRadius.circular(6),
-                                border: Border.all(color: Colors.white12),
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(Icons.access_time, color: Color(0xFF00E5FF), size: 12),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    '${_formatHour(start)} - ${_formatHour(end)}',
-                                    style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (price > 0)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFD700).withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: const Color(0xFFFFD700), width: 1.5),
-                      ),
-                      child: Text(
-                        'De plată:\n${price.toStringAsFixed(0)} RON',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(color: Color(0xFFFFD700), fontSize: 11, fontWeight: FontWeight.bold, height: 1.2),
-                      ),
-                    ),
-                ],
-              ),
-              if (!isOffline && hostLevel.isNotEmpty) ...[
-                const SizedBox(height: 12),
+          child: Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.emoji_events, color: Color(0xFFFFD700), size: 14),
-                    const SizedBox(width: 6),
-                    Text(
-                      'Nivel Jucător: $hostLevel',
-                      style: const TextStyle(color: Colors.white70, fontSize: 12),
+                    CircleAvatar(
+                      radius: 20,
+                      backgroundColor: const Color(0xFF1E293B),
+                      backgroundImage: (hostAvatar != null && hostAvatar.isNotEmpty) ? NetworkImage(hostAvatar) : null,
+                      child: (hostAvatar == null || hostAvatar.isEmpty) ? const Icon(Icons.person, color: Colors.grey, size: 20) : null,
                     ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            clientName,
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF0A0E17),
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(color: Colors.white12),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.table_restaurant, color: Color(0xFF00E5FF), size: 10),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      tableName,
+                                      style: const TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF0A0E17),
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(color: Colors.white12),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.access_time, color: Color(0xFF00E5FF), size: 10),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      '${_formatHour(start)} - ${_formatHour(end)}',
+                                      style: const TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (price > 0)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFD700).withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: const Color(0xFFFFD700), width: 1),
+                        ),
+                        child: Text(
+                          '${price.toStringAsFixed(0)} RON',
+                          style: const TextStyle(color: Color(0xFFFFD700), fontSize: 10, fontWeight: FontWeight.bold),
+                        ),
+                      ),
                   ],
                 ),
-              ],
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Icon(
-                    isPaid ? Icons.check_circle : Icons.error_outline,
-                    color: isPaid ? const Color(0xFF00FF66) : const Color(0xFFFF0055),
-                    size: 16,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    isPaid ? 'Plată Confirmată (Cash/Card)' : 'Plată Neconfirmată (Rămâne de achitat cash la sală)',
-                    style: TextStyle(
-                      color: isPaid ? const Color(0xFF00FF66) : const Color(0xFFFF0055),
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-              if (widget.isAdmin) ...[
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    OutlinedButton.icon(
-                      onPressed: () => _cancelBooking(matchId),
-                      icon: const Icon(Icons.cancel, size: 16),
-                      label: const Text('Anulează Rezervarea'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: const Color(0xFFFF0055),
-                        side: const BorderSide(color: Color(0xFFFF0055)),
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      ),
-                    ),
-                    if (!isPaid) ...[
-                      const SizedBox(width: 12),
-                      ElevatedButton.icon(
-                        onPressed: () => _confirmBookingPayment(matchId),
-                        icon: const Icon(Icons.payments, size: 16),
-                        label: const Text('Confirmă Plată Cash'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF00FF66),
-                          foregroundColor: Colors.black,
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          textStyle: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
+                if (!isOffline && hostLevel.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      const Icon(Icons.emoji_events, color: Color(0xFFFFD700), size: 12),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Nivel: $hostLevel',
+                        style: const TextStyle(color: Colors.white70, fontSize: 10),
                       ),
                     ],
+                  ),
+                ],
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Icon(
+                      isPaid ? Icons.check_circle : Icons.error_outline,
+                      color: isPaid ? const Color(0xFF00FF66) : const Color(0xFFFF0055),
+                      size: 12,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      isPaid ? 'Plată Confirmată' : 'Plată Neconfirmată',
+                      style: TextStyle(
+                        color: isPaid ? const Color(0xFF00FF66) : const Color(0xFFFF0055),
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ],
                 ),
+                if (widget.isAdmin) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: () => _cancelBooking(matchId, booking),
+                        icon: const Icon(Icons.cancel, size: 12),
+                        label: const Text('Anulează', style: TextStyle(fontSize: 10)),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFFFF0055),
+                          side: const BorderSide(color: Color(0xFFFF0055)),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          minimumSize: Size.zero,
+                        ),
+                      ),
+                      if (!isPaid) ...[
+                        const SizedBox(width: 6),
+                        ElevatedButton.icon(
+                          onPressed: () => _confirmBookingPayment(matchId),
+                          icon: const Icon(Icons.payments, size: 12),
+                          label: const Text('Confirmă', style: TextStyle(fontSize: 10)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF00FF66),
+                            foregroundColor: Colors.black,
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            minimumSize: Size.zero,
+                            textStyle: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         );
       },
@@ -1245,7 +1257,7 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
                     const SizedBox(height: 12),
                     // The 2D Grid
                     Table(
-                      defaultColumnWidth: const FixedColumnWidth(82),
+                      defaultColumnWidth: const FixedColumnWidth(70),
                       children: List.generate(_gridRows, (y) {
                         return TableRow(
                           children: List.generate(_gridCols, (x) {
@@ -1333,7 +1345,7 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
                     const SizedBox(height: 12),
                     // The 2D Grid
                     Table(
-                      defaultColumnWidth: const FixedColumnWidth(82),
+                      defaultColumnWidth: const FixedColumnWidth(70),
                       children: List.generate(_gridRows, (y) {
                         return TableRow(
                           children: List.generate(_gridCols, (x) {
@@ -1368,7 +1380,7 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
         return GestureDetector(
           onTap: () => _showEditTableDialog(table),
           child: Container(
-            height: 68,
+            height: 50,
             margin: const EdgeInsets.all(3),
             decoration: BoxDecoration(
               color: isMoving ? Colors.orange.withValues(alpha: 0.2) : const Color(0xFF1E293B),
@@ -1381,11 +1393,11 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(icon, color: const Color(0xFF00E5FF), size: 16),
-                const SizedBox(height: 4),
+                Icon(icon, color: const Color(0xFF00E5FF), size: 14),
+                const SizedBox(height: 2),
                 Text(
                   table['name'] ?? '',
-                  style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                  style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold),
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
                 ),
@@ -1395,29 +1407,29 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
         );
       } else {
         // Empty cell in edit mode
+        final bool isMovingTarget = _movingTable != null;
         return GestureDetector(
           onTap: () {
             if (_movingTable != null) {
-              // Complete move table
-              setState(() {
-                _movingTable!['x'] = x;
-                _movingTable!['y'] = y;
-                _movingTable = null;
-              });
+              _moveTableTo(x, y);
             } else {
               _showAddTableDialog(x, y);
             }
           },
           child: Container(
-            height: 68,
+            height: 50,
             margin: const EdgeInsets.all(3),
             decoration: BoxDecoration(
-              color: const Color(0xFF0A0E17).withValues(alpha: 0.5),
+              color: isMovingTarget ? Colors.green.withValues(alpha: 0.2) : const Color(0xFF131A2A),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.white12, width: 1),
+              border: Border.all(
+                color: isMovingTarget ? Colors.greenAccent : Colors.white12,
+                style: BorderStyle.solid,
+                width: 1,
+              ),
             ),
             child: const Center(
-              child: Icon(Icons.add, color: Colors.white24, size: 20),
+              child: Icon(Icons.add, color: Colors.white24, size: 16),
             ),
           ),
         );

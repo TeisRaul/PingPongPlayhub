@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import '../services/stripe_service.dart';
 
 class PaymentScreen extends StatefulWidget {
   final double amount;
@@ -29,52 +30,28 @@ class _PaymentScreenState extends State<PaymentScreen> {
   }
 
   void _processPayment() async {
-    if (_formKey.currentState!.validate()) {
-      setState(() => _isProcessing = true);
+    setState(() => _isProcessing = true);
+    
+    // Call our real StripeService
+    bool success = await StripeService.instance.processPayment(context, widget.amount, 'mock_venue');
+    
+    if (mounted) {
+      setState(() => _isProcessing = false);
+      if (success) {
+        Navigator.pop(context, true);
+      }
+    }
+  }
 
-      // Show standard card encryption animation
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) {
-          return AlertDialog(
-            backgroundColor: const Color(0xFF131A2A),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-              side: const BorderSide(color: Color(0xFF00E5FF), width: 1.5),
-            ),
-            title: const Row(
-              children: [
-                Icon(Icons.lock, color: Color(0xFF00FF66)),
-                SizedBox(width: 8),
-                Text('Criptare Securizată Card', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
-              ],
-            ),
-            content: const Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircularProgressIndicator(color: Color(0xFF00E5FF)),
-                SizedBox(height: 16),
-                Text(
-                  'Datele cardului sunt criptate folosind un tunel securizat end-to-end (SSL/TLS AES-256) direct către procesatorul de plăți. Transferul nu poate fi interceptat!',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.white70, fontSize: 12, height: 1.4),
-                ),
-              ],
-            ),
-          );
-        },
-      );
-
-      await Future.delayed(const Duration(seconds: 2));
-      
-      if (mounted) {
-        Navigator.pop(context); // Close dialog
-        setState(() => _isProcessing = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Plata a fost procesată cu succes!'), backgroundColor: Colors.green),
-        );
-        Navigator.pop(context, true); // Return success
+  void _processQuickWallet(String walletName) async {
+    setState(() => _isProcessing = true);
+    // Stripe PaymentSheet supports Apple Pay / Google Pay automatically
+    bool success = await StripeService.instance.processPayment(context, widget.amount, 'mock_venue');
+    
+    if (mounted) {
+      setState(() => _isProcessing = false);
+      if (success) {
+        Navigator.pop(context, true);
       }
     }
   }

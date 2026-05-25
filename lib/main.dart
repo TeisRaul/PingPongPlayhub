@@ -3,6 +3,8 @@ import 'package:firebase_core/firebase_core.dart';
 import 'screens/login_screen.dart';
 import 'firebase_options.dart';
 
+import 'services/stripe_service.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
@@ -15,6 +17,8 @@ void main() async {
   } catch (e) {
     print("Eroare Firebase: $e");
   }
+  
+  await StripeService.instance.init();
   
   runApp(const PingPongPlayhubApp());
 }

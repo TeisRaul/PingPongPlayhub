@@ -22,7 +22,7 @@ class _TournamentsScreenState extends State<TournamentsScreen> with SingleTicker
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _loadUserRole();
   }
 
@@ -122,12 +122,16 @@ class _TournamentsScreenState extends State<TournamentsScreen> with SingleTicker
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (context) => CreateTournamentForm(
-        venueId: userData?['venueId'] ?? '',
+        isPlayer: !isVenue,
+        venueId: userData?['venueId'] ?? (isVenue ? FirebaseAuth.instance.currentUser?.uid ?? '' : ''),
         venueName: userData?['venueName'] ?? '',
         onSuccess: () {
           Navigator.pop(context);
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Turneul a fost creat cu succes și ziua a fost rezervată!'), backgroundColor: Colors.green),
+            SnackBar(
+              content: Text(isVenue ? 'Turneul a fost creat cu succes!' : 'Propunerea a fost trimisă spre aprobare!'),
+              backgroundColor: Colors.green
+            ),
           );
         },
       ),
@@ -156,19 +160,20 @@ class _TournamentsScreenState extends State<TournamentsScreen> with SingleTicker
           indicatorColor: const Color(0xFF00E5FF),
           labelColor: const Color(0xFF00E5FF),
           unselectedLabelColor: Colors.grey,
-          tabs: const [
-            Tab(icon: Icon(Icons.emoji_events_outlined), text: 'Turnee Active'),
-            Tab(icon: Icon(Icons.history), text: 'Istoric Turnee'),
+          tabs: [
+            const Tab(icon: Icon(Icons.emoji_events_outlined), text: 'Turnee Active'),
+            Tab(icon: const Icon(Icons.pending_actions), text: isVenue ? 'De Aprobat' : 'Propuse'),
+            const Tab(icon: Icon(Icons.history), text: 'Istoric Turnee'),
           ],
         ),
       ),
-      floatingActionButton: isVenue && isVerifiedVenue
+      floatingActionButton: (isVenue && isVerifiedVenue) || !isVenue
           ? FloatingActionButton.extended(
               onPressed: _showCreateTournamentDialog,
               backgroundColor: const Color(0xFF00E5FF),
               foregroundColor: Colors.black,
-              icon: const Icon(Icons.add),
-              label: const Text('CREEAZĂ TURNEU', style: TextStyle(fontWeight: FontWeight.bold)),
+              icon: Icon(isVenue ? Icons.add : Icons.campaign),
+              label: Text(isVenue ? 'CREEAZĂ TURNEU' : 'PROPUNE TURNEU', style: const TextStyle(fontWeight: FontWeight.bold)),
             )
           : null,
       body: _isLoadingUser
@@ -176,18 +181,24 @@ class _TournamentsScreenState extends State<TournamentsScreen> with SingleTicker
           : TabBarView(
               controller: _tabController,
               children: [
-                _buildTournamentsList(isActive: true),
-                _buildTournamentsList(isActive: false),
+                _buildTournamentsList('active'),
+                _buildTournamentsList('pending'),
+                _buildTournamentsList('history'),
               ],
             ),
     );
   }
 
-  Widget _buildTournamentsList({required bool isActive}) {
+  Widget _buildTournamentsList(String listType) {
     final Query baseQuery = FirebaseFirestore.instance.collection('tournaments');
-    final Query query = isActive
-        ? baseQuery.where('status', whereIn: ['open', 'active'])
-        : baseQuery.where('status', isEqualTo: 'completed');
+    Query query;
+    if (listType == 'active') {
+      query = baseQuery.where('status', whereIn: ['open', 'active']);
+    } else if (listType == 'pending') {
+      query = baseQuery.where('status', isEqualTo: 'pending_approval');
+    } else {
+      query = baseQuery.where('status', isEqualTo: 'completed');
+    }
 
     return StreamBuilder<QuerySnapshot>(
       stream: query.snapshots(),
@@ -245,6 +256,9 @@ class _TournamentsScreenState extends State<TournamentsScreen> with SingleTicker
             } else if (status == 'completed') {
               statusColor = Colors.greenAccent;
               statusText = 'Finalizat';
+            } else if (status == 'pending_approval') {
+              statusColor = Colors.yellowAccent;
+              statusText = 'În Așteptare Aprobare';
             }
 
             return Card(
@@ -361,12 +375,14 @@ class _TournamentsScreenState extends State<TournamentsScreen> with SingleTicker
 }
 
 class CreateTournamentForm extends StatefulWidget {
+  final bool isPlayer;
   final String venueId;
   final String venueName;
   final VoidCallback onSuccess;
 
   const CreateTournamentForm({
     super.key,
+    this.isPlayer = false,
     required this.venueId,
     required this.venueName,
     required this.onSuccess,
@@ -390,6 +406,13 @@ class _CreateTournamentFormState extends State<CreateTournamentForm> {
   String _maxRank = 'Toate Rank-urile';
   bool _isLoading = false;
 
+  // For players proposing tournaments
+  String? _selectedVenueId;
+  String? _selectedVenueName;
+  int _numTables = 1;
+  String _paymentMethod = 'Cash (la sală)';
+  List<Map<String, dynamic>> _venues = [];
+
   final List<int> _playerSlots = [8, 16, 32, 64];
 
   final List<String> _ranks = [
@@ -401,6 +424,32 @@ class _CreateTournamentFormState extends State<CreateTournamentForm> {
     'Platinum I', 'Platinum II', 'Platinum III', 'Platinum IV',
     'Diamond'
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.isPlayer) {
+      _loadVenues();
+    } else {
+      _selectedVenueId = widget.venueId;
+      _selectedVenueName = widget.venueName;
+    }
+  }
+
+  Future<void> _loadVenues() async {
+    try {
+      final snap = await FirebaseFirestore.instance.collection('users').get();
+      // We actually need to query 'venues' collection if it exists. But previously we checked users and venues.
+      // The venues are those where isVerified is true (wait, earlier it was 'users' or 'venues').
+      // Let's query 'venues' collection.
+      final venuesSnap = await FirebaseFirestore.instance.collection('venues').where('isVerified', isEqualTo: true).get();
+      setState(() {
+        _venues = venuesSnap.docs.map((doc) => {'id': doc.id, 'name': doc.data()['venueName'] ?? 'Sală'}).toList();
+      });
+    } catch (e) {
+      debugPrint('Eroare load venues: $e');
+    }
+  }
 
   @override
   void dispose() {
@@ -489,6 +538,12 @@ class _CreateTournamentFormState extends State<CreateTournamentForm> {
       );
       return;
     }
+    if (widget.isPlayer && _selectedVenueId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Trebuie să selectezi o sală parteneră!'), backgroundColor: Colors.redAccent),
+      );
+      return;
+    }
 
     final startMin = _selectedTime!.hour * 60 + _selectedTime!.minute;
     final endMin = _selectedEndTime!.hour * 60 + _selectedEndTime!.minute;
@@ -524,12 +579,15 @@ class _CreateTournamentFormState extends State<CreateTournamentForm> {
         'entryFee': double.tryParse(_feeController.text) ?? 0.0,
         'minRank': _minRank,
         'maxRank': _maxRank,
-        'venueId': widget.venueId,
-        'venueName': widget.venueName,
+        'venueId': widget.isPlayer ? _selectedVenueId : widget.venueId,
+        'venueName': widget.isPlayer ? _selectedVenueName : widget.venueName,
         'joinedUids': [],
         'joinedPlayers': [],
-        'status': 'open',
+        'status': widget.isPlayer ? 'pending_approval' : 'open',
         'createdAt': FieldValue.serverTimestamp(),
+        if (widget.isPlayer) 'proposerUid': FirebaseAuth.instance.currentUser?.uid,
+        if (widget.isPlayer) 'numTables': _numTables,
+        if (widget.isPlayer) 'paymentMethod': _paymentMethod,
       });
 
       // 2. Note: We no longer block the entire day in the venue's doc.
@@ -591,6 +649,75 @@ class _CreateTournamentFormState extends State<CreateTournamentForm> {
                   ],
                 ),
                 const SizedBox(height: 16),
+                if (widget.isPlayer) ...[
+                  DropdownButtonFormField<String>(
+                    value: _selectedVenueId,
+                    decoration: const InputDecoration(
+                      labelText: 'Selectează Sala Parteneră',
+                      prefixIcon: Icon(Icons.storefront),
+                    ),
+                    items: _venues.map((v) {
+                      return DropdownMenuItem<String>(
+                        value: v['id'],
+                        child: Text(v['name']),
+                      );
+                    }).toList(),
+                    onChanged: (val) {
+                      setState(() {
+                        _selectedVenueId = val;
+                        _selectedVenueName = _venues.firstWhere((v) => v['id'] == val)['name'];
+                      });
+                    },
+                    validator: (val) => val == null ? 'Alege o sală pentru turneu' : null,
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: DropdownButtonFormField<int>(
+                          value: _numTables,
+                          decoration: const InputDecoration(
+                            labelText: 'Mese Necesare',
+                            prefixIcon: Icon(Icons.table_restaurant),
+                          ),
+                          items: List.generate(10, (index) => index + 1).map((n) {
+                            return DropdownMenuItem<int>(
+                              value: n,
+                              child: Text('$n Mese'),
+                            );
+                          }).toList(),
+                          onChanged: (val) {
+                            if (val != null) {
+                              setState(() => _numTables = val);
+                            }
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          value: _paymentMethod,
+                          decoration: const InputDecoration(
+                            labelText: 'Plată Sală',
+                            prefixIcon: Icon(Icons.payment),
+                          ),
+                          items: ['Cash (la sală)', 'Card în aplicație'].map((m) {
+                            return DropdownMenuItem<String>(
+                              value: m,
+                              child: Text(m),
+                            );
+                          }).toList(),
+                          onChanged: (val) {
+                            if (val != null) {
+                              setState(() => _paymentMethod = val);
+                            }
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                ],
                 TextFormField(
                   controller: _titleController,
                   decoration: const InputDecoration(
@@ -937,6 +1064,50 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> with 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Te-ai retras din turneu.'), backgroundColor: Colors.orangeAccent),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Eroare: $e'), backgroundColor: Colors.redAccent),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isActionLoading = false);
+    }
+  }
+
+  Future<void> _approveTournament() async {
+    setState(() => _isActionLoading = true);
+    try {
+      await FirebaseFirestore.instance.collection('tournaments').doc(widget.tournamentId).update({
+        'status': 'open',
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Turneul a fost aprobat!'), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Eroare: $e'), backgroundColor: Colors.redAccent),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isActionLoading = false);
+    }
+  }
+
+  Future<void> _rejectTournament() async {
+    setState(() => _isActionLoading = true);
+    try {
+      await FirebaseFirestore.instance.collection('tournaments').doc(widget.tournamentId).update({
+        'status': 'cancelled',
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Propunerea a fost respinsă.'), backgroundColor: Colors.orange),
         );
       }
     } catch (e) {
@@ -1664,7 +1835,17 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> with 
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
                 ),
-            ] else if (status == 'cancelled')
+            ] else if (status == 'pending_approval')
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(color: const Color(0xFF131A2A), borderRadius: BorderRadius.circular(12)),
+                child: const Text(
+                  'Propunerea ta este în așteptarea aprobării clubului.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.yellowAccent, fontSize: 14, fontWeight: FontWeight.bold),
+                ),
+              )
+            else if (status == 'cancelled')
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(color: const Color(0xFF131A2A), borderRadius: BorderRadius.circular(12)),
@@ -1685,7 +1866,37 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> with 
                 ),
               ),
           ] else if (isHost) ...[
-            if (status == 'open') ...[
+            if (status == 'pending_approval') ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _rejectTournament,
+                      icon: const Icon(Icons.close),
+                      label: const Text('RESPINGE'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.redAccent,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _approveTournament,
+                      icon: const Icon(Icons.check),
+                      label: const Text('APROBĂ'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ] else if (status == 'open') ...[
               ElevatedButton.icon(
                 onPressed: () => _generateBracket(tourData),
                 icon: const Icon(Icons.grid_view_rounded),

@@ -45,5 +45,20 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>fb2138608576722270</string>
+            </array>
+        </dict>
+    </array>
+    <key>FacebookAppID</key>
+    <string>2138608576722270</string>
+    <key>FacebookClientToken</key>
+    <string>00000000000000000000000000000000</string>
+    <key>FacebookDisplayName</key>
+    <string>Pingpong Playhub</string>
 </dict>
 </plist>
