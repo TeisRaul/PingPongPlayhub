@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
+import '../services/invoice_service.dart';
 import '../data/mock_locations.dart';
 import 'payment_screen.dart';
 import '../utils/level_utils.dart';
@@ -506,7 +507,26 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
         };
       }
 
-      await FirebaseFirestore.instance.collection('matches').add(matchData);
+      final docRef = await FirebaseFirestore.instance.collection('matches').add(matchData);
+
+      if (_wantsInvoice && mounted) {
+        try {
+          await InvoiceService.generateAndShareInvoice(
+            matchId: docRef.id,
+            amount: totalAmount,
+            venueName: _selectedLocation!.name,
+            date: DateFormat('yyyy-MM-dd').format(_selectedDate),
+            time: '${_startHour!.toString().padLeft(2, '0')}:00 - ${_endHour!.toString().padLeft(2, '0')}:00',
+            companyName: _invoiceCompanyController.text.trim(),
+            cui: _invoiceCuiController.text.trim(),
+            regCom: _invoiceRegController.text.trim(),
+            address: _invoiceAddressController.text.trim(),
+            email: _invoiceEmailController.text.trim(),
+          );
+        } catch (e) {
+          debugPrint('Eroare generare factură: $e');
+        }
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

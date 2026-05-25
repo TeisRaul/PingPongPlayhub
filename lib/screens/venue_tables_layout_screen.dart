@@ -961,6 +961,8 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
             booking['hostUid'] == widget.venueId ||
             hostLevel == '' ||
             hostLevel == '-';
+            
+        final String? hostAvatar = booking['hostAvatarUrl'];
 
         // Find table name
         String tableName = 'Masa $tableId';
@@ -1411,7 +1413,11 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
         return GestureDetector(
           onTap: () {
             if (_movingTable != null) {
-              _moveTableTo(x, y);
+              setState(() {
+                _movingTable!['x'] = x;
+                _movingTable!['y'] = y;
+                _movingTable = null;
+              });
             } else {
               _showAddTableDialog(x, y);
             }
