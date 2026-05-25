@@ -15,6 +15,7 @@ import '../screens/login_screen.dart';
 import '../screens/venue_map_screen.dart';
 import '../screens/venue_tables_layout_screen.dart';
 import '../screens/venue_finances_screen.dart';
+import '../screens/leaderboard_screen.dart';
 
 class PlayerDrawer extends StatefulWidget {
   final String activePage;
@@ -281,6 +282,12 @@ class _PlayerDrawerState extends State<PlayerDrawer> {
                       title: 'Dashboard',
                       pageKey: 'dashboard',
                       onTap: () => _navigateTo('dashboard', const HomeScreen()),
+                    ),
+                    _buildDrawerItem(
+                      icon: Icons.leaderboard_outlined,
+                      title: 'Clasament Live',
+                      pageKey: 'leaderboard',
+                      onTap: () => _navigateTo('leaderboard', const LeaderboardScreen()),
                     ),
                     _buildDrawerItem(
                       icon: Icons.person_outline,

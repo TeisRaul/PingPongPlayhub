@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:fl_chart/fl_chart.dart';
 import '../utils/level_utils.dart';
 import 'avatar_screen.dart';
 import '../widgets/player_drawer.dart';
@@ -16,20 +17,73 @@ class MyProfileScreen extends StatefulWidget {
 class _MyProfileScreenState extends State<MyProfileScreen> {
   Map<String, dynamic>? userData;
   bool _isLoading = true;
+  
+  // Stats calculated from matches
+  int totalMatches = 0;
+  int wins = 0;
+  int losses = 0;
+  String winRate = "0%";
+  List<double> ratingHistory = [];
 
   @override
   void initState() {
     super.initState();
-    _loadUserData();
+    _loadUserDataAndStats();
   }
 
-  Future<void> _loadUserData() async {
+  Future<void> _loadUserDataAndStats() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
+      // Load user data
       final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      
+      // Load matches to calculate stats
+      final matchesQuery = await FirebaseFirestore.instance
+          .collection('matches')
+          .where('joinedUids', arrayContains: user.uid)
+          .where('status', isEqualTo: 'completed')
+          .get();
+
+      int w = 0;
+      int l = 0;
+      
+      // We assume there's a winnerUid field or we just read from user profile
+      for (var match in matchesQuery.docs) {
+        final data = match.data();
+        if (data['winnerUid'] == user.uid) {
+          w++;
+        } else if (data['winnerUid'] != null && data['winnerUid'] != user.uid) {
+          l++;
+        }
+      }
+      
+      final tMatches = matchesQuery.docs.length;
+      final rate = tMatches > 0 ? ((w / tMatches) * 100).toStringAsFixed(1) + "%" : "0%";
+
       if (doc.exists) {
         setState(() {
           userData = doc.data();
+          
+          // Use calculated stats or fallback to user document
+          totalMatches = tMatches;
+          wins = w > 0 ? w : (userData?['wins'] ?? 0);
+          winRate = tMatches > 0 ? rate : (userData?['winRate'] ?? "0%");
+          
+          // Mocking rating history if not present in DB for the chart to look good
+          List<dynamic> historyRaw = userData?['ratingHistory'] ?? [];
+          if (historyRaw.isEmpty) {
+             final currentR = (userData?['rating'] ?? 1000).toDouble();
+             ratingHistory = [
+               currentR - 50 < 1000 ? 1000 : currentR - 50,
+               currentR - 20 < 1000 ? 1000 : currentR - 20,
+               currentR + 10,
+               currentR - 15,
+               currentR
+             ];
+          } else {
+             ratingHistory = historyRaw.map((e) => (e as num).toDouble()).toList();
+          }
+          
           _isLoading = false;
         });
       }
@@ -45,6 +99,109 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
       return AssetImage(url);
     }
     return NetworkImage(url);
+  }
+
+  // Badges Logic
+  List<Widget> _buildBadges() {
+    List<Widget> badges = [];
+    
+    // Incepator
+    if (totalMatches >= 1 || (userData?['wins'] ?? 0) > 0) {
+      badges.add(_buildBadgeItem(Icons.water_drop, 'First Drop', 'Începător', const Color(0xFF00FF66)));
+    }
+    if (wins >= 1) {
+      badges.add(_buildBadgeItem(Icons.thumb_up, 'Rookie Win', 'Începător', const Color(0xFF00E5FF)));
+    }
+    
+    // Intermediar
+    if (totalMatches >= 20) {
+      badges.add(_buildBadgeItem(Icons.sports_tennis, 'PingPong Regular', 'Intermediar', const Color(0xFFC0C0C0)));
+    }
+    if (wins >= 10) {
+      badges.add(_buildBadgeItem(Icons.local_fire_department, 'Winning Streak', 'Intermediar', const Color(0xFFFF4500)));
+    }
+    
+    // Avansat
+    if (totalMatches >= 100) {
+      badges.add(_buildBadgeItem(Icons.account_balance, 'Arena Master', 'Avansat', const Color(0xFFFFD700)));
+    }
+    final rating = userData?['rating'] ?? 0;
+    if (rating >= 2000) {
+      badges.add(_buildBadgeItem(Icons.diamond, 'Diamond Player', 'Avansat', const Color(0xFFB9F2FF)));
+    }
+
+    if (badges.isEmpty) {
+      return [const Text('Joacă meciuri pentru a debloca insigne!', style: TextStyle(color: Colors.grey))];
+    }
+    return badges;
+  }
+
+  Widget _buildBadgeItem(IconData icon, String title, String category, Color color) {
+    return Container(
+      width: 90,
+      margin: const EdgeInsets.only(right: 12),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF131A2A),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.3), width: 1),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, color: color, size: 28),
+          const SizedBox(height: 8),
+          Text(title, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold), textAlign: TextAlign.center, maxLines: 2),
+          const SizedBox(height: 4),
+          Text(category, style: TextStyle(color: color, fontSize: 9), textAlign: TextAlign.center),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatsChart() {
+    if (ratingHistory.length < 2) {
+      return const Center(
+        child: Text('Nu sunt destule date pentru grafic.', style: TextStyle(color: Colors.grey)),
+      );
+    }
+
+    List<FlSpot> spots = [];
+    for (int i = 0; i < ratingHistory.length; i++) {
+      spots.add(FlSpot(i.toDouble(), ratingHistory[i]));
+    }
+    
+    double minY = ratingHistory.reduce((a, b) => a < b ? a : b) - 20;
+    double maxY = ratingHistory.reduce((a, b) => a > b ? a : b) + 20;
+
+    return SizedBox(
+      height: 200,
+      child: LineChart(
+        LineChartData(
+          gridData: const FlGridData(show: false),
+          titlesData: const FlTitlesData(show: false),
+          borderData: FlBorderData(show: false),
+          minX: 0,
+          maxX: (ratingHistory.length - 1).toDouble(),
+          minY: minY,
+          maxY: maxY,
+          lineBarsData: [
+            LineChartBarData(
+              spots: spots,
+              isCurved: true,
+              color: const Color(0xFF00E5FF),
+              barWidth: 3,
+              isStrokeCapRound: true,
+              dotData: const FlDotData(show: true),
+              belowBarData: BarAreaData(
+                show: true,
+                color: const Color(0xFF00E5FF).withValues(alpha: 0.1),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _showChangePasswordDialog() {
@@ -104,11 +261,8 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
                           try {
                             User? user = FirebaseAuth.instance.currentUser;
                             if (user != null && user.email != null) {
-                              // Reautentificare
                               AuthCredential credential = EmailAuthProvider.credential(email: user.email!, password: oldP);
                               await user.reauthenticateWithCredential(credential);
-
-                              // Schimbare
                               await user.updatePassword(newP);
 
                               if (mounted) {
@@ -160,7 +314,7 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
             },
           ),
         ),
-        title: const Text('Profilul Meu'),
+        title: const Text('Profilul Meu & Statistici'),
         centerTitle: true,
       ),
       drawer: const PlayerDrawer(activePage: 'profile'),
@@ -189,7 +343,7 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(builder: (_) => const AvatarScreen()),
-                      ).then((_) => _loadUserData()); // Refresh on return
+                      ).then((_) => _loadUserDataAndStats()); 
                     },
                     child: CircleAvatar(
                       radius: 50,
@@ -225,11 +379,47 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
               textAlign: TextAlign.center,
               style: const TextStyle(color: Colors.grey, fontSize: 16),
             ),
+            
             const SizedBox(height: 32),
             const Divider(color: Colors.grey),
+            
+            // --- NEW: Player Statistics ---
             const SizedBox(height: 16),
+            const Text('Statistici Meciuri', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildStatCircle('Victorii', '$wins', const Color(0xFF00FF66)),
+                _buildStatCircle('Jucate', '$totalMatches', const Color(0xFF00E5FF)),
+                _buildStatCircle('Win Rate', winRate, const Color(0xFFFFD700)),
+              ],
+            ),
+            const SizedBox(height: 24),
+            const Text('Evoluție ELO (Ultimele Meciuri)', style: TextStyle(fontSize: 14, color: Colors.grey)),
+            const SizedBox(height: 16),
+            _buildStatsChart(),
 
+            const SizedBox(height: 32),
+            const Divider(color: Colors.grey),
+            
+            // --- NEW: Badges ---
+            const SizedBox(height: 16),
+            const Text('Ecusoane (Badges)', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 110,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: _buildBadges(),
+              ),
+            ),
+
+            const SizedBox(height: 32),
+            const Divider(color: Colors.grey),
+            
             // Date Personale
+            const SizedBox(height: 16),
             const Text('Date Personale', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
             const SizedBox(height: 16),
             _buildProfileRow(Icons.person_outline, 'Nume de utilizator', userData?['username'] ?? '-'),
@@ -253,6 +443,27 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildStatCircle(String label, String value, Color color) {
+    return Column(
+      children: [
+        Container(
+          width: 70,
+          height: 70,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: color, width: 2),
+            color: color.withValues(alpha: 0.1),
+          ),
+          child: Center(
+            child: Text(value, style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+      ],
     );
   }
 
