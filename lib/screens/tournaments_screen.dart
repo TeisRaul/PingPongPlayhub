@@ -220,7 +220,7 @@ class _TournamentsScreenState extends State<TournamentsScreen> with SingleTicker
                 Icon(Icons.emoji_events_outlined, size: 64, color: Colors.grey[700]),
                 const SizedBox(height: 16),
                 Text(
-                  isActive ? 'Nu există turnee active în acest moment.' : 'Niciun turneu în istoric.',
+                  listType == 'active' ? 'Nu există turnee active în acest moment.' : 'Niciun turneu.',
                   style: const TextStyle(color: Colors.grey, fontSize: 16),
                 ),
               ],

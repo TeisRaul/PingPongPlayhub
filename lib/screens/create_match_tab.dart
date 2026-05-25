@@ -34,6 +34,7 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
   int _maxPlayers = 2;
   String _visibility = 'Public';
   String _matchType = 'Competitiv';
+  Map<String, int> _selectedExtraServices = {};
 
   // Step 2: Data, Ora si Masa
   DateTime _selectedDate = DateTime.now();
@@ -139,6 +140,15 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
         final int outdoorTables = data['outdoorTables'] as int? ?? 0;
         final bool allowHalfHour = data['allowHalfHour'] as bool? ?? false;
         final String? stripeAccountId = data['stripeAccountId'];
+        final bool offersSubscription = data['offersSubscription'] as bool? ?? false;
+        final double subscriptionPrice = (data['subscriptionPrice'] as num?)?.toDouble() ?? 150.0;
+        
+        List<Map<String, dynamic>> extraServices = [];
+        if (data['extraServices'] != null) {
+          extraServices = List<Map<String, dynamic>>.from(
+            (data['extraServices'] as List<dynamic>).map((e) => Map<String, dynamic>.from(e))
+          );
+        }
 
         fetched.add(PingPongLocation(
           id: id,
@@ -153,6 +163,9 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
           pricePerHourText: data['pricePerHourText'] as String? ?? '20 RON/oră',
           allowHalfHour: allowHalfHour,
           stripeAccountId: stripeAccountId,
+          offersSubscription: offersSubscription,
+          subscriptionPrice: subscriptionPrice,
+          extraServices: extraServices,
         ));
       }
 
@@ -468,6 +481,12 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
             _endHour!,
           );
         }
+        for (var service in _selectedLocation!.extraServices) {
+          int count = _selectedExtraServices[service['name']] ?? 0;
+          if (count > 0) {
+            totalAmount += count * (service['price'] as num).toDouble();
+          }
+        }
       }
 
       final matchData = {
@@ -494,6 +513,7 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
         'paymentStatus': _paymentMethod.contains('Card') ? 'confirmed' : 'pending',
         'status': 'open',
         'price': totalAmount,
+        'extraServices': _selectedExtraServices,
         'createdAt': FieldValue.serverTimestamp(),
       };
 
@@ -545,6 +565,7 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
           _maxPlayers = 2;
           _visibility = 'Public';
           _matchType = 'Competitiv';
+          _selectedExtraServices.clear();
           _wantsInvoice = false;
           _invoiceCompanyController.clear();
           _invoiceCuiController.clear();
@@ -595,6 +616,13 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
                 _startHour!,
                 _endHour!,
               );
+              
+              for (var service in _selectedLocation!.extraServices) {
+                int count = _selectedExtraServices[service['name']] ?? 0;
+                if (count > 0) {
+                  amount += count * (service['price'] as num).toDouble();
+                }
+              }
 
               final paymentSuccess = await Navigator.push(
                 context,
@@ -684,10 +712,102 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
                       _endHour = null;
                       _selectedHours.clear();
                       _selectedTable = null;
+                      _selectedExtraServices.clear();
                     });
                   },
                 ),
                 if (_selectedLocation != null) ...[
+                  if (_selectedLocation!.offersSubscription) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF00E5FF).withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.3)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.star, color: Color(0xFF00E5FF)),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text('Abonament disponibil', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                Text('Joacă nelimitat pentru ${_selectedLocation!.subscriptionPrice} RON/lună.', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                              ],
+                            ),
+                          ),
+                          ElevatedButton(
+                            onPressed: () {
+                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sistemul de plăți recurente (abonamente) va fi integrat curând.')));
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF00E5FF),
+                              foregroundColor: Colors.black,
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            child: const Text('Cumpără'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  if (_selectedLocation!.extraServices.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    const Text('Servicii Extra (Opțional)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    const SizedBox(height: 8),
+                    ..._selectedLocation!.extraServices.map((service) {
+                      final String name = service['name'] ?? '';
+                      final double price = (service['price'] as num).toDouble();
+                      final int count = _selectedExtraServices[name] ?? 0;
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1E293B),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.grey[800]!),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(Icons.add_circle_outline, color: Colors.orangeAccent),
+                                const SizedBox(width: 12),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                    Text('$price RON / buc', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                                  ],
+                                ),
+                              ],
+                            ),
+                            Row(
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.remove_circle_outline, color: Colors.grey),
+                                  onPressed: count > 0
+                                      ? () => setState(() => _selectedExtraServices[name] = count - 1)
+                                      : null,
+                                ),
+                                Text('$count', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                                IconButton(
+                                  icon: const Icon(Icons.add_circle_outline, color: Color(0xFF00E5FF)),
+                                  onPressed: () => setState(() => _selectedExtraServices[name] = count + 1),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                  ],
                   const SizedBox(height: 20),
                   const Text('Tip Masă', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                   const SizedBox(height: 4),
@@ -1284,6 +1404,7 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
                 const SizedBox(height: 2),
                 Text(value, style: const TextStyle(color: Colors.white, fontSize: 14)),

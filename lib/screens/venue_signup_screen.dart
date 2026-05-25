@@ -45,6 +45,12 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
   final _dynamicPriceHourAfterController = TextEditingController(text: '40');
   final _dynamicPriceHalfAfterController = TextEditingController(text: '20');
 
+  // Subscription & Equipment
+  bool _offerSubscription = false;
+  final _subscriptionPriceController = TextEditingController(text: '150');
+  
+  List<Map<String, dynamic>> _extraServices = [];
+
   final _cuiController = TextEditingController();
   final _ibanController = TextEditingController();
 
@@ -87,6 +93,7 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
     _dynamicPriceHalfBeforeController.dispose();
     _dynamicPriceHourAfterController.dispose();
     _dynamicPriceHalfAfterController.dispose();
+    _subscriptionPriceController.dispose();
     _cuiController.dispose();
     _ibanController.dispose();
     _passwordController.dispose();
@@ -213,6 +220,9 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
         'dynamicPriceHalfBefore': dynamicPriceHalfBefore,
         'dynamicPriceHourAfter': dynamicPriceHourAfter,
         'dynamicPriceHalfAfter': dynamicPriceHalfAfter,
+        'offersSubscription': _offerSubscription,
+        'subscriptionPrice': _offerSubscription ? (double.tryParse(_subscriptionPriceController.text) ?? 150.0) : 0.0,
+        'extraServices': _extraServices,
         'pricePerHour': mainPrice,
         'pricePerHourText': priceText,
         'schedule': {
@@ -720,6 +730,83 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
                     ],
                   ),
                 ],
+
+                const SizedBox(height: 24),
+                _buildSectionHeader('Abonamente (Opțional)'),
+                SwitchListTile(
+                  title: const Text('Oferă Abonament Lunar', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  subtitle: const Text('Jucătorii pot cumpăra abonament pentru ore nelimitate/limitate.', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                  value: _offerSubscription,
+                  activeColor: const Color(0xFF00E5FF),
+                  onChanged: (val) => setState(() => _offerSubscription = val),
+                ),
+                if (_offerSubscription) ...[
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _subscriptionPriceController,
+                    keyboardType: TextInputType.number,
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    decoration: const InputDecoration(
+                      labelText: 'Preț Abonament (RON/lună)',
+                      prefixIcon: Icon(Icons.star_outline),
+                    ),
+                    validator: (value) {
+                      if (_offerSubscription) {
+                        if (value == null || value.trim().isEmpty) return 'Introdu prețul abonamentului';
+                        if (double.tryParse(value) == null) return 'Valoare invalidă';
+                      }
+                      return null;
+                    },
+                  ),
+                ],
+
+                const SizedBox(height: 24),
+                _buildSectionHeader('Servicii Extra (Mâncare, Echipament, etc.)'),
+                const Text(
+                  'Adaugă servicii suplimentare pe care le oferiți contra cost (ex: Închiriere palete, Apă plată, Sucuri).',
+                  style: TextStyle(color: Colors.grey, fontSize: 12),
+                ),
+                const SizedBox(height: 12),
+                ..._extraServices.asMap().entries.map((entry) {
+                  int idx = entry.key;
+                  var service = entry.value;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8.0),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          flex: 2,
+                          child: TextFormField(
+                            initialValue: service['name'],
+                            style: const TextStyle(color: Colors.white, fontSize: 13),
+                            decoration: const InputDecoration(labelText: 'Nume Serviciu', isDense: true),
+                            onChanged: (val) => setState(() => _extraServices[idx]['name'] = val),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          flex: 1,
+                          child: TextFormField(
+                            initialValue: service['price'].toString(),
+                            keyboardType: TextInputType.number,
+                            style: const TextStyle(color: Colors.white, fontSize: 13),
+                            decoration: const InputDecoration(labelText: 'Preț (RON)', isDense: true),
+                            onChanged: (val) => setState(() => _extraServices[idx]['price'] = double.tryParse(val) ?? 0.0),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.redAccent),
+                          onPressed: () => setState(() => _extraServices.removeAt(idx)),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+                TextButton.icon(
+                  onPressed: () => setState(() => _extraServices.add({'name': '', 'price': 0.0})),
+                  icon: const Icon(Icons.add, color: Color(0xFF00E5FF)),
+                  label: const Text('Adaugă Serviciu Extra', style: TextStyle(color: Color(0xFF00E5FF))),
+                ),
 
                 // 5. Date Financiare
                 _buildSectionHeader('5. Date Financiare (Salarizare)'),

@@ -54,6 +54,9 @@ dependencies:
   printing: ^5.14.3
   path_provider: ^2.1.5
   fl_chart: ^1.2.0
+  qr_flutter: ^4.1.0
+  mobile_scanner: ^7.2.0
+  add_2_calendar: ^3.0.1
 
 dev_dependencies:
   flutter_test:

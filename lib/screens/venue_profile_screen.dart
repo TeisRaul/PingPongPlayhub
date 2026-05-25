@@ -43,6 +43,12 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
   final _cuiController = TextEditingController();
   final _ibanController = TextEditingController();
 
+  // Subscription & Equipment
+  bool _offerSubscription = false;
+  final _subscriptionPriceController = TextEditingController(text: '150');
+  
+  List<Map<String, dynamic>> _extraServices = [];
+
   // Schedule controllers for Editing
   final _lvOpenCtrl = TextEditingController();
   final _lvCloseCtrl = TextEditingController();
@@ -85,6 +91,7 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
     _sCloseCtrl.dispose();
     _dOpenCtrl.dispose();
     _dCloseCtrl.dispose();
+    _subscriptionPriceController.dispose();
     super.dispose();
   }
 
@@ -110,6 +117,12 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
     _cuiController.text = data['cui'] ?? '';
     _ibanController.text = data['iban'] ?? '';
     _allowHalfHour = data['allowHalfHour'] ?? false;
+    _offerSubscription = data['offersSubscription'] ?? false;
+    _subscriptionPriceController.text = (data['subscriptionPrice'] ?? 150.0).toString();
+    
+    _extraServices = List<Map<String, dynamic>>.from(
+      (data['extraServices'] as List<dynamic>? ?? []).map((e) => Map<String, dynamic>.from(e))
+    );
 
     // Schedule Parsing
     final schedule = data['schedule'] ?? {};
@@ -241,6 +254,9 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
           'cui': _cuiController.text.trim(),
           'iban': _ibanController.text.trim(),
           'allowHalfHour': _allowHalfHour,
+          'offersSubscription': _offerSubscription,
+          'subscriptionPrice': _offerSubscription ? (double.tryParse(_subscriptionPriceController.text) ?? 150.0) : 0.0,
+          'extraServices': _extraServices,
         });
 
         setState(() {
@@ -750,6 +766,25 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
               ? data['pricePerHourText']
               : '${data['pricePerHour'] ?? 20.0} RON/oră',
         ),
+        _buildProfileDetailRow(
+          Icons.star_outline,
+          'Abonament Lunar',
+          data['offersSubscription'] == true 
+              ? '${data['subscriptionPrice'] ?? 150} RON / lună' 
+              : 'Nu este disponibil',
+        ),
+        if (data['extraServices'] != null && (data['extraServices'] as List).isNotEmpty)
+          ...((data['extraServices'] as List).map((srv) => _buildProfileDetailRow(
+                Icons.add_circle_outline,
+                srv['name'] ?? 'Serviciu Extra',
+                '${srv['price'] ?? 0} RON',
+              )).toList())
+        else
+          _buildProfileDetailRow(
+            Icons.add_circle_outline,
+            'Servicii Extra',
+            'Nu sunt disponibile',
+          ),
         _buildProfileDetailRow(Icons.description_outlined, 'CUI Fiscal', data['cui']?.toString().isEmpty == true ? '-' : (data['cui'] ?? '-')),
         _buildProfileDetailRow(Icons.account_balance_wallet_outlined, 'IBAN de Plată', data['iban']?.toString().isEmpty == true ? '-' : (data['iban'] ?? '-')),
         
@@ -831,6 +866,30 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
                   );
                 }).toList(),
               ),
+
+        const SizedBox(height: 25),
+        const Divider(color: Colors.grey, thickness: 0.5),
+
+        // Section 7: Reviews
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            _buildSectionHeader('Recenzii Jucători'),
+            if (data['rating'] != null)
+              Row(
+                children: [
+                  const Icon(Icons.star, color: Colors.yellowAccent, size: 20),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${(data['rating'] as num).toStringAsFixed(1)} / 5.0 (${data['ratingCount'] ?? 0})',
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        _buildReviewsList(FirebaseAuth.instance.currentUser?.uid ?? ''),
 
         const SizedBox(height: 35),
 
@@ -936,7 +995,88 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
     );
   }
 
-  // --- 2. EDIT PROFILE FORM ---
+  Widget _buildReviewsList(String venueId) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('venues')
+          .doc(venueId)
+          .collection('reviews')
+          .orderBy('createdAt', descending: true)
+          .limit(10)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)));
+        }
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8.0),
+            child: Text('Nu există recenzii momentan.', style: TextStyle(color: Colors.grey, fontSize: 14)),
+          );
+        }
+
+        final docs = snapshot.data!.docs;
+        return Column(
+          children: docs.map((doc) {
+            final rData = doc.data() as Map<String, dynamic>;
+            final rating = (rData['rating'] as num?)?.toInt() ?? 5;
+            final comment = rData['comment'] as String? ?? '';
+            final authorName = rData['authorUsername'] as String? ?? 'Jucător';
+            final avatarUrl = rData['authorAvatarUrl'] as String?;
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF131A2A),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey[800]!),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 16,
+                        backgroundColor: Colors.grey[700],
+                        backgroundImage: (avatarUrl != null && avatarUrl.isNotEmpty) ? NetworkImage(avatarUrl) : null,
+                        child: (avatarUrl == null || avatarUrl.isEmpty)
+                            ? const Icon(Icons.person, size: 20, color: Colors.white)
+                            : null,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          authorName,
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      Row(
+                        children: List.generate(5, (index) {
+                          return Icon(
+                            index < rating ? Icons.star : Icons.star_border,
+                            color: Colors.yellowAccent,
+                            size: 16,
+                          );
+                        }),
+                      ),
+                    ],
+                  ),
+                  if (comment.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(comment, style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                  ],
+                ],
+              ),
+            );
+          }).toList(),
+        );
+      },
+    );
+  }
+
+  // --- EDIT MODE VIEW ---
   Widget _buildEditForm() {
     return Form(
       key: _formKey,
@@ -1235,6 +1375,75 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
             value: _allowHalfHour,
             activeThumbColor: const Color(0xFF00E5FF),
             onChanged: (val) => setState(() => _allowHalfHour = val),
+          ),
+          const SizedBox(height: 16),
+          SwitchListTile(
+            title: const Text('Oferă Abonament Lunar', style: TextStyle(color: Colors.white, fontSize: 14)),
+            subtitle: const Text('Jucătorii pot cumpăra abonament pentru ore nelimitate/limitate.', style: TextStyle(color: Colors.white54, fontSize: 11)),
+            value: _offerSubscription,
+            activeThumbColor: const Color(0xFF00E5FF),
+            onChanged: (val) => setState(() => _offerSubscription = val),
+          ),
+          if (_offerSubscription) ...[
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _subscriptionPriceController,
+              keyboardType: TextInputType.number,
+              style: const TextStyle(color: Colors.white, fontSize: 14),
+              decoration: const InputDecoration(
+                labelText: 'Preț Abonament (RON/lună)',
+                prefixIcon: Icon(Icons.star_outline),
+              ),
+              validator: (value) {
+                if (_offerSubscription) {
+                  if (value == null || value.trim().isEmpty) return 'Introdu prețul abonamentului';
+                  if (double.tryParse(value) == null) return 'Valoare invalidă';
+                }
+                return null;
+              },
+            ),
+          ],
+          const SizedBox(height: 16),
+          _buildSectionHeader('Servicii Extra'),
+          ..._extraServices.asMap().entries.map((entry) {
+            int idx = entry.key;
+            var service = entry.value;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8.0),
+              child: Row(
+                children: [
+                  Expanded(
+                    flex: 2,
+                    child: TextFormField(
+                      initialValue: service['name'],
+                      style: const TextStyle(color: Colors.white, fontSize: 13),
+                      decoration: const InputDecoration(labelText: 'Nume Serviciu', isDense: true),
+                      onChanged: (val) => setState(() => _extraServices[idx]['name'] = val),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    flex: 1,
+                    child: TextFormField(
+                      initialValue: service['price'].toString(),
+                      keyboardType: TextInputType.number,
+                      style: const TextStyle(color: Colors.white, fontSize: 13),
+                      decoration: const InputDecoration(labelText: 'Preț (RON)', isDense: true),
+                      onChanged: (val) => setState(() => _extraServices[idx]['price'] = double.tryParse(val) ?? 0.0),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete, color: Colors.redAccent),
+                    onPressed: () => setState(() => _extraServices.removeAt(idx)),
+                  ),
+                ],
+              ),
+            );
+          }),
+          TextButton.icon(
+            onPressed: () => setState(() => _extraServices.add({'name': '', 'price': 0.0})),
+            icon: const Icon(Icons.add, color: Color(0xFF00E5FF)),
+            label: const Text('Adaugă Serviciu Extra', style: TextStyle(color: Color(0xFF00E5FF))),
           ),
           const SizedBox(height: 35),
 

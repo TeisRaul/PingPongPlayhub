@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 
 class VenueBookingHistoryScreen extends StatefulWidget {
   final String venueName;
@@ -59,6 +60,101 @@ class _VenueBookingHistoryScreenState extends State<VenueBookingHistoryScreen> {
     } catch (_) {
       return true;
     }
+  }
+
+  Future<void> _processScannedCode(String docId) async {
+    setState(() => _isLoading = true);
+    try {
+      final doc = await FirebaseFirestore.instance.collection('matches').doc(docId).get();
+      if (!doc.exists) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Bilet invalid!'), backgroundColor: Colors.red));
+        return;
+      }
+      
+      final data = doc.data() as Map<String, dynamic>;
+      if (data['locationName'] != widget.venueName) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Acest bilet este pentru altă sală!'), backgroundColor: Colors.red));
+        return;
+      }
+      
+      if (data['status'] == 'cancelled') {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Acest meci a fost anulat!'), backgroundColor: Colors.red));
+        return;
+      }
+
+      // Show dialog to confirm
+      if (mounted) {
+        final hostName = data['hostUsername'] ?? 'Host';
+        final price = (data['price'] as num?)?.toDouble() ?? 0.0;
+        final paymentMethod = data['paymentMethod'] ?? 'Cash la locație';
+        final isPaid = paymentMethod.contains('Card') || data['paymentStatus'] == 'confirmed';
+        
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: const Color(0xFF131A2A),
+            title: const Text('Confirmare Check-in', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Jucător: $hostName', style: const TextStyle(color: Colors.white70)),
+                Text('Data: ${data['date']} | ${data['startHour']}:00 - ${data['endHour']}:00', style: const TextStyle(color: Colors.white70)),
+                Text('Masa: ${data['tableId']}', style: const TextStyle(color: Colors.white70)),
+                const SizedBox(height: 10),
+                if (!isPaid) 
+                  Text('Atenție: Trebuie să încasezi ${price.toStringAsFixed(0)} RON (Cash)', style: const TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold))
+                else
+                  const Text('Plata este deja achitată / confirmată.', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Anulează', style: TextStyle(color: Colors.grey)),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00E5FF), foregroundColor: Colors.black),
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  if (!isPaid) {
+                    _confirmPayment(docId); // This sets paymentStatus to confirmed
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Check-in realizat cu succes!'), backgroundColor: Colors.green));
+                  }
+                },
+                child: const Text('Confirmă'),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Eroare: $e'), backgroundColor: Colors.red));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _openScanner() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (ctx) => Scaffold(
+          backgroundColor: Colors.black,
+          appBar: AppBar(title: const Text('Scanează Bilet'), backgroundColor: Colors.black),
+          body: MobileScanner(
+            onDetect: (capture) {
+              final List<Barcode> barcodes = capture.barcodes;
+              if (barcodes.isNotEmpty && barcodes.first.rawValue != null) {
+                Navigator.pop(ctx);
+                _processScannedCode(barcodes.first.rawValue!);
+              }
+            },
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -342,6 +438,13 @@ class _VenueBookingHistoryScreenState extends State<VenueBookingHistoryScreen> {
             ),
           ),
         ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        backgroundColor: const Color(0xFF00E5FF),
+        foregroundColor: Colors.black,
+        icon: const Icon(Icons.qr_code_scanner),
+        label: const Text('Scanează', style: TextStyle(fontWeight: FontWeight.bold)),
+        onPressed: _openScanner,
       ),
     );
   }

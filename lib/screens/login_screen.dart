@@ -118,7 +118,7 @@ class _LoginScreenState extends State<LoginScreen> {
         
         if (result.status == LoginStatus.success) {
           final AccessToken accessToken = result.accessToken!;
-          final OAuthCredential credential = FacebookAuthProvider.credential(accessToken.token);
+          final OAuthCredential credential = FacebookAuthProvider.credential(accessToken.tokenString);
           userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
         } else {
           setState(() => _isLoading = false);

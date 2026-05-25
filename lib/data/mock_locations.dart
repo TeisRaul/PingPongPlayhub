@@ -11,6 +11,9 @@ class PingPongLocation {
   final String pricePerHourText;
   final bool allowHalfHour;
   final String? stripeAccountId;
+  final bool offersSubscription;
+  final double subscriptionPrice;
+  final List<Map<String, dynamic>> extraServices;
 
   const PingPongLocation({
     required this.id,
@@ -25,6 +28,9 @@ class PingPongLocation {
     this.pricePerHourText = '20 RON/oră',
     this.allowHalfHour = false,
     this.stripeAccountId,
+    this.offersSubscription = false,
+    this.subscriptionPrice = 150.0,
+    this.extraServices = const [],
   }) : indoorTables = indoorTables ?? numTables;
 }
 

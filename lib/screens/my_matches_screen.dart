@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../utils/level_utils.dart';
+import 'package:qr_flutter/qr_flutter.dart';
+import 'package:add_2_calendar/add_2_calendar.dart';
 import 'chat_screen.dart';
 import '../widgets/player_drawer.dart';
 
@@ -338,6 +340,19 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
     }
   }
 
+  void _showReviewDialog(String matchId, Map<String, dynamic> data) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return _VenueReviewDialog(
+          matchId: matchId,
+          venueId: data['locationId'] ?? '',
+          venueName: data['locationName'] ?? 'Sala',
+        );
+      },
+    );
+  }
+
   Future<void> _withdraw(String matchId, Map<String, dynamic> data, bool isHost) async {
     final userUid = FirebaseAuth.instance.currentUser!.uid;
     List<dynamic> joinedPlayers = List.from(data['joinedPlayers'] ?? []);
@@ -384,6 +399,62 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Eroare: $e'), backgroundColor: Colors.red));
       }
     }
+  }
+
+  void _showTicketDialog(String matchId, Map<String, dynamic> data) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF131A2A),
+          title: const Text('Bilet Check-in', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Prezintă acest cod QR la recepția sălii pentru a confirma check-in-ul.', style: TextStyle(color: Colors.grey, fontSize: 13), textAlign: TextAlign.center),
+              const SizedBox(height: 20),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+                child: QrImageView(
+                  data: matchId,
+                  version: QrVersions.auto,
+                  size: 200.0,
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text('${data['locationName']} - ${data['date']}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              Text('${data['startHour']}:00 - ${data['endHour']}:00', style: const TextStyle(color: Colors.grey)),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Închide', style: TextStyle(color: Color(0xFF00E5FF))),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _addToCalendar(Map<String, dynamic> data) {
+    final dateStr = data['date'] as String; // yyyy-MM-dd
+    final startHour = data['startHour'] as int;
+    final endHour = data['endHour'] as int;
+
+    final startDate = DateTime.parse('$dateStr ${startHour.toString().padLeft(2, '0')}:00:00');
+    final endDate = DateTime.parse('$dateStr ${endHour.toString().padLeft(2, '0')}:00:00');
+
+    final Event event = Event(
+      title: 'Meci Ping Pong',
+      description: 'Rezervare PingPong Playhub la ${data['locationName']}',
+      location: '${data['locationName']}, ${data['city']}',
+      startDate: startDate,
+      endDate: endDate,
+    );
+
+    Add2Calendar.addEvent2Cal(event);
   }
 
   Widget _buildMatchCard(String docId, Map<String, dynamic> data, bool isPast) {
@@ -491,13 +562,29 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
                 child: Text('Mai sunt ${(data['maxPlayers'] ?? 2) - players.length} locuri libere...', style: const TextStyle(color: Colors.yellowAccent, fontSize: 12)),
               ),
             const SizedBox(height: 16),
-            if (isCompleted)
+            if (isCompleted) ...[
               Container(
+                width: double.infinity,
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(color: Colors.green.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(8)),
                 child: const Text('Meci finalizat și puncte acordate!', style: TextStyle(color: Colors.green)),
-              )
-            else if (isPast && (data['status'] == 'matched' || data['status'] == 'reported')) ...[
+              ),
+              if (!(data['reviewedBy'] as List<dynamic>? ?? []).contains(currentUserUid)) ...[
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.yellowAccent,
+                      side: const BorderSide(color: Colors.yellowAccent),
+                    ),
+                    icon: const Icon(Icons.star_outline),
+                    label: const Text('Lasă o Recenzie Sălii'),
+                    onPressed: () => _showReviewDialog(docId, data),
+                  ),
+                ),
+              ],
+            ] else if (isPast && (data['status'] == 'matched' || data['status'] == 'reported')) ...[
               if (data['status'] == 'reported') ...[
                 if (data['reporterUid'] == currentUserUid)
                   Container(
@@ -593,6 +680,35 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
                 )
               ]
             ] else if (!isPast) ...[
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () => _showTicketDialog(docId, data),
+                      icon: const Icon(Icons.qr_code, color: Colors.black),
+                      label: const Text('Check-in', style: TextStyle(color: Colors.black)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF00E5FF),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _addToCalendar(data),
+                      icon: const Icon(Icons.calendar_month, color: Colors.white),
+                      label: const Text('Calendar', style: TextStyle(color: Colors.white)),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Colors.grey),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
               Row(
                 children: [
                   if (isHost && canCancel)
@@ -1009,6 +1125,155 @@ class _ReportResultDialogState extends State<_ReportResultDialog> {
           child: _isSubmitting
               ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
               : const Text('SALVEAZĂ', style: TextStyle(fontWeight: FontWeight.bold)),
+        ),
+      ],
+    );
+  }
+}
+
+class _VenueReviewDialog extends StatefulWidget {
+  final String matchId;
+  final String venueId;
+  final String venueName;
+
+  const _VenueReviewDialog({
+    required this.matchId,
+    required this.venueId,
+    required this.venueName,
+  });
+
+  @override
+  State<_VenueReviewDialog> createState() => _VenueReviewDialogState();
+}
+
+class _VenueReviewDialogState extends State<_VenueReviewDialog> {
+  int _rating = 5;
+  final _commentController = TextEditingController();
+  bool _isSubmitting = false;
+
+  @override
+  void dispose() {
+    _commentController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submitReview() async {
+    if (widget.venueId.isEmpty) return;
+    setState(() => _isSubmitting = true);
+
+    try {
+      final currentUserUid = FirebaseAuth.instance.currentUser!.uid;
+      final userDoc = await FirebaseFirestore.instance.collection('users').doc(currentUserUid).get();
+      final username = userDoc.data()?['username'] ?? 'Jucător';
+      final avatarUrl = userDoc.data()?['avatarUrl'] ?? '';
+
+      final venueRef = FirebaseFirestore.instance.collection('venues').doc(widget.venueId);
+      final reviewRef = venueRef.collection('reviews').doc();
+      final matchRef = FirebaseFirestore.instance.collection('matches').doc(widget.matchId);
+
+      await FirebaseFirestore.instance.runTransaction((transaction) async {
+        final venueDoc = await transaction.get(venueRef);
+        if (!venueDoc.exists) throw Exception('Sala nu mai există!');
+        final venueData = venueDoc.data() ?? {};
+
+        double ratingTotal = (venueData['ratingTotal'] as num?)?.toDouble() ?? 0.0;
+        int ratingCount = (venueData['ratingCount'] as num?)?.toInt() ?? 0;
+
+        ratingTotal += _rating;
+        ratingCount += 1;
+        double newAverage = ratingTotal / ratingCount;
+
+        transaction.update(venueRef, {
+          'ratingTotal': ratingTotal,
+          'ratingCount': ratingCount,
+          'rating': newAverage,
+        });
+
+        transaction.set(reviewRef, {
+          'authorUid': currentUserUid,
+          'authorUsername': username,
+          'authorAvatarUrl': avatarUrl,
+          'rating': _rating,
+          'comment': _commentController.text.trim(),
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+
+        transaction.update(matchRef, {
+          'reviewedBy': FieldValue.arrayUnion([currentUserUid]),
+        });
+      });
+
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Recenzie adăugată cu succes!'), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Eroare: $e'), backgroundColor: Colors.redAccent),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: const Color(0xFF131A2A),
+      title: Text('Recenzie pentru ${widget.venueName}', style: const TextStyle(color: Colors.white, fontSize: 18)),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Cum a fost experiența?', style: TextStyle(color: Colors.white70)),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(5, (index) {
+                return IconButton(
+                  icon: Icon(
+                    index < _rating ? Icons.star : Icons.star_border,
+                    color: Colors.yellowAccent,
+                    size: 32,
+                  ),
+                  onPressed: () => setState(() => _rating = index + 1),
+                );
+              }),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _commentController,
+              maxLines: 3,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: 'Scrie un comentariu (opțional)...',
+                hintStyle: const TextStyle(color: Colors.grey),
+                filled: true,
+                fillColor: const Color(0xFF1E293B),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _isSubmitting ? null : () => Navigator.pop(context),
+          child: const Text('ANULEAZĂ', style: TextStyle(color: Colors.grey)),
+        ),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00E5FF)),
+          onPressed: _isSubmitting ? null : _submitReview,
+          child: _isSubmitting
+              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2))
+              : const Text('TRIMITE', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
         ),
       ],
     );

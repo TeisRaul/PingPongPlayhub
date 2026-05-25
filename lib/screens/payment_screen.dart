@@ -59,26 +59,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
     }
   }
 
-  void _processQuickWallet(String walletName) async {
-    setState(() => _isProcessing = true);
-    
-    double totalAmount = widget.amount + 5.0;
 
-    // Stripe PaymentSheet supports Apple Pay / Google Pay automatically
-    bool success = await StripeService.instance.processPayment(
-      context, 
-      totalAmount, 
-      widget.venueId,
-      destinationAccountId: widget.destinationAccountId,
-    );
-    
-    if (mounted) {
-      setState(() => _isProcessing = false);
-      if (success) {
-        Navigator.pop(context, true);
-      }
-    }
-  }
 
   void _processQuickWallet(String walletName) async {
     // Show biometric / wallet confirmation sheet
