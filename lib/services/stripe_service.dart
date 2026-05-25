@@ -20,17 +20,23 @@ class StripeService {
     await Stripe.instance.applySettings();
   }
 
-  Future<bool> processPayment(BuildContext context, double amount, String venueId) async {
+  Future<bool> processPayment(BuildContext context, double amount, String venueId, {String? destinationAccountId}) async {
     try {
       // 1. Apelam Firebase Functions pentru a crea un PaymentIntent
+      final bodyData = {
+        'amount': amount,
+        'currency': 'ron',
+        'venueId': venueId,
+      };
+      
+      if (destinationAccountId != null && destinationAccountId.isNotEmpty) {
+        bodyData['destinationAccountId'] = destinationAccountId;
+      }
+
       final response = await http.post(
         Uri.parse(_createIntentUrl),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'amount': amount,
-          'currency': 'ron',
-          'venueId': venueId,
-        }),
+        body: jsonEncode(bodyData),
       );
 
       String clientSecret = '';

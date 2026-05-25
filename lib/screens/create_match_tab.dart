@@ -137,6 +137,7 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
         final int indoorTables = data['indoorTables'] as int? ?? numTables;
         final int outdoorTables = data['outdoorTables'] as int? ?? 0;
         final bool allowHalfHour = data['allowHalfHour'] as bool? ?? false;
+        final String? stripeAccountId = data['stripeAccountId'];
 
         fetched.add(PingPongLocation(
           id: id,
@@ -150,6 +151,7 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
           pricePerHour: (data['pricePerHour'] as num?)?.toDouble() ?? 20.0,
           pricePerHourText: data['pricePerHourText'] as String? ?? '20 RON/oră',
           allowHalfHour: allowHalfHour,
+          stripeAccountId: stripeAccountId,
         ));
       }
 
@@ -576,7 +578,11 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
 
               final paymentSuccess = await Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => PaymentScreen(amount: amount)),
+                MaterialPageRoute(builder: (_) => PaymentScreen(
+                  amount: amount,
+                  venueId: _selectedLocation!.id,
+                  destinationAccountId: _selectedLocation!.stripeAccountId,
+                )),
               );
               
               if (paymentSuccess == true) {

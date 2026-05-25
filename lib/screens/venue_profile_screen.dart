@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:url_launcher/url_launcher.dart';
 import '../widgets/player_drawer.dart';
 import '../utils/level_utils.dart';
 import '../data/mock_locations.dart';
@@ -347,6 +350,71 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
     }
   }
 
+  Future<void> _setupStripeConnect(String? existingAccountId) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null || user.email == null) return;
+
+    try {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const Center(child: CircularProgressIndicator(color: Color(0xFF635BFF))),
+      );
+
+      String accountId = existingAccountId ?? '';
+
+      // 1. Create account if doesn't exist
+      if (accountId.isEmpty) {
+        final res = await http.post(
+          Uri.parse('https://us-central1-pingpongplayhub1.cloudfunctions.net/createStripeConnectAccount'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'email': user.email}),
+        );
+        if (res.statusCode == 200) {
+          accountId = jsonDecode(res.body)['accountId'];
+          // Save to Firestore
+          await FirebaseFirestore.instance.collection('venues').doc(user.uid).update({
+            'stripeAccountId': accountId,
+          });
+        } else {
+          throw Exception('Failed to create account: ${res.body}');
+        }
+      }
+
+      // 2. Create account link
+      final linkRes = await http.post(
+        Uri.parse('https://us-central1-pingpongplayhub1.cloudfunctions.net/createStripeAccountLink'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'accountId': accountId}),
+      );
+
+      if (mounted) {
+        Navigator.pop(context); // close loader
+      }
+
+      if (linkRes.statusCode == 200) {
+        final url = jsonDecode(linkRes.body)['url'];
+        if (await canLaunchUrl(Uri.parse(url))) {
+          await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+        } else {
+          throw Exception('Nu s-a putut deschide linkul de Stripe.');
+        }
+      } else {
+        throw Exception('Failed to create account link: ${linkRes.body}');
+      }
+    } catch (e) {
+      if (mounted) {
+        // If loader is still showing, close it
+        if (Navigator.canPop(context)) {
+          Navigator.pop(context);
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Eroare Stripe Connect: $e'), backgroundColor: Colors.redAccent),
+        );
+      }
+    }
+  }
+
   void _showChangePasswordDialog() {
     final oldPassCtrl = TextEditingController();
     final newPassCtrl = TextEditingController();
@@ -685,6 +753,48 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
         ),
         _buildProfileDetailRow(Icons.description_outlined, 'CUI Fiscal', data['cui']?.toString().isEmpty == true ? '-' : (data['cui'] ?? '-')),
         _buildProfileDetailRow(Icons.account_balance_wallet_outlined, 'IBAN de Plată', data['iban']?.toString().isEmpty == true ? '-' : (data['iban'] ?? '-')),
+        
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFF635BFF).withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFF635BFF).withOpacity(0.5)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.payment, color: Color(0xFF635BFF)),
+                  SizedBox(width: 8),
+                  Text('Încasări prin Stripe', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                (data['stripeAccountId'] != null)
+                    ? 'Contul Stripe este conectat. Sunteți pregătit să încasați plăți automat în IBAN-ul dvs.'
+                    : 'Pentru a putea încasa banii din rezervări, trebuie să vă conectați IBAN-ul prin Stripe.',
+                style: const TextStyle(color: Colors.white70, fontSize: 13),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => _setupStripeConnect(data['stripeAccountId']),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF635BFF),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: Text((data['stripeAccountId'] != null) ? 'Gestionează Cont Stripe' : 'Configurați Încasări Stripe'),
+                ),
+              ),
+            ],
+          ),
+        ),
 
         const SizedBox(height: 25),
         const Divider(color: Colors.grey, thickness: 0.5),

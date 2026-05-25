@@ -49,6 +49,7 @@ dependencies:
   pay: ^3.3.0
   flutter_facebook_auth: ^7.1.6
   http: ^1.6.0
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:

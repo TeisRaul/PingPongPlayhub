@@ -611,7 +611,11 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
 
               final paymentSuccess = await Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => PaymentScreen(amount: amount)),
+                MaterialPageRoute(builder: (_) => PaymentScreen(
+                  amount: amount,
+                  venueId: _selectedLocation?.id ?? 'unknown',
+                  destinationAccountId: _selectedLocation?.stripeAccountId,
+                )),
               );
 
               if (paymentSuccess == true) {

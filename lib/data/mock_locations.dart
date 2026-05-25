@@ -10,6 +10,7 @@ class PingPongLocation {
   final double pricePerHour;
   final String pricePerHourText;
   final bool allowHalfHour;
+  final String? stripeAccountId;
 
   const PingPongLocation({
     required this.id,
@@ -23,6 +24,7 @@ class PingPongLocation {
     this.pricePerHour = 20.0,
     this.pricePerHourText = '20 RON/oră',
     this.allowHalfHour = false,
+    this.stripeAccountId,
   }) : indoorTables = indoorTables ?? numTables;
 }
 

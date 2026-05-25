@@ -4,7 +4,15 @@ import '../services/stripe_service.dart';
 
 class PaymentScreen extends StatefulWidget {
   final double amount;
-  const PaymentScreen({super.key, required this.amount});
+  final String venueId;
+  final String? destinationAccountId;
+
+  const PaymentScreen({
+    super.key, 
+    required this.amount, 
+    required this.venueId,
+    this.destinationAccountId,
+  });
 
   @override
   State<PaymentScreen> createState() => _PaymentScreenState();
@@ -32,8 +40,16 @@ class _PaymentScreenState extends State<PaymentScreen> {
   void _processPayment() async {
     setState(() => _isProcessing = true);
     
+    // Add 5 RON platform fee to the total charge
+    double totalAmount = widget.amount + 5.0;
+
     // Call our real StripeService
-    bool success = await StripeService.instance.processPayment(context, widget.amount, 'mock_venue');
+    bool success = await StripeService.instance.processPayment(
+      context, 
+      totalAmount, 
+      widget.venueId,
+      destinationAccountId: widget.destinationAccountId,
+    );
     
     if (mounted) {
       setState(() => _isProcessing = false);
@@ -45,8 +61,16 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
   void _processQuickWallet(String walletName) async {
     setState(() => _isProcessing = true);
+    
+    double totalAmount = widget.amount + 5.0;
+
     // Stripe PaymentSheet supports Apple Pay / Google Pay automatically
-    bool success = await StripeService.instance.processPayment(context, widget.amount, 'mock_venue');
+    bool success = await StripeService.instance.processPayment(
+      context, 
+      totalAmount, 
+      widget.venueId,
+      destinationAccountId: widget.destinationAccountId,
+    );
     
     if (mounted) {
       setState(() => _isProcessing = false);
@@ -327,9 +351,28 @@ class _PaymentScreenState extends State<PaymentScreen> {
                 ),
                 child: Column(
                   children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Rezervare Mese:', style: TextStyle(color: Colors.grey, fontSize: 14)),
+                        Text('${widget.amount.toStringAsFixed(2)} RON', style: const TextStyle(color: Colors.white, fontSize: 14)),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    const Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('Taxă Platformă:', style: TextStyle(color: Colors.grey, fontSize: 14)),
+                        Text('5.00 RON', style: TextStyle(color: Colors.white, fontSize: 14)),
+                      ],
+                    ),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      child: Divider(color: Colors.white24),
+                    ),
                     const Text('Total de Plată', style: TextStyle(color: Colors.grey, fontSize: 14)),
                     const SizedBox(height: 8),
-                    Text('${widget.amount.toStringAsFixed(2)} RON', style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Color(0xFF00E5FF))),
+                    Text('${(widget.amount + 5.0).toStringAsFixed(2)} RON', style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Color(0xFF00E5FF))),
                   ],
                 ),
               ),

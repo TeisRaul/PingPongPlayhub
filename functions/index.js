@@ -13,7 +13,7 @@ exports.createStripePaymentIntent = onRequest({cors: true}, async (req, res) => 
   }
 
   try {
-    const { amount, currency = "ron", venueId } = req.body;
+    const { amount, currency = "ron", venueId, destinationAccountId } = req.body;
     
     if (!amount) {
       return res.status(400).send("Missing amount");
@@ -22,27 +22,74 @@ exports.createStripePaymentIntent = onRequest({cors: true}, async (req, res) => 
     // Convert amount to cents for Stripe (e.g. 10.50 RON -> 1050)
     const amountInCents = Math.round(parseFloat(amount) * 100);
 
-    // Create a PaymentIntent with the order amount and currency
-    const paymentIntent = await stripe.paymentIntents.create({
+    const paymentIntentConfig = {
       amount: amountInCents,
       currency: currency,
-      // We accept cards, apple pay, google pay automatically 
-      // when using paymentIntents and PaymentSheet on the client
       automatic_payment_methods: {
         enabled: true,
       },
       metadata: {
         venueId: venueId || "unknown",
       }
-    });
+    };
+
+    // If destinationAccountId is provided, we route funds and take 5 RON fee
+    if (destinationAccountId) {
+      paymentIntentConfig.transfer_data = {
+        destination: destinationAccountId,
+      };
+      // The platform fee is 5 RON = 500 bani
+      paymentIntentConfig.application_fee_amount = 500;
+    }
+
+    // Create a PaymentIntent
+    const paymentIntent = await stripe.paymentIntents.create(paymentIntentConfig);
 
     res.status(200).json({
       paymentIntent: paymentIntent.client_secret,
-      ephemeralKey: "", // Usually generated for returning customers
-      customer: "" // Usually generated for returning customers
+      ephemeralKey: "",
+      customer: ""
     });
   } catch (error) {
     console.error("Stripe Error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+exports.createStripeConnectAccount = onRequest({cors: true}, async (req, res) => {
+  if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
+  
+  try {
+    const { email } = req.body;
+    const account = await stripe.accounts.create({
+      type: 'express',
+      email: email,
+      capabilities: {
+        card_payments: { requested: true },
+        transfers: { requested: true },
+      },
+    });
+
+    res.status(200).json({ accountId: account.id });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+exports.createStripeAccountLink = onRequest({cors: true}, async (req, res) => {
+  if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
+  
+  try {
+    const { accountId } = req.body;
+    const accountLink = await stripe.accountLinks.create({
+      account: accountId,
+      refresh_url: 'https://pingpongplayhub.web.app/reauth', // placeholders
+      return_url: 'https://pingpongplayhub.web.app/return',
+      type: 'account_onboarding',
+    });
+
+    res.status(200).json({ url: accountLink.url });
+  } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
