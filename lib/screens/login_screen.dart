@@ -51,7 +51,7 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       }
 
-      final User? user = userCredential?.user;
+      final User? user = userCredential.user;
 
       if (user != null) {
         // 5. Verificăm dacă utilizatorul are deja profil în baza noastră de date

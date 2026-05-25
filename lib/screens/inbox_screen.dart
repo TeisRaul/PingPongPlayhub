@@ -117,7 +117,7 @@ class _InboxScreenState extends State<InboxScreen> {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF00E5FF).withOpacity(0.1),
+                    color: const Color(0xFF00E5FF).withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                     border: Border.all(color: const Color(0xFF00E5FF), width: 1.5),
                   ),
@@ -156,7 +156,7 @@ class _InboxScreenState extends State<InboxScreen> {
                 color: const Color(0xFF131A2A),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
-                  side: BorderSide(color: const Color(0xFF00E5FF).withOpacity(0.2)),
+                  side: BorderSide(color: const Color(0xFF00E5FF).withValues(alpha: 0.2)),
                 ),
                 child: ListTile(
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),

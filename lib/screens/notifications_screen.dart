@@ -163,7 +163,7 @@ class _NotificationsDialogState extends State<NotificationsDialog> {
         backgroundColor: const Color(0xFF0A0E17),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: const Color(0xFF00E5FF).withOpacity(0.4), width: 1.5),
+          side: BorderSide(color: const Color(0xFF00E5FF).withValues(alpha: 0.4), width: 1.5),
         ),
         child: const Padding(
           padding: EdgeInsets.all(24.0),
@@ -183,10 +183,10 @@ class _NotificationsDialogState extends State<NotificationsDialog> {
         decoration: BoxDecoration(
           color: const Color(0xFF0A0E17),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFF00E5FF).withOpacity(0.4), width: 1.5),
+          border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.4), width: 1.5),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF00E5FF).withOpacity(0.1),
+              color: const Color(0xFF00E5FF).withValues(alpha: 0.1),
               blurRadius: 12,
               spreadRadius: 2,
             ),
@@ -313,7 +313,7 @@ class _NotificationsDialogState extends State<NotificationsDialog> {
                         margin: const EdgeInsets.only(bottom: 12),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
-                          side: BorderSide(color: const Color(0xFF00E5FF).withOpacity(0.3)),
+                          side: BorderSide(color: const Color(0xFF00E5FF).withValues(alpha: 0.3)),
                         ),
                         child: Padding(
                           padding: const EdgeInsets.all(16),

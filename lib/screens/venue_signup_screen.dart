@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../utils/level_utils.dart';
 import '../data/mock_locations.dart';
 import '../widgets/city_selector.dart';
 
@@ -551,7 +550,7 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
                   color: const Color(0xFF131A2A),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
-                    side: BorderSide(color: const Color(0xFF00E5FF).withOpacity(0.15)),
+                    side: BorderSide(color: const Color(0xFF00E5FF).withValues(alpha: 0.15)),
                   ),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
@@ -579,7 +578,7 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
                 _buildTimeSelectorRow('Sâmbătă', _sOpenController, _sCloseController),
                 _buildTimeSelectorRow('Duminică', _dOpenController, _dCloseController),
                 DropdownButtonFormField<String>(
-                  value: _priceType,
+                  initialValue: _priceType,
                   dropdownColor: const Color(0xFF131A2A),
                   style: const TextStyle(color: Colors.white, fontSize: 14),
                   decoration: const InputDecoration(
@@ -638,7 +637,7 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
                 ] else ...[
                   const SizedBox(height: 16),
                   DropdownButtonFormField<int>(
-                    value: _dynamicHourLimit,
+                    initialValue: _dynamicHourLimit,
                     dropdownColor: const Color(0xFF131A2A),
                     style: const TextStyle(color: Colors.white, fontSize: 14),
                     decoration: const InputDecoration(

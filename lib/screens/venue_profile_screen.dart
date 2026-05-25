@@ -6,7 +6,6 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 import '../widgets/player_drawer.dart';
-import '../utils/level_utils.dart';
 import '../data/mock_locations.dart';
 import '../widgets/city_selector.dart';
 
@@ -530,7 +529,7 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
       decoration: BoxDecoration(
         color: const Color(0xFF1E293B),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFF00E5FF).withOpacity(0.3), width: 1),
+        border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.3), width: 1),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -625,7 +624,7 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
                   border: Border.all(color: const Color(0xFF00E5FF), width: 2),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF00E5FF).withOpacity(0.2),
+                      color: const Color(0xFF00E5FF).withValues(alpha: 0.2),
                       blurRadius: 15,
                       spreadRadius: 2,
                     )
@@ -653,7 +652,7 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
             decoration: BoxDecoration(
-              color: isVerified ? const Color(0xFF00E5FF).withOpacity(0.1) : Colors.orangeAccent.withOpacity(0.1),
+              color: isVerified ? const Color(0xFF00E5FF).withValues(alpha: 0.1) : Colors.orangeAccent.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
                 color: isVerified ? const Color(0xFF00E5FF) : Colors.orangeAccent,
@@ -758,9 +757,9 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: const Color(0xFF635BFF).withOpacity(0.1),
+            color: const Color(0xFF635BFF).withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFF635BFF).withOpacity(0.5)),
+            border: Border.all(color: const Color(0xFF635BFF).withValues(alpha: 0.5)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -873,7 +872,7 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: const Color(0xFF00E5FF).withOpacity(0.8), size: 22),
+          Icon(icon, color: const Color(0xFF00E5FF).withValues(alpha: 0.8), size: 22),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
@@ -1074,7 +1073,7 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
           const SizedBox(height: 12),
 
           DropdownButtonFormField<String>(
-            value: _priceType,
+            initialValue: _priceType,
             dropdownColor: const Color(0xFF131A2A),
             style: const TextStyle(color: Colors.white, fontSize: 14),
             decoration: const InputDecoration(
@@ -1133,7 +1132,7 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
           ] else ...[
             const SizedBox(height: 16),
             DropdownButtonFormField<int>(
-              value: _dynamicHourLimit,
+              initialValue: _dynamicHourLimit,
               dropdownColor: const Color(0xFF131A2A),
               style: const TextStyle(color: Colors.white, fontSize: 14),
               decoration: const InputDecoration(
@@ -1234,7 +1233,7 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
             title: const Text('Permite Rezervări la Jumătate de Oră', style: TextStyle(color: Colors.white, fontSize: 14)),
             subtitle: const Text('Jucătorii pot alege intervale de tip 16:30 - 17:30', style: TextStyle(color: Colors.white54, fontSize: 11)),
             value: _allowHalfHour,
-            activeColor: const Color(0xFF00E5FF),
+            activeThumbColor: const Color(0xFF00E5FF),
             onChanged: (val) => setState(() => _allowHalfHour = val),
           ),
           const SizedBox(height: 35),

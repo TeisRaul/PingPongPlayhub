@@ -266,7 +266,7 @@ class _TournamentsScreenState extends State<TournamentsScreen> with SingleTicker
               margin: const EdgeInsets.only(bottom: 16),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
-                side: BorderSide(color: statusColor.withOpacity(0.3), width: 1.5),
+                side: BorderSide(color: statusColor.withValues(alpha: 0.3), width: 1.5),
               ),
               child: InkWell(
                 borderRadius: BorderRadius.circular(16),
@@ -293,7 +293,7 @@ class _TournamentsScreenState extends State<TournamentsScreen> with SingleTicker
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                             decoration: BoxDecoration(
-                              color: statusColor.withOpacity(0.15),
+                              color: statusColor.withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(20),
                             ),
                             child: Text(
@@ -651,7 +651,7 @@ class _CreateTournamentFormState extends State<CreateTournamentForm> {
                 const SizedBox(height: 16),
                 if (widget.isPlayer) ...[
                   DropdownButtonFormField<String>(
-                    value: _selectedVenueId,
+                    initialValue: _selectedVenueId,
                     decoration: const InputDecoration(
                       labelText: 'Selectează Sala Parteneră',
                       prefixIcon: Icon(Icons.storefront),
@@ -675,7 +675,7 @@ class _CreateTournamentFormState extends State<CreateTournamentForm> {
                     children: [
                       Expanded(
                         child: DropdownButtonFormField<int>(
-                          value: _numTables,
+                          initialValue: _numTables,
                           decoration: const InputDecoration(
                             labelText: 'Mese Necesare',
                             prefixIcon: Icon(Icons.table_restaurant),
@@ -696,7 +696,7 @@ class _CreateTournamentFormState extends State<CreateTournamentForm> {
                       const SizedBox(width: 16),
                       Expanded(
                         child: DropdownButtonFormField<String>(
-                          value: _paymentMethod,
+                          initialValue: _paymentMethod,
                           decoration: const InputDecoration(
                             labelText: 'Plată Sală',
                             prefixIcon: Icon(Icons.payment),
@@ -748,7 +748,7 @@ class _CreateTournamentFormState extends State<CreateTournamentForm> {
                   ),
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                    side: BorderSide(color: const Color(0xFF00E5FF).withOpacity(0.5)),
+                    side: BorderSide(color: const Color(0xFF00E5FF).withValues(alpha: 0.5)),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
@@ -767,7 +767,7 @@ class _CreateTournamentFormState extends State<CreateTournamentForm> {
                         ),
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 14),
-                          side: BorderSide(color: const Color(0xFF00E5FF).withOpacity(0.3)),
+                          side: BorderSide(color: const Color(0xFF00E5FF).withValues(alpha: 0.3)),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                       ),
@@ -785,7 +785,7 @@ class _CreateTournamentFormState extends State<CreateTournamentForm> {
                         ),
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 14),
-                          side: BorderSide(color: const Color(0xFFFF0055).withOpacity(0.3)),
+                          side: BorderSide(color: const Color(0xFFFF0055).withValues(alpha: 0.3)),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                       ),
@@ -797,7 +797,7 @@ class _CreateTournamentFormState extends State<CreateTournamentForm> {
                   children: [
                     Expanded(
                       child: DropdownButtonFormField<int>(
-                        value: _maxPlayers,
+                        initialValue: _maxPlayers,
                         decoration: const InputDecoration(labelText: 'Maxim Jucători'),
                         items: _playerSlots
                             .map((slots) => DropdownMenuItem(value: slots, child: Text('$slots Jucători')))
@@ -823,7 +823,7 @@ class _CreateTournamentFormState extends State<CreateTournamentForm> {
                   children: [
                     Expanded(
                       child: DropdownButtonFormField<String>(
-                        value: _minRank,
+                        initialValue: _minRank,
                         decoration: const InputDecoration(labelText: 'Nivel Minim'),
                         items: _ranks
                             .map((r) => DropdownMenuItem(value: r, child: Text(r)))
@@ -845,7 +845,7 @@ class _CreateTournamentFormState extends State<CreateTournamentForm> {
                     const SizedBox(width: 16),
                     Expanded(
                       child: DropdownButtonFormField<String>(
-                        value: _maxRank,
+                        initialValue: _maxRank,
                         decoration: const InputDecoration(labelText: 'Nivel Maxim'),
                         items: _ranks
                             .where((r) {
@@ -1241,8 +1241,9 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> with 
 
     while (tempMatchesCount >= 1) {
       String roundName = "";
-      if (tempMatchesCount == 4) roundName = "Sferturi";
-      else if (tempMatchesCount == 2) roundName = "Semifinale";
+      if (tempMatchesCount == 4) {
+        roundName = "Sferturi";
+      } else if (tempMatchesCount == 2) roundName = "Semifinale";
       else if (tempMatchesCount == 1) roundName = "Finala Mare";
       else roundName = "Runda de $tempMatchesCount";
 
@@ -1481,8 +1482,9 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> with 
                 break;
               }
             }
-            if (highestLostRound == 1) pointsToAdd = 0;
-            else if (highestLostRound == 2) pointsToAdd = 30;
+            if (highestLostRound == 1) {
+              pointsToAdd = 0;
+            } else if (highestLostRound == 2) pointsToAdd = 30;
             else pointsToAdd = 60; // Round 3 and above
           }
 
@@ -1589,7 +1591,7 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> with 
                   const Text('Alege Câștigătorul:', style: TextStyle(color: Colors.grey, fontSize: 13)),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
-                    value: winnerUid,
+                    initialValue: winnerUid,
                     dropdownColor: const Color(0xFF131A2A),
                     items: [
                       DropdownMenuItem(value: p1['uid'], child: Text(p1['username'], style: const TextStyle(color: Colors.white))),
@@ -1711,12 +1713,12 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> with 
             padding: const EdgeInsets.symmetric(vertical: 12),
             decoration: BoxDecoration(
               color: status == 'open'
-                  ? Colors.green.withOpacity(0.15)
+                  ? Colors.green.withValues(alpha: 0.15)
                   : status == 'active'
-                      ? Colors.orange.withOpacity(0.15)
+                      ? Colors.orange.withValues(alpha: 0.15)
                       : status == 'completed'
-                          ? Colors.blue.withOpacity(0.15)
-                          : Colors.red.withOpacity(0.15),
+                          ? Colors.blue.withValues(alpha: 0.15)
+                          : Colors.red.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
                 color: status == 'open'
@@ -1975,7 +1977,7 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> with 
           margin: const EdgeInsets.only(bottom: 12),
           child: ListTile(
             leading: CircleAvatar(
-              backgroundColor: const Color(0xFF00E5FF).withOpacity(0.1),
+              backgroundColor: const Color(0xFF00E5FF).withValues(alpha: 0.1),
               child: Text('${index + 1}', style: const TextStyle(color: Color(0xFF00E5FF), fontWeight: FontWeight.bold)),
             ),
             title: Text(name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
@@ -2059,8 +2061,9 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> with 
             roundName = "Finalele";
           } else {
             int matchCount = maxPlayers ~/ (2 << roundIdx);
-            if (matchCount == 4) roundName = "Sferturi";
-            else if (matchCount == 8) roundName = "Optimi";
+            if (matchCount == 4) {
+              roundName = "Sferturi";
+            } else if (matchCount == 8) roundName = "Optimi";
             else if (matchCount == 16) roundName = "Șaisprezecimi";
           }
 
@@ -2116,9 +2119,9 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> with 
                                   borderRadius: BorderRadius.circular(12),
                                   border: Border.all(
                                     color: isClickable 
-                                        ? const Color(0xFF00E5FF).withOpacity(0.6) 
+                                        ? const Color(0xFF00E5FF).withValues(alpha: 0.6) 
                                         : isCompleted 
-                                            ? Colors.greenAccent.withOpacity(0.3)
+                                            ? Colors.greenAccent.withValues(alpha: 0.3)
                                             : const Color(0xFF1E293B),
                                     width: 1.5,
                                   ),
@@ -2155,7 +2158,7 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> with 
         alignment: Alignment.centerLeft,
         child: Text(
           isByeOpponent ? 'BYE (Liber)' : 'Așteptare...',
-          style: TextStyle(color: Colors.grey.withOpacity(0.6), fontStyle: FontStyle.italic, fontSize: 13),
+          style: TextStyle(color: Colors.grey.withValues(alpha: 0.6), fontStyle: FontStyle.italic, fontSize: 13),
         ),
       );
     }
@@ -2165,7 +2168,7 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> with 
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      color: isWinner ? Colors.green.withOpacity(0.08) : null,
+      color: isWinner ? Colors.green.withValues(alpha: 0.08) : null,
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [

@@ -151,7 +151,7 @@ class _AvatarScreenState extends State<AvatarScreen> {
                       border: Border.all(color: const Color(0xFF00E5FF), width: 3),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF00E5FF).withOpacity(0.4),
+                          color: const Color(0xFF00E5FF).withValues(alpha: 0.4),
                           blurRadius: 15,
                           spreadRadius: 2,
                         ),
@@ -199,7 +199,7 @@ class _AvatarScreenState extends State<AvatarScreen> {
                           boxShadow: isSelected
                               ? [
                                   BoxShadow(
-                                    color: const Color(0xFF00E5FF).withOpacity(0.4),
+                                    color: const Color(0xFF00E5FF).withValues(alpha: 0.4),
                                     blurRadius: 15,
                                     spreadRadius: 2,
                                   )

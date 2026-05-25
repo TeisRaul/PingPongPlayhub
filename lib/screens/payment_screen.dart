@@ -157,7 +157,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.03),
+                  color: Colors.white.withValues(alpha: 0.03),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: Colors.white12),
                 ),
@@ -324,14 +324,14 @@ class _PaymentScreenState extends State<PaymentScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 margin: const EdgeInsets.only(bottom: 24),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFD700).withOpacity(0.08),
+                  color: const Color(0xFFFFD700).withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFFFD700).withOpacity(0.4), width: 1.2),
+                  border: Border.all(color: const Color(0xFFFFD700).withValues(alpha: 0.4), width: 1.2),
                 ),
                 child: const Row(
                   children: [
                     Icon(Icons.security, color: Color(0xFFFFD700), size: 20),
-                    const SizedBox(width: 12),
+                    SizedBox(width: 12),
                     Expanded(
                       child: Text(
                         'Secure Sandbox: Datele de card de test au fost pre-completate automat pentru o testare rapidă și securizată.',
@@ -347,7 +347,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                 decoration: BoxDecoration(
                   color: const Color(0xFF131A2A),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFF00E5FF).withOpacity(0.3)),
+                  border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.3)),
                 ),
                 child: Column(
                   children: [

@@ -502,7 +502,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 color: const Color(0xFF131A2A),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
-                  side: BorderSide(color: const Color(0xFF00E5FF).withOpacity(0.3), width: 1.5),
+                  side: BorderSide(color: const Color(0xFF00E5FF).withValues(alpha: 0.3), width: 1.5),
                 ),
                 child: Container(
                   decoration: BoxDecoration(
@@ -513,7 +513,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       colors: [
                         const Color(0xFF131A2A),
                         const Color(0xFF0A0E17),
-                        const Color(0xFF00E5FF).withOpacity(0.06),
+                        const Color(0xFF00E5FF).withValues(alpha: 0.06),
                       ],
                     ),
                   ),
@@ -526,12 +526,12 @@ class _HomeScreenState extends State<HomeScreen> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF00E5FF).withOpacity(0.12),
+                              color: const Color(0xFF00E5FF).withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(color: const Color(0xFF00E5FF), width: 1.5),
                               boxShadow: [
                                 BoxShadow(
-                                  color: const Color(0xFF00E5FF).withOpacity(0.2),
+                                  color: const Color(0xFF00E5FF).withValues(alpha: 0.2),
                                   blurRadius: 8,
                                   spreadRadius: 1,
                                 ),
@@ -654,7 +654,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   color: const Color(0xFF131A2A),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
-                    side: BorderSide(color: Colors.white.withOpacity(0.05)),
+                    side: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
                   ),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 36.0, horizontal: 20),
@@ -727,7 +727,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                         side: BorderSide(
-                          color: const Color(0xFF00E5FF).withOpacity(0.15),
+                          color: const Color(0xFF00E5FF).withValues(alpha: 0.15),
                           width: 1.5,
                         ),
                       ),
@@ -773,7 +773,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                   decoration: BoxDecoration(
-                                    color: statusColor.withOpacity(0.15),
+                                    color: statusColor.withValues(alpha: 0.15),
                                     borderRadius: BorderRadius.circular(8),
                                     border: Border.all(color: statusColor, width: 1),
                                   ),
@@ -894,7 +894,7 @@ class _HomeScreenState extends State<HomeScreen> {
         decoration: BoxDecoration(
           color: const Color(0xFF131A2A),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withOpacity(0.2), width: 1.2),
+          border: Border.all(color: color.withValues(alpha: 0.2), width: 1.2),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -979,13 +979,13 @@ class _HomeScreenState extends State<HomeScreen> {
             decoration: BoxDecoration(
               color: const Color(0xFF131A2A),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: color.withOpacity(0.25), width: 1.2),
+              border: Border.all(color: color.withValues(alpha: 0.25), width: 1.2),
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
                   const Color(0xFF131A2A),
-                  color.withOpacity(0.05),
+                  color.withValues(alpha: 0.05),
                 ],
               ),
             ),
@@ -1059,7 +1059,7 @@ class _HomeScreenState extends State<HomeScreen> {
             color: const Color(0xFF131A2A),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
-              side: BorderSide(color: const Color(0xFF00E5FF).withOpacity(0.3), width: 1.5),
+              side: BorderSide(color: const Color(0xFF00E5FF).withValues(alpha: 0.3), width: 1.5),
             ),
             child: Padding(
               padding: const EdgeInsets.all(20.0),
@@ -1086,7 +1086,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(
-                          color: isVerified ? Colors.green.withOpacity(0.2) : Colors.orange.withOpacity(0.2),
+                          color: isVerified ? Colors.green.withValues(alpha: 0.2) : Colors.orange.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(color: isVerified ? Colors.green : Colors.orange, width: 1),
                         ),
@@ -1106,9 +1106,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Colors.orange.withOpacity(0.1),
+                        color: Colors.orange.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                        border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
                       ),
                       child: const Row(
                         children: [
@@ -1139,9 +1139,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF00E5FF).withOpacity(0.05),
+                        color: const Color(0xFF00E5FF).withValues(alpha: 0.05),
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: const Color(0xFF00E5FF).withOpacity(0.2)),
+                        border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.2)),
                       ),
                       child: Row(
                         children: [
@@ -1175,7 +1175,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF131A2A),
                     foregroundColor: Colors.white,
-                    side: BorderSide(color: const Color(0xFF00E5FF).withOpacity(0.4)),
+                    side: BorderSide(color: const Color(0xFF00E5FF).withValues(alpha: 0.4)),
                     padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
                 ),
@@ -1241,9 +1241,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     margin: const EdgeInsets.only(right: 8),
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     decoration: BoxDecoration(
-                      color: Colors.orange.withOpacity(0.2),
+                      color: Colors.orange.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.orangeAccent.withOpacity(0.5)),
+                      border: Border.all(color: Colors.orangeAccent.withValues(alpha: 0.5)),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -1441,7 +1441,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                                 return Container(
                                                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                                   decoration: BoxDecoration(
-                                                    color: const Color(0xFFFF0055).withOpacity(0.15),
+                                                    color: const Color(0xFFFF0055).withValues(alpha: 0.15),
                                                     border: Border.all(color: const Color(0xFFFF0055), width: 1),
                                                     borderRadius: BorderRadius.circular(6),
                                                   ),
@@ -1473,8 +1473,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                       return Container(
                                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                         decoration: BoxDecoration(
-                                          color: const Color(0xFF00E5FF).withOpacity(0.1),
-                                          border: Border.all(color: const Color(0xFF00E5FF).withOpacity(0.5), width: 1),
+                                          color: const Color(0xFF00E5FF).withValues(alpha: 0.1),
+                                          border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.5), width: 1),
                                           borderRadius: BorderRadius.circular(6),
                                         ),
                                         child: Text(
@@ -1561,7 +1561,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16),
                             side: BorderSide(
-                              color: isCancelled ? Colors.redAccent.withOpacity(0.3) : const Color(0xFF00E5FF).withOpacity(0.15),
+                              color: isCancelled ? Colors.redAccent.withValues(alpha: 0.3) : const Color(0xFF00E5FF).withValues(alpha: 0.15),
                               width: 1.5,
                             ),
                           ),
@@ -1608,7 +1608,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                     Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                       decoration: BoxDecoration(
-                                        color: statusColor.withOpacity(0.15),
+                                        color: statusColor.withValues(alpha: 0.15),
                                         borderRadius: BorderRadius.circular(8),
                                         border: Border.all(color: statusColor, width: 1),
                                       ),
@@ -1749,8 +1749,8 @@ class _HomeScreenState extends State<HomeScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-         color: color.withOpacity(0.08),
-         border: Border.all(color: color.withOpacity(0.4), width: 1.2),
+         color: color.withValues(alpha: 0.08),
+         border: Border.all(color: color.withValues(alpha: 0.4), width: 1.2),
          borderRadius: BorderRadius.circular(8),
       ),
       child: Row(

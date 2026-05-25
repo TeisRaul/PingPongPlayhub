@@ -684,7 +684,7 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
                 ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<PingPongLocation>(
-                  value: _selectedLocation,
+                  initialValue: _selectedLocation,
                   decoration: const InputDecoration(labelText: 'Sală Ping Pong', prefixIcon: Icon(Icons.sports_tennis)),
                   items: _filteredLocations.map((loc) => DropdownMenuItem(value: loc, child: Text(loc.name))).toList(),
                   onChanged: _selectedCity == null ? null : (val) {
@@ -764,7 +764,7 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
                 ],
                 const SizedBox(height: 16),
                 DropdownButtonFormField<int>(
-                  value: _maxPlayers,
+                  initialValue: _maxPlayers,
                   decoration: const InputDecoration(labelText: 'Format Meci', prefixIcon: Icon(Icons.people)),
                   items: const [
                     DropdownMenuItem(value: 2, child: Text('1v1 (2 Jucători)')),
@@ -774,7 +774,7 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
                 ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
-                  value: _matchType,
+                  initialValue: _matchType,
                   decoration: const InputDecoration(labelText: 'Tip Meci', prefixIcon: Icon(Icons.emoji_events_outlined)),
                   items: const [
                     DropdownMenuItem(value: 'Competitiv', child: Text('Competitiv (Cu puncte)')),
@@ -827,7 +827,7 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
                           ),
                           style: OutlinedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-                            side: BorderSide(color: const Color(0xFF00E5FF).withOpacity(0.5)),
+                            side: BorderSide(color: const Color(0xFF00E5FF).withValues(alpha: 0.5)),
                           ),
                         ),
                       ),
@@ -971,8 +971,8 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
                                     child: Container(
                                       decoration: BoxDecoration(
                                         color: isTableBlocked
-                                            ? Colors.red.withOpacity(0.15)
-                                            : (isSelected ? const Color(0xFF00E5FF).withOpacity(0.2) : const Color(0xFF1E293B)),
+                                            ? Colors.red.withValues(alpha: 0.15)
+                                            : (isSelected ? const Color(0xFF00E5FF).withValues(alpha: 0.2) : const Color(0xFF1E293B)),
                                         border: Border.all(
                                           color: isTableBlocked ? Colors.redAccent : (isSelected ? const Color(0xFF00E5FF) : Colors.grey[800]!),
                                           width: 1.5,
@@ -1099,7 +1099,7 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
                       decoration: BoxDecoration(
                         color: const Color(0xFF1E293B),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: const Color(0xFF00E5FF).withOpacity(0.3)),
+                        border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.3)),
                       ),
                       child: Row(
                         children: [
@@ -1223,7 +1223,7 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
                   decoration: BoxDecoration(
                     color: const Color(0xFF131A2A),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFF00E5FF).withOpacity(0.3)),
+                    border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.3)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1315,9 +1315,9 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
       }
 
       final Color blockedColor = isTrainingBlocked ? Colors.purpleAccent : Colors.redAccent;
-      final Color blockedBgColor = isTrainingBlocked ? Colors.purple.withOpacity(0.15) : Colors.red.withOpacity(0.15);
+      final Color blockedBgColor = isTrainingBlocked ? Colors.purple.withValues(alpha: 0.15) : Colors.red.withValues(alpha: 0.15);
       final Color activeBorderColor = isTableBlocked ? blockedColor : (isSelected ? const Color(0xFF00E5FF) : const Color(0xFF00FF66));
-      final Color activeBgColor = isTableBlocked ? blockedBgColor : (isSelected ? const Color(0xFF00E5FF).withOpacity(0.3) : const Color(0xFF00FF66).withOpacity(0.1));
+      final Color activeBgColor = isTableBlocked ? blockedBgColor : (isSelected ? const Color(0xFF00E5FF).withValues(alpha: 0.3) : const Color(0xFF00FF66).withValues(alpha: 0.1));
       final Color contentColor = isTableBlocked ? blockedColor : (isSelected ? const Color(0xFF00E5FF) : const Color(0xFF00FF66));
 
       final IconData tableIcon = type == 'training' 
@@ -1331,10 +1331,10 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
           decoration: BoxDecoration(
             color: Colors.transparent,
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.grey.withOpacity(0.2), width: 1),
+            border: Border.all(color: Colors.grey.withValues(alpha: 0.2), width: 1),
           ),
           child: Center(
-            child: Icon(tableIcon, color: Colors.grey.withOpacity(0.3), size: 16),
+            child: Icon(tableIcon, color: Colors.grey.withValues(alpha: 0.3), size: 16),
           ),
         );
       }

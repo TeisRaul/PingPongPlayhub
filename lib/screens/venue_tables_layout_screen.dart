@@ -229,7 +229,7 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
                 ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
-                  value: tableType,
+                  initialValue: tableType,
                   dropdownColor: const Color(0xFF131A2A),
                   style: const TextStyle(color: Colors.white),
                   decoration: const InputDecoration(
@@ -303,7 +303,7 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
                 ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
-                  value: tableType,
+                  initialValue: tableType,
                   dropdownColor: const Color(0xFF131A2A),
                   style: const TextStyle(color: Colors.white),
                   decoration: const InputDecoration(
@@ -393,7 +393,7 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
                     title: const Text('Activează Automat', style: TextStyle(color: Colors.white, fontSize: 14)),
                     subtitle: const Text('Rezervă mesele în timpul orelor de antrenament', style: TextStyle(color: Colors.white54, fontSize: 11)),
                     value: enabled,
-                    activeColor: const Color(0xFF00E5FF),
+                    activeThumbColor: const Color(0xFF00E5FF),
                     onChanged: (val) => setDialogState(() => enabled = val),
                   ),
                   const Divider(color: Colors.white24),
@@ -404,7 +404,7 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
                     children: [
                       Expanded(
                         child: DropdownButtonFormField<int>(
-                          value: start,
+                          initialValue: start,
                           dropdownColor: const Color(0xFF131A2A),
                           style: const TextStyle(color: Colors.white),
                           decoration: const InputDecoration(labelText: 'De la ora'),
@@ -415,7 +415,7 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
                       const SizedBox(width: 16),
                       Expanded(
                         child: DropdownButtonFormField<int>(
-                          value: end,
+                          initialValue: end,
                           dropdownColor: const Color(0xFF131A2A),
                           style: const TextStyle(color: Colors.white),
                           decoration: const InputDecoration(labelText: 'Până la ora'),
@@ -610,7 +610,7 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
                     children: [
                       Expanded(
                         child: DropdownButtonFormField<num>(
-                          value: startHour,
+                          initialValue: startHour,
                           dropdownColor: const Color(0xFF131A2A),
                           style: const TextStyle(color: Colors.white, fontSize: 13),
                           decoration: const InputDecoration(
@@ -633,7 +633,7 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
                       const SizedBox(width: 16),
                       Expanded(
                         child: DropdownButtonFormField<num>(
-                          value: endHour,
+                          initialValue: endHour,
                           dropdownColor: const Color(0xFF131A2A),
                           style: const TextStyle(color: Colors.white, fontSize: 13),
                           decoration: const InputDecoration(
@@ -650,7 +650,7 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
                   ),
                   const SizedBox(height: 16),
                   DropdownButtonFormField<String>(
-                    value: paymentStatus,
+                    initialValue: paymentStatus,
                     dropdownColor: const Color(0xFF131A2A),
                     style: const TextStyle(color: Colors.white, fontSize: 13),
                     decoration: const InputDecoration(
@@ -1195,7 +1195,7 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: DropdownButtonFormField<int>(
-                      value: _selectedHour,
+                      initialValue: _selectedHour,
                       dropdownColor: const Color(0xFF131A2A),
                       style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
                       decoration: const InputDecoration(

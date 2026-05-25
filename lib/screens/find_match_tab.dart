@@ -220,7 +220,7 @@ class _FindMatchTabState extends State<FindMatchTab> {
                   const SizedBox(width: 16),
                   Expanded(
                     child: DropdownButtonFormField<String>(
-                      value: _filterLocationId,
+                      initialValue: _filterLocationId,
                       decoration: const InputDecoration(labelText: 'Locație', contentPadding: EdgeInsets.symmetric(horizontal: 12)),
                       items: _locationOptions.map((l) => DropdownMenuItem<String>(value: l['id'], child: Text(l['name'], overflow: TextOverflow.ellipsis))).toList(),
                       onChanged: (val) => setState(() => _filterLocationId = val ?? 'Toate'),
@@ -295,7 +295,7 @@ class _FindMatchTabState extends State<FindMatchTab> {
                     margin: const EdgeInsets.only(bottom: 16),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
-                      side: BorderSide(color: const Color(0xFF00E5FF).withOpacity(0.3)),
+                      side: BorderSide(color: const Color(0xFF00E5FF).withValues(alpha: 0.3)),
                     ),
                     child: Padding(
                       padding: const EdgeInsets.all(16),
@@ -319,14 +319,14 @@ class _FindMatchTabState extends State<FindMatchTab> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(data['hostUsername'] ?? 'Unknown', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
-                                    Text('Nivel: ${data['hostLevel'] ?? 'Necunoscut'}', style: TextStyle(color: const Color(0xFF00E5FF).withOpacity(0.8), fontSize: 12)),
+                                    Text('Nivel: ${data['hostLevel'] ?? 'Necunoscut'}', style: TextStyle(color: const Color(0xFF00E5FF).withValues(alpha: 0.8), fontSize: 12)),
                                   ],
                                 ),
                               ),
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                                 decoration: BoxDecoration(
-                                  color: isMatched ? Colors.grey.withOpacity(0.2) : Colors.green.withOpacity(0.2),
+                                  color: isMatched ? Colors.grey.withValues(alpha: 0.2) : Colors.green.withValues(alpha: 0.2),
                                   borderRadius: BorderRadius.circular(20),
                                   border: Border.all(color: isMatched ? Colors.grey : Colors.green),
                                 ),

@@ -159,12 +159,12 @@ class _CitySearchBottomSheetState extends State<_CitySearchBottomSheet> {
                           margin: const EdgeInsets.only(bottom: 8),
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? const Color(0xFF00E5FF).withOpacity(0.12)
-                                : const Color(0xFF1E293B).withOpacity(0.5),
+                                ? const Color(0xFF00E5FF).withValues(alpha: 0.12)
+                                : const Color(0xFF1E293B).withValues(alpha: 0.5),
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(
                               color: isSelected
-                                  ? const Color(0xFF00E5FF).withOpacity(0.5)
+                                  ? const Color(0xFF00E5FF).withValues(alpha: 0.5)
                                   : Colors.transparent,
                             ),
                           ),

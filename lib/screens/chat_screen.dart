@@ -162,7 +162,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     ? Container(
                         padding: const EdgeInsets.all(6),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF00E5FF).withOpacity(0.15),
+                          color: const Color(0xFF00E5FF).withValues(alpha: 0.15),
                           border: Border.all(color: const Color(0xFF00E5FF), width: 1.5),
                           shape: BoxShape.circle,
                         ),
@@ -220,8 +220,8 @@ class _ChatScreenState extends State<ChatScreen> {
                       scale: 0.8,
                       child: Switch(
                         value: onlyAdminCanSend,
-                        activeColor: const Color(0xFF00E5FF),
-                        activeTrackColor: const Color(0xFF00E5FF).withOpacity(0.3),
+                        activeThumbColor: const Color(0xFF00E5FF),
+                        activeTrackColor: const Color(0xFF00E5FF).withValues(alpha: 0.3),
                         inactiveThumbColor: Colors.grey[400],
                         inactiveTrackColor: Colors.grey[800],
                         onChanged: (val) async {
@@ -300,7 +300,7 @@ class _ChatScreenState extends State<ChatScreen> {
                               margin: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
                               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF1E293B).withOpacity(0.4),
+                                color: const Color(0xFF1E293B).withValues(alpha: 0.4),
                                 borderRadius: BorderRadius.circular(20),
                                 border: Border.all(color: const Color(0xFF1E293B), width: 0.8),
                               ),
@@ -342,10 +342,10 @@ class _ChatScreenState extends State<ChatScreen> {
                                   color: isMe
                                       ? const Color(0xFF00E5FF)
                                       : (isMsgAdmin && widget.isTournamentChat)
-                                          ? const Color(0xFF1E293B).withOpacity(0.8)
+                                          ? const Color(0xFF1E293B).withValues(alpha: 0.8)
                                           : const Color(0xFF1E293B),
                                   border: (!isMe && widget.isTournamentChat && isMsgAdmin)
-                                      ? Border.all(color: const Color(0xFF00E5FF).withOpacity(0.3), width: 1)
+                                      ? Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.3), width: 1)
                                       : null,
                                   borderRadius: BorderRadius.only(
                                     topLeft: const Radius.circular(16),
@@ -389,8 +389,8 @@ class _ChatScreenState extends State<ChatScreen> {
                             Container(
                               padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFFF0055).withOpacity(0.08),
-                                border: Border.all(color: const Color(0xFFFF0055).withOpacity(0.3), width: 1),
+                                color: const Color(0xFFFF0055).withValues(alpha: 0.08),
+                                border: Border.all(color: const Color(0xFFFF0055).withValues(alpha: 0.3), width: 1),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Row(
@@ -405,7 +405,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                     child: Text(
                                       'Doar administratorul turneului poate trimite mesaje în acest chat.',
                                       style: TextStyle(
-                                        color: const Color(0xFFFF0055).withOpacity(0.9),
+                                        color: const Color(0xFFFF0055).withValues(alpha: 0.9),
                                         fontSize: 13,
                                         fontWeight: FontWeight.w500,
                                       ),

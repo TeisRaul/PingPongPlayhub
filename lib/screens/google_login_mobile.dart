@@ -9,7 +9,7 @@ Future<UserCredential?> signInWithGoogleMobile() async {
     return null; // User-ul a anulat
   }
 
-  final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+  final GoogleSignInAuthentication googleAuth = googleUser.authentication;
   final credential = GoogleAuthProvider.credential(
     accessToken: googleAuth.accessToken,
     idToken: googleAuth.idToken,

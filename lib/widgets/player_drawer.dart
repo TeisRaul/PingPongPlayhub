@@ -359,10 +359,10 @@ class _PlayerDrawerState extends State<PlayerDrawer> {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
-        color: isSelected ? const Color(0xFF00E5FF).withOpacity(0.12) : Colors.transparent,
+        color: isSelected ? const Color(0xFF00E5FF).withValues(alpha: 0.12) : Colors.transparent,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: isSelected ? const Color(0xFF00E5FF).withOpacity(0.3) : Colors.transparent,
+          color: isSelected ? const Color(0xFF00E5FF).withValues(alpha: 0.3) : Colors.transparent,
           width: 1.2,
         ),
       ),

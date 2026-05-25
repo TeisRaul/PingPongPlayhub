@@ -135,7 +135,7 @@ class _VenueFinancesScreenState extends State<VenueFinancesScreen> {
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF1E293B).withOpacity(0.5),
+                        color: const Color(0xFF1E293B).withValues(alpha: 0.5),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: Colors.white12),
                       ),
@@ -166,10 +166,10 @@ class _VenueFinancesScreenState extends State<VenueFinancesScreen> {
       decoration: BoxDecoration(
         color: const Color(0xFF131A2A),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(0.3), width: 1.5),
+        border: Border.all(color: color.withValues(alpha: 0.3), width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: color.withOpacity(0.05),
+            color: color.withValues(alpha: 0.05),
             blurRadius: 10,
             spreadRadius: 2,
           ),
@@ -180,7 +180,7 @@ class _VenueFinancesScreenState extends State<VenueFinancesScreen> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: color.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(icon, color: color, size: 32),

@@ -325,7 +325,7 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF131A2A).withOpacity(0.92),
+                      color: const Color(0xFF131A2A).withValues(alpha: 0.92),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(color: const Color(0xFF00E5FF), width: 1),
                     ),
@@ -346,9 +346,9 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
                   right: 12,
                   child: Container(
                     decoration: BoxDecoration(
-                      color: const Color(0xFF131A2A).withOpacity(0.92),
+                      color: const Color(0xFF131A2A).withValues(alpha: 0.92),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xFF00E5FF).withOpacity(0.4), width: 1),
+                      border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.4), width: 1),
                     ),
                     child: IconButton(
                       icon: const Icon(Icons.zoom_out_map, color: Color(0xFF00E5FF), size: 20),
@@ -370,7 +370,7 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
                       decoration: BoxDecoration(
                         color: const Color(0xFF131A2A),
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: const Color(0xFF00E5FF).withOpacity(0.3)),
+                        border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.3)),
                       ),
                       child: const Column(
                         mainAxisSize: MainAxisSize.min,
@@ -439,7 +439,7 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF00E5FF).withOpacity(isSelected ? 0.7 : 0.4),
+                color: const Color(0xFF00E5FF).withValues(alpha: isSelected ? 0.7 : 0.4),
                 blurRadius: isSelected ? 16 : 8,
                 spreadRadius: isSelected ? 2 : 0,
               ),
@@ -464,7 +464,7 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
         border: Border.all(color: const Color(0xFF00E5FF), width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF00E5FF).withOpacity(0.2),
+            color: const Color(0xFF00E5FF).withValues(alpha: 0.2),
             blurRadius: 16,
             spreadRadius: 2,
           ),
@@ -671,7 +671,7 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
           // Divider below options
           Container(
             height: 1,
-            color: const Color(0xFF00E5FF).withOpacity(0.3),
+            color: const Color(0xFF00E5FF).withValues(alpha: 0.3),
           ),
 
           Expanded(
@@ -705,7 +705,7 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
                           height: 40,
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? const Color(0xFF00E5FF).withOpacity(0.15)
+                                ? const Color(0xFF00E5FF).withValues(alpha: 0.15)
                                 : const Color(0xFF131A2A),
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(

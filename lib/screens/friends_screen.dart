@@ -485,7 +485,7 @@ class _FriendsScreenState extends State<FriendsScreen> {
                     margin: const EdgeInsets.only(bottom: 12),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
-                      side: BorderSide(color: const Color(0xFF00E5FF).withOpacity(0.3)),
+                      side: BorderSide(color: const Color(0xFF00E5FF).withValues(alpha: 0.3)),
                     ),
                     child: ListTile(
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -607,7 +607,7 @@ class _FriendsScreenState extends State<FriendsScreen> {
                               color: const Color(0xFF131A2A),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
-                                side: BorderSide(color: const Color(0xFF00E5FF).withOpacity(0.2)),
+                                side: BorderSide(color: const Color(0xFF00E5FF).withValues(alpha: 0.2)),
                               ),
                               margin: const EdgeInsets.only(bottom: 12),
                               child: Padding(

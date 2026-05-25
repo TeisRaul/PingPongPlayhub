@@ -160,7 +160,7 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
                 style: const TextStyle(color: Colors.white70, fontSize: 13),
               ),
             );
-          }).toList(),
+          }),
         ],
       );
     }
@@ -407,7 +407,7 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
       margin: const EdgeInsets.only(bottom: 16),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: const Color(0xFF00E5FF).withOpacity(0.3)),
+        side: BorderSide(color: const Color(0xFF00E5FF).withValues(alpha: 0.3)),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -484,7 +484,7 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
                   ],
                 ),
               );
-            }).toList(),
+            }),
             if (players.length < (data['maxPlayers'] ?? 2))
               Padding(
                 padding: const EdgeInsets.only(top: 8),
@@ -494,7 +494,7 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
             if (isCompleted)
               Container(
                 padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(color: Colors.green.withOpacity(0.2), borderRadius: BorderRadius.circular(8)),
+                decoration: BoxDecoration(color: Colors.green.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(8)),
                 child: const Text('Meci finalizat și puncte acordate!', style: TextStyle(color: Colors.green)),
               )
             else if (isPast && (data['status'] == 'matched' || data['status'] == 'reported')) ...[
@@ -504,9 +504,9 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
                     width: double.infinity,
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF00E5FF).withOpacity(0.1),
+                      color: const Color(0xFF00E5FF).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xFF00E5FF).withOpacity(0.3)),
+                      border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.3)),
                     ),
                     child: const Row(
                       children: [
@@ -529,9 +529,9 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
                         width: double.infinity,
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: Colors.orange.withOpacity(0.1),
+                          color: Colors.orange.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                          border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -894,7 +894,7 @@ class _ReportResultDialogState extends State<_ReportResultDialog> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF00E5FF).withOpacity(0.1),
+                      color: const Color(0xFF00E5FF).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
@@ -918,7 +918,7 @@ class _ReportResultDialogState extends State<_ReportResultDialog> {
                     decoration: BoxDecoration(
                       color: const Color(0xFF1E293B),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xFF00E5FF).withOpacity(0.2)),
+                      border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.2)),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
