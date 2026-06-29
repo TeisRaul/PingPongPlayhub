@@ -2,8 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'admin_venue_detail_screen.dart';
 
-class AdminVenuesListScreen extends StatelessWidget {
+class AdminVenuesListScreen extends StatefulWidget {
   const AdminVenuesListScreen({super.key});
+
+  @override
+  State<AdminVenuesListScreen> createState() => _AdminVenuesListScreenState();
+}
+
+class _AdminVenuesListScreenState extends State<AdminVenuesListScreen> {
+  String _searchQuery = '';
 
   @override
   Widget build(BuildContext context) {
@@ -14,23 +21,59 @@ class AdminVenuesListScreen extends StatelessWidget {
         backgroundColor: const Color(0xFF131A2A),
         iconTheme: const IconThemeData(color: Color(0xFF00E5FF)),
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance.collection('venues').snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)));
-          }
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: TextField(
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: 'Caută după oraș...',
+                hintStyle: const TextStyle(color: Colors.grey),
+                prefixIcon: const Icon(Icons.location_city, color: Colors.grey),
+                filled: true,
+                fillColor: const Color(0xFF131A2A),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+              onChanged: (val) {
+                setState(() {
+                  _searchQuery = val.toLowerCase().trim();
+                });
+              },
+            ),
+          ),
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance.collection('venues').snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)));
+                }
 
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return const Center(
+                    child: Text('Nicio sală găsită.', style: TextStyle(color: Colors.grey)),
+                  );
+                }
+
+          final allVenues = snapshot.data!.docs;
+          final venues = allVenues.where((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            final city = (data['city'] ?? '').toString().toLowerCase();
+            return _searchQuery.isEmpty || city.contains(_searchQuery);
+          }).toList();
+
+          if (venues.isEmpty) {
             return const Center(
-              child: Text('Nicio sală găsită.', style: TextStyle(color: Colors.grey)),
+              child: Text('Nicio sală găsită pentru acest oraș.', style: TextStyle(color: Colors.grey)),
             );
           }
 
-          final venues = snapshot.data!.docs;
-
           return ListView.separated(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             itemCount: venues.length,
             separatorBuilder: (_, __) => const SizedBox(height: 12),
             itemBuilder: (context, index) {
@@ -67,6 +110,8 @@ class AdminVenuesListScreen extends StatelessWidget {
             },
           );
         },
+      ),
+      ],
       ),
     );
   }

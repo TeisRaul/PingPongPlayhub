@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../venue_signup_screen.dart';
 
 class AdminVenueDetailScreen extends StatefulWidget {
   final String venueId;
@@ -59,13 +60,22 @@ class _AdminVenueDetailScreenState extends State<AdminVenueDetailScreen> {
     }
   }
 
+  void _manageMatches() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AdminVenueMatchesScreen(venueId: widget.venueId),
+      ),
+    );
+  }
+
   Future<void> _deleteVenue() async {
     final bool confirm = await showDialog(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF131A2A),
         title: const Text('Ștergere Sală', style: TextStyle(color: Colors.white)),
-        content: const Text('Ești sigur că vrei să ștergi această locație?', style: TextStyle(color: Colors.grey)),
+        content: const Text('Ești sigur că vrei să ștergi această locație? Acțiunea este ireversibilă.', style: TextStyle(color: Colors.grey)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -84,29 +94,21 @@ class _AdminVenueDetailScreenState extends State<AdminVenueDetailScreen> {
       try {
         await FirebaseFirestore.instance.collection('venues').doc(widget.venueId).delete();
         if (mounted) {
-          Navigator.pop(context);
+          Navigator.pop(context); // back to venues list
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Locația a fost ștearsă!'), backgroundColor: Colors.green),
           );
         }
       } catch (e) {
         if (mounted) {
-          setState(() => _isLoading = false);
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Eroare: $e'), backgroundColor: Colors.red),
           );
         }
+      } finally {
+        if (mounted) setState(() => _isLoading = false);
       }
     }
-  }
-
-  void _manageMatches() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => AdminVenueMatchesScreen(venueId: widget.venueId),
-      ),
-    );
   }
 
   @override
@@ -191,7 +193,30 @@ class _AdminVenueDetailScreenState extends State<AdminVenueDetailScreen> {
               ),
               child: _isLoading
                   ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.black))
-                  : const Text('Salvează Modificări', style: TextStyle(fontWeight: FontWeight.bold)),
+                  : const Text('Salvează Nume/Oraș', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => VenueSignupScreen(
+                      isEditMode: true,
+                      venueId: widget.venueId,
+                      venueData: widget.venueData,
+                    ),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.edit_document),
+              label: const Text('Editează Sală Complet (Formular)'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF131A2A),
+                foregroundColor: Colors.amberAccent,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                side: const BorderSide(color: Colors.amberAccent),
+              ),
             ),
             const SizedBox(height: 32),
             const Divider(color: Colors.grey),
@@ -205,6 +230,18 @@ class _AdminVenueDetailScreenState extends State<AdminVenueDetailScreen> {
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 side: const BorderSide(color: Colors.grey),
+              ),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: _isLoading ? null : _deleteVenue,
+              icon: const Icon(Icons.delete),
+              label: const Text('Șterge Sală', style: TextStyle(fontWeight: FontWeight.bold)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.transparent,
+                foregroundColor: Colors.redAccent,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                side: const BorderSide(color: Colors.redAccent),
               ),
             ),
           ],

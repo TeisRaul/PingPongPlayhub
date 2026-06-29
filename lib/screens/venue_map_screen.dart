@@ -3,8 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
-// ignore: avoid_web_libraries_in_flutter
-import 'dart:html' as html;
+// dart:html is web-only and breaks Android/iOS builds
+import 'package:url_launcher/url_launcher.dart';
 import 'create_match_screen.dart';
 
 // ── Coordonate pentru marile oraşe din România ──────────────────────────────
@@ -109,22 +109,8 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
   }
 
   void _getUserLocation() {
-    try {
-      html.window.navigator.geolocation.getCurrentPosition().then((pos) {
-        if (mounted) {
-          setState(() {
-            _userLocation = LatLng(
-              pos.coords!.latitude! as double,
-              pos.coords!.longitude! as double,
-            );
-          });
-        }
-      }).catchError((_) {
-        if (mounted) setState(() {});
-      });
-    } catch (_) {
-      // Geolocation not available
-    }
+    // For mobile platforms, we need a package like 'geolocator' instead of dart:html
+    // For now, it stays a no-op so the app compiles on Android.
   }
 
   Future<void> _loadVenues() async {
@@ -142,11 +128,24 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
         final isPublic = data['isPublic'] as bool? ?? false;
         final supportedSports = List<String>.from(data['supportedSports'] ?? ['ping_pong']);
 
-        final coords = _coordsForCity(city);
-        if (coords == null) continue; // skip venues with unknown city
+        LatLng finalCoords;
+        if (data.containsKey('latitude') && data.containsKey('longitude')) {
+          finalCoords = LatLng(
+            (data['latitude'] as num).toDouble(),
+            (data['longitude'] as num).toDouble(),
+          );
+        } else {
+          final coords = _coordsForCity(city);
+          if (coords == null) continue; // skip venues with unknown city
 
-        // Add a tiny random offset so venues in the same city don't overlap
-        final offset = _markerOffset(result.length);
+          // Add a tiny random offset so venues in the same city don't overlap
+          final offset = _markerOffset(result.length);
+          finalCoords = LatLng(
+            coords.latitude  + offset.$1,
+            coords.longitude + offset.$2,
+          );
+        }
+
         result.add(_VenueMarker(
           id: doc.id,
           name: name,
@@ -155,10 +154,7 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
           priceText: price,
           isPublic: isPublic,
           supportedSports: supportedSports,
-          coords: LatLng(
-            coords.latitude  + offset.$1,
-            coords.longitude + offset.$2,
-          ),
+          coords: finalCoords,
         ));
       }
 
@@ -631,26 +627,49 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
             ),
           ],
           const SizedBox(height: 12),
+          if (!m.isPublic) ...[
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => CreateMatchScreen(
+                        preselectedCity: m.city,
+                        preselectedVenueId: m.id,
+                      ),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.sports_tennis, size: 18),
+                label: const Text('Rezervă aici', style: TextStyle(fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF00E5FF),
+                  foregroundColor: Colors.black,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => CreateMatchScreen(
-                      preselectedCity: m.city,
-                      preselectedVenueId: m.id,
-                    ),
-                  ),
-                );
+              onPressed: () async {
+                final url = Uri.parse('https://www.google.com/maps/search/?api=1&query=${m.coords.latitude},${m.coords.longitude}');
+                if (await canLaunchUrl(url)) {
+                  await launchUrl(url, mode: LaunchMode.externalApplication);
+                }
               },
-              icon: const Icon(Icons.sports_tennis, size: 18),
-              label: const Text('Rezervă aici', style: TextStyle(fontWeight: FontWeight.bold)),
+              icon: const Icon(Icons.directions, size: 18),
+              label: const Text('Obține Direcții', style: TextStyle(fontWeight: FontWeight.bold)),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF00E5FF),
-                foregroundColor: Colors.black,
+                backgroundColor: const Color(0xFF131A2A),
+                foregroundColor: m.isPublic ? const Color(0xFF00FF66) : const Color(0xFF00E5FF),
                 padding: const EdgeInsets.symmetric(vertical: 12),
+                side: BorderSide(color: m.isPublic ? const Color(0xFF00FF66) : const Color(0xFF00E5FF)),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
             ),

@@ -5,7 +5,18 @@ import '../data/mock_locations.dart';
 import '../widgets/city_selector.dart';
 
 class VenueSignupScreen extends StatefulWidget {
-  const VenueSignupScreen({super.key});
+  final bool isAdminCreating;
+  final bool isEditMode;
+  final String? venueId;
+  final Map<String, dynamic>? venueData;
+
+  const VenueSignupScreen({
+    super.key,
+    this.isAdminCreating = false,
+    this.isEditMode = false,
+    this.venueId,
+    this.venueData,
+  });
 
   @override
   State<VenueSignupScreen> createState() => _VenueSignupScreenState();
@@ -106,6 +117,71 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
   };
 
   @override
+  void initState() {
+    super.initState();
+    if (widget.isEditMode && widget.venueData != null) {
+      final data = widget.venueData!;
+      _venueNameController.text = data['venueName'] ?? '';
+      _contactPersonController.text = data['contactPerson'] ?? '';
+      _phoneController.text = data['phoneNumber'] ?? '';
+      _emailController.text = data['email'] ?? '';
+      _cityController.text = data['city'] ?? '';
+      _addressController.text = data['address'] ?? '';
+      _websiteController.text = data['website'] ?? '';
+      
+      _isPublic = data['isPublic'] ?? false;
+      _allowHalfHourRentals = data['allowHalfHourRentals'] ?? true;
+      
+      final activeSports = (data['supportedSports'] as List?)?.cast<String>() ?? [];
+      for (var sport in _supportedSports.keys) {
+        _supportedSports[sport] = activeSports.contains(sport);
+      }
+      
+      final resources = data['resourcesPerSport'] as Map<String, dynamic>? ?? {};
+      resources.forEach((sport, res) {
+        if (_supportedSports[sport] == true) {
+          _indoorResourcesControllers[sport] = TextEditingController(text: (res['indoor'] ?? 0).toString());
+          _outdoorResourcesControllers[sport] = TextEditingController(text: (res['outdoor'] ?? 0).toString());
+        }
+      });
+      
+      final hours = data['operatingHours'] as Map<String, dynamic>? ?? {};
+      _lvOpenController.text = hours['lv_open'] ?? '08:00';
+      _lvCloseController.text = hours['lv_close'] ?? '22:00';
+      _sOpenController.text = hours['s_open'] ?? '09:00';
+      _sCloseController.text = hours['s_close'] ?? '21:00';
+      _dOpenController.text = hours['d_open'] ?? '09:00';
+      _dCloseController.text = hours['d_close'] ?? '18:00';
+      
+      final pricing = data['pricing'] as Map<String, dynamic>? ?? {};
+      _priceType = pricing['type'] ?? 'flat';
+      _flatPriceHourController.text = (pricing['flatPriceHour'] ?? 30).toString();
+      _flatPriceHalfController.text = (pricing['flatPriceHalf'] ?? 15).toString();
+      _dynamicHourLimit = pricing['dynamicHourLimit'] ?? 17;
+      _dynamicPriceHourBeforeController.text = (pricing['dynamicPriceHourBefore'] ?? 30).toString();
+      _dynamicPriceHalfBeforeController.text = (pricing['dynamicPriceHalfBefore'] ?? 15).toString();
+      _dynamicPriceHourAfterController.text = (pricing['dynamicPriceHourAfter'] ?? 40).toString();
+      _dynamicPriceHalfAfterController.text = (pricing['dynamicPriceHalfAfter'] ?? 20).toString();
+      
+      _offerSubscription = data['offerSubscription'] ?? false;
+      _subscriptionPriceController.text = (data['subscriptionPrice'] ?? 150).toString();
+      
+      _extraServices = (data['extraServices'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+      
+      _cuiController.text = data['cui'] ?? '';
+      _ibanController.text = data['iban'] ?? '';
+      
+      final facilities = (data['facilities'] as List?)?.cast<String>() ?? [];
+      _facilities['Vestiare / Dușuri'] = facilities.contains('vestiare');
+      _facilities['Aer condiționat / Încălzire'] = facilities.contains('aer_conditionat');
+      _facilities['Închiriere palete / mingi'] = facilities.contains('inchiriere_palete');
+      _facilities['Antrenor personal / Cursuri'] = facilities.contains('antrenor');
+      _facilities['Parcare proprie'] = facilities.contains('parcare');
+      _facilities['Bar / Automat de băuturi'] = facilities.contains('bar');
+    }
+  }
+
+  @override
   void dispose() {
     _venueNameController.dispose();
     _contactPersonController.dispose();
@@ -181,11 +257,13 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
   Future<void> _handleRegister() async {
     if (!_formKey.currentState!.validate()) return;
 
-    if (_passwordController.text != _confirmPasswordController.text) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Parolele nu coincid!'), backgroundColor: Colors.redAccent),
-      );
-      return;
+    if (!widget.isAdminCreating && !widget.isEditMode) {
+      if (_passwordController.text != _confirmPasswordController.text) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Parolele nu coincid!'), backgroundColor: Colors.redAccent),
+        );
+        return;
+      }
     }
 
     setState(() => _isLoading = true);
@@ -194,13 +272,21 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
       final email = _emailController.text.trim();
       final password = _passwordController.text;
 
-      // 1. Create auth account in Firebase
-      final userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-
-      final String uid = userCredential.user!.uid;
+      String uid = widget.venueId ?? '';
+      
+      if (!widget.isEditMode) {
+        if (!widget.isAdminCreating) {
+          // 1. Create auth account in Firebase
+          final userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+            email: email,
+            password: password,
+          );
+          uid = userCredential.user!.uid;
+        } else {
+          // Admin creating: don't create Auth, just generate a UID
+          uid = FirebaseFirestore.instance.collection('venues').doc().id;
+        }
+      }
 
       // 2. Map selected facilities to standard list tags
       final List<String> selectedFacilities = [];
@@ -282,7 +368,7 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
       final int totalTables = totalIndoor + totalOutdoor;
 
       // 4. Save to venues Firestore collection
-      await FirebaseFirestore.instance.collection('venues').doc(uid).set({
+      final Map<String, dynamic> venueData = {
         'venueId': uid,
         'venueName': _venueNameController.text.trim(),
         'contactPerson': _contactPersonController.text.trim(),
@@ -320,10 +406,27 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
         },
         'cui': _cuiController.text.trim(),
         'iban': _ibanController.text.trim(),
-        'blockedDates': [],
         'isVerified': true,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+      };
+
+      if (!widget.isEditMode) {
+        venueData['blockedDates'] = [];
+        venueData['createdAt'] = FieldValue.serverTimestamp();
+        await FirebaseFirestore.instance.collection('venues').doc(uid).set(venueData);
+        
+        if (widget.isAdminCreating) {
+          // Also create a dummy user document so they can reset password later
+          await FirebaseFirestore.instance.collection('users').doc(uid).set({
+            'email': email,
+            'role': 'venue_admin',
+            'fullName': _contactPersonController.text.trim(),
+            'phone': _phoneController.text.trim(),
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+        }
+      } else {
+        await FirebaseFirestore.instance.collection('venues').doc(uid).update(venueData);
+      }
 
       // Show success modal
       if (mounted) {
@@ -337,22 +440,31 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
                 borderRadius: BorderRadius.circular(16),
                 side: const BorderSide(color: Color(0xFF00E5FF), width: 1.5),
               ),
-              title: const Row(
+              title: Row(
                 children: [
-                  Icon(Icons.check_circle_outline, color: Color(0xFF00E5FF), size: 28),
-                  SizedBox(width: 10),
-                  Text('Cont Creat!', style: TextStyle(color: Colors.white)),
+                  const Icon(Icons.check_circle_outline, color: Color(0xFF00E5FF), size: 28),
+                  const SizedBox(width: 10),
+                  Text(widget.isEditMode ? 'Sală Actualizată!' : (widget.isAdminCreating ? 'Sală Creată (Admin)' : 'Cont Creat!'), style: const TextStyle(color: Colors.white)),
                 ],
               ),
-              content: const Text(
-                'Contul de Sală a fost creat cu succes!\n\nAcesta va deveni complet funcțional și vizibil pentru jucători după ce va fi aprobat manual de către administratorul PingPong Playhub.',
-                style: TextStyle(color: Colors.white70),
+              content: Text(
+                widget.isEditMode
+                    ? 'Modificările au fost salvate cu succes!'
+                    : (widget.isAdminCreating
+                        ? 'Sala a fost creată cu succes, dar administratorul trebuie să-și reseteze parola pe baza email-ului setat.'
+                        : 'Contul de Sală a fost creat cu succes!\n\nAcesta va deveni complet funcțional și vizibil pentru jucători după ce va fi aprobat manual de către administratorul PingPong Playhub.'),
+                style: const TextStyle(color: Colors.white70),
               ),
               actions: [
                 TextButton(
                   onPressed: () {
-                    Navigator.pop(context); // Close dialog
-                    Navigator.pop(context); // Return to login
+                    if (widget.isEditMode || widget.isAdminCreating) {
+                      Navigator.pop(context); // Close dialog
+                      Navigator.pop(context); // Return to previous admin screen
+                    } else {
+                      Navigator.pop(context); // Close dialog
+                      Navigator.pop(context); // Return to login
+                    }
                   },
                   child: const Text('OK', style: TextStyle(color: Color(0xFF00E5FF), fontWeight: FontWeight.bold)),
                 ),
@@ -970,58 +1082,61 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
                 ),
 
                 // 6. Securitate
-                _buildSectionHeader('6. Securitate Cont'),
-                TextFormField(
-                  controller: _passwordController,
-                  obscureText: _obscurePassword,
-                  decoration: InputDecoration(
-                    labelText: 'Parolă',
-                    prefixIcon: const Icon(Icons.lock_outline),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                        color: Colors.grey,
+                if (!widget.isAdminCreating && !widget.isEditMode) ...[
+                  _buildSectionHeader('6. Securitate Cont'),
+                  TextFormField(
+                    controller: _passwordController,
+                    obscureText: _obscurePassword,
+                    decoration: InputDecoration(
+                      labelText: 'Parolă',
+                      prefixIcon: const Icon(Icons.lock_outline),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                          color: Colors.grey,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _obscurePassword = !_obscurePassword;
+                          });
+                        },
                       ),
-                      onPressed: () {
-                        setState(() {
-                          _obscurePassword = !_obscurePassword;
-                        });
-                      },
                     ),
+                    validator: (value) {
+                      if (value == null || value.length < 6) {
+                        return 'Parola trebuie să aibă minim 6 caractere';
+                      }
+                      return null;
+                    },
                   ),
-                  validator: (value) {
-                    if (value == null || value.length < 6) {
-                      return 'Parola trebuie să aibă minim 6 caractere';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _confirmPasswordController,
-                  obscureText: _obscureConfirmPassword,
-                  decoration: InputDecoration(
-                    labelText: 'Confirmă parolă',
-                    prefixIcon: const Icon(Icons.lock_outline),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscureConfirmPassword ? Icons.visibility_off : Icons.visibility,
-                        color: Colors.grey,
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _confirmPasswordController,
+                    obscureText: _obscureConfirmPassword,
+                    decoration: InputDecoration(
+                      labelText: 'Confirmă parolă',
+                      prefixIcon: const Icon(Icons.lock_outline),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscureConfirmPassword ? Icons.visibility_off : Icons.visibility,
+                          color: Colors.grey,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _obscureConfirmPassword = !_obscureConfirmPassword;
+                          });
+                        },
                       ),
-                      onPressed: () {
-                        setState(() {
-                          _obscureConfirmPassword = !_obscureConfirmPassword;
-                        });
-                      },
                     ),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Te rugăm să confirmi parola';
+                      }
+                      return null;
+                    },
                   ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Te rugăm să confirmi parola';
-                    }
-                    return null;
-                  },
-                ),
+                  const SizedBox(height: 32),
+                ],
 
                 const SizedBox(height: 32),
 

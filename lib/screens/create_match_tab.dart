@@ -217,7 +217,7 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
   List<PingPongLocation> get _filteredLocations {
     if (_selectedCity == null) return [];
     return _allLocations
-        .where((loc) => loc.city.trim().toLowerCase() == _selectedCity!.trim().toLowerCase() && loc.supportedSports.contains(_selectedSport))
+        .where((loc) => loc.city.trim().toLowerCase() == _selectedCity!.trim().toLowerCase() && loc.supportedSports.contains(_selectedSport) && !loc.isPublic)
         .toList();
   }
 

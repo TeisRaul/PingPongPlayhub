@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'add_public_location_screen.dart';
 import 'admin_venues_list_screen.dart';
+import 'admin_users_list_screen.dart';
+import 'admin_matches_list_screen.dart';
+import '../venue_signup_screen.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -149,12 +152,77 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 MaterialPageRoute(builder: (_) => const AdminVenuesListScreen()),
               );
             },
-            icon: const Icon(Icons.settings, size: 22),
-            label: const Text('Gestiune Săli & Plăți', style: TextStyle(fontWeight: FontWeight.bold)),
+            icon: const Icon(Icons.storefront, size: 22),
+            label: const Text('Gestiune Săli', style: TextStyle(fontWeight: FontWeight.bold)),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF00E5FF),
-              foregroundColor: Colors.black,
+              backgroundColor: const Color(0xFF131A2A),
+              foregroundColor: const Color(0xFF00E5FF),
               padding: const EdgeInsets.symmetric(vertical: 16),
+              side: const BorderSide(color: Color(0xFF00E5FF)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Manage Users Button
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AdminUsersListScreen()),
+              );
+            },
+            icon: const Icon(Icons.people, size: 22),
+            label: const Text('Gestiune Utilizatori', style: TextStyle(fontWeight: FontWeight.bold)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF131A2A),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              side: const BorderSide(color: Colors.grey),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+          const SizedBox(height: 16),
+          
+          // Manage Matches Button
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AdminMatchesListScreen()),
+              );
+            },
+            icon: const Icon(Icons.sports_tennis, size: 22),
+            label: const Text('Gestiune Meciuri', style: TextStyle(fontWeight: FontWeight.bold)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF131A2A),
+              foregroundColor: const Color(0xFFFF0055),
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              side: const BorderSide(color: Color(0xFFFF0055)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+          const SizedBox(height: 32),
+          const Divider(color: Colors.grey),
+          const SizedBox(height: 16),
+          
+          // Create Standard Venue Button (Admin)
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const VenueSignupScreen(isAdminCreating: true),
+                ),
+              );
+            },
+            icon: const Icon(Icons.add_business, size: 22),
+            label: const Text('Crează Sală Standard', style: TextStyle(fontWeight: FontWeight.bold)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF131A2A),
+              foregroundColor: Colors.amberAccent,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              side: const BorderSide(color: Colors.amberAccent),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
           ),
