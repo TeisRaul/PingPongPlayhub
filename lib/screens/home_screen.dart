@@ -76,31 +76,49 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadUserData() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      // First try to load from players collection (users)
-      final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
-      if (doc.exists) {
-        setState(() {
-          userData = doc.data();
-          isVenue = false;
-          _isLoading = false;
-        });
-      } else {
-        // If not found in users, load from venues collection
-        final venueDoc = await FirebaseFirestore.instance.collection('venues').doc(user.uid).get();
-        if (venueDoc.exists) {
-          setState(() {
-            userData = venueDoc.data();
-            isVenue = true;
-            _isLoading = false;
-          });
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        // First try to load from players collection (users)
+        final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+        if (doc.exists) {
+          if (mounted) {
+            setState(() {
+              userData = doc.data();
+              isVenue = false;
+              _isLoading = false;
+            });
+          }
         } else {
+          // If not found in users, load from venues collection
+          final venueDoc = await FirebaseFirestore.instance.collection('venues').doc(user.uid).get();
+          if (venueDoc.exists) {
+            if (mounted) {
+              setState(() {
+                userData = venueDoc.data();
+                isVenue = true;
+                _isLoading = false;
+              });
+            }
+          } else {
+            if (mounted) {
+              setState(() => _isLoading = false);
+            }
+          }
+        }
+      } else {
+        if (mounted) {
           setState(() => _isLoading = false);
         }
       }
-    } else {
-      setState(() => _isLoading = false);
+    } catch (e) {
+      debugPrint('Eroare la încărcarea datelor utilizatorului: $e');
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Eroare la încărcarea profilului: $e'), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 
