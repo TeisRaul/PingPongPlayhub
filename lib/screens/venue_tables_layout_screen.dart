@@ -32,7 +32,13 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
   final int _gridRows = 5;
   final int _gridCols = 5;
 
-  List<Map<String, dynamic>> _customTables = [];
+  List<String> _supportedSports = ['ping_pong'];
+  String _selectedSport = 'ping_pong';
+  Map<String, List<Map<String, dynamic>>> _layouts = {};
+
+  List<Map<String, dynamic>> get _customTables => _layouts[_selectedSport] ?? [];
+  set _customTables(List<Map<String, dynamic>> val) => _layouts[_selectedSport] = val;
+
   Map<String, dynamic> _trainingConfig = {
     'enabled': false,
     'startHour': 17,
@@ -61,13 +67,30 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
       if (doc.exists) {
         final data = doc.data() ?? {};
         _venueData = data;
-        if (data.containsKey('customTables')) {
-          _customTables = List<Map<String, dynamic>>.from(data['customTables'] ?? []);
+        
+        _supportedSports = List<String>.from(data['supportedSports'] ?? ['ping_pong']);
+        if (_supportedSports.isEmpty) _supportedSports = ['ping_pong'];
+        _selectedSport = _supportedSports.first;
+
+        if (data.containsKey('layouts')) {
+          final l = data['layouts'] as Map<String, dynamic>;
+          _layouts = {};
+          l.forEach((k, v) {
+            _layouts[k] = List<Map<String, dynamic>>.from(v as List);
+          });
         } else {
-          // Initialize default layout based on total tables
-          final int indoor = data['indoorTables'] as int? ?? 4;
-          final int outdoor = data['outdoorTables'] as int? ?? 0;
-          _initializeDefaultTables(indoor, outdoor);
+          // Fallback to customTables or resource counts
+          _layouts = {};
+          if (data.containsKey('customTables')) {
+            _layouts['ping_pong'] = List<Map<String, dynamic>>.from(data['customTables'] ?? []);
+          } else {
+            Map<String, dynamic> rps = data['resourcesPerSport'] ?? {};
+            for (String s in _supportedSports) {
+              int indoor = rps[s]?['indoor'] ?? 4;
+              int outdoor = rps[s]?['outdoor'] ?? 0;
+              _initializeDefaultTables(indoor, outdoor, s);
+            }
+          }
         }
 
         if (data.containsKey('trainingConfig')) {
@@ -75,7 +98,10 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
         }
       } else {
         // Fallback for new venues
-        _initializeDefaultTables(4, 0);
+        _supportedSports = ['ping_pong'];
+        _selectedSport = 'ping_pong';
+        _layouts = {};
+        _initializeDefaultTables(4, 0, 'ping_pong');
       }
 
       await _loadBookings();
@@ -86,16 +112,17 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
     }
   }
 
-  void _initializeDefaultTables(int indoor, int outdoor) {
-    _customTables = [];
+  void _initializeDefaultTables(int indoor, int outdoor, [String? sport]) {
+    final s = sport ?? _selectedSport;
+    final list = <Map<String, dynamic>>[];
     int logicalId = 1;
     // Lay out indoor tables
     for (int i = 0; i < indoor; i++) {
       int row = i ~/ 4;
       int col = i % 4;
-      _customTables.add({
+      list.add({
         'tableId': logicalId++,
-        'name': 'Masa ${i + 1}',
+        'name': 'Teren/Masă ${i + 1}',
         'type': 'indoor',
         'x': col,
         'y': row,
@@ -106,14 +133,15 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
       int idx = indoor + i;
       int row = idx ~/ 4;
       int col = idx % 4;
-      _customTables.add({
+      list.add({
         'tableId': logicalId++,
-        'name': 'Masa ${i + 1} Out',
+        'name': 'Teren/Masă ${i + 1} Out',
         'type': 'outdoor',
         'x': col,
         'y': row,
       });
     }
+    _layouts[s] = list;
   }
 
   Future<void> _loadBookings() async {
@@ -139,7 +167,7 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
     setState(() => _saving = true);
     try {
       await FirebaseFirestore.instance.collection('venues').doc(widget.venueId).update({
-        'customTables': _customTables,
+        'layouts': _layouts,
         'trainingConfig': _trainingConfig,
       });
       if (mounted) {
@@ -170,6 +198,9 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
 
   bool _isTableOccupied(int tableId, int hour) {
     for (var match in _matchesToday) {
+      final String matchSport = match['sport'] ?? 'ping_pong';
+      if (matchSport != _selectedSport) continue;
+
       final int start = match['startHour'] ?? 0;
       final int end = match['endHour'] ?? 0;
       final int tId = match['tableId'] ?? -1;
@@ -183,6 +214,9 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
 
   Map<String, dynamic>? _getBookingForTable(int tableId, int hour) {
     for (var match in _matchesToday) {
+      final String matchSport = match['sport'] ?? 'ping_pong';
+      if (matchSport != _selectedSport) continue;
+
       final int start = match['startHour'] ?? 0;
       final int end = match['endHour'] ?? 0;
       final int tId = match['tableId'] ?? -1;
@@ -206,7 +240,11 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
   }
 
   void _showAddTableDialog(int x, int y) {
-    final nameController = TextEditingController(text: 'Masa ${_customTables.length + 1}');
+    final String entityName = _selectedSport == 'ping_pong' ? 'Masa' : 'Teren';
+    final String entityNameDiacritics = _selectedSport == 'ping_pong' ? 'Masă' : 'Teren';
+    final String entityNameNew = _selectedSport == 'ping_pong' ? 'Masă Nouă' : 'Teren Nou';
+    
+    final nameController = TextEditingController(text: '$entityName ${_customTables.length + 1}');
     String tableType = 'indoor';
 
     showDialog(
@@ -215,16 +253,16 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
         return StatefulBuilder(builder: (context, setDialogState) {
           return AlertDialog(
             backgroundColor: const Color(0xFF131A2A),
-            title: const Text('Adaugă Masă Nouă', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            title: Text('Adaugă $entityNameNew', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextField(
                   controller: nameController,
                   style: const TextStyle(color: Colors.white),
-                  decoration: const InputDecoration(
-                    labelText: 'Denumire / Număr Masă',
-                    labelStyle: TextStyle(color: Colors.white54),
+                  decoration: InputDecoration(
+                    labelText: 'Denumire / Număr $entityNameDiacritics',
+                    labelStyle: const TextStyle(color: Colors.white54),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -232,9 +270,9 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
                   initialValue: tableType,
                   dropdownColor: const Color(0xFF131A2A),
                   style: const TextStyle(color: Colors.white),
-                  decoration: const InputDecoration(
-                    labelText: 'Tip Masă',
-                    labelStyle: TextStyle(color: Colors.white54),
+                  decoration: InputDecoration(
+                    labelText: 'Tip $entityNameDiacritics',
+                    labelStyle: const TextStyle(color: Colors.white54),
                   ),
                   items: const [
                     DropdownMenuItem(value: 'indoor', child: Text('Indoor')),
@@ -280,6 +318,9 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
   }
 
   void _showEditTableDialog(Map<String, dynamic> table) {
+    final String entityNameDiacritics = _selectedSport == 'ping_pong' ? 'Masă' : 'Teren';
+    final String entityNameLowercase = _selectedSport == 'ping_pong' ? 'masa' : 'terenul';
+    
     final nameController = TextEditingController(text: table['name']);
     String tableType = table['type'] ?? 'indoor';
 
@@ -296,9 +337,9 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
                 TextField(
                   controller: nameController,
                   style: const TextStyle(color: Colors.white),
-                  decoration: const InputDecoration(
-                    labelText: 'Denumire Masă',
-                    labelStyle: TextStyle(color: Colors.white54),
+                  decoration: InputDecoration(
+                    labelText: 'Denumire $entityNameDiacritics',
+                    labelStyle: const TextStyle(color: Colors.white54),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -306,9 +347,9 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
                   initialValue: tableType,
                   dropdownColor: const Color(0xFF131A2A),
                   style: const TextStyle(color: Colors.white),
-                  decoration: const InputDecoration(
-                    labelText: 'Tip Masă',
-                    labelStyle: TextStyle(color: Colors.white54),
+                  decoration: InputDecoration(
+                    labelText: 'Tip $entityNameDiacritics',
+                    labelStyle: const TextStyle(color: Colors.white54),
                   ),
                   items: const [
                     DropdownMenuItem(value: 'indoor', child: Text('Indoor')),
@@ -346,7 +387,7 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
                     ),
                   );
                 },
-                child: const Text('Mută masa', style: TextStyle(color: Color(0xFF00E5FF))),
+                child: Text('Mută $entityNameLowercase', style: const TextStyle(color: Color(0xFF00E5FF))),
               ),
               ElevatedButton(
                 onPressed: () {
@@ -555,8 +596,8 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
     num endHour = _selectedHour + 1.0;
     String paymentStatus = 'pending'; // Default is pending (unpaid) as requested!
 
-    final int open = _venueData?['openHour'] ?? 8;
-    final int close = _venueData?['closeHour'] ?? 22;
+    final int open = 0;
+    final int close = 24;
 
     List<num> dropdownHours = [];
     for (double h = open.toDouble(); h <= close.toDouble(); h += step) {
@@ -723,6 +764,7 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
                       'visibility': 'private',
                       'isFriendly': true,
                       'city': city,
+                      'sport': _selectedSport,
                       'locationId': widget.venueId,
                       'locationName': widget.venueName,
                       'date': dateStr,
@@ -904,14 +946,21 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)))
-          : _isEditing
-              ? _buildEditPlanView()
-              : TabBarView(
-                  children: [
-                    _buildBookingsTab(),
-                    _buildRoomLayoutTab(),
-                  ],
+          : Column(
+              children: [
+                _buildSportSelector(),
+                Expanded(
+                  child: _isEditing
+                      ? _buildEditPlanView()
+                      : TabBarView(
+                          children: [
+                            _buildBookingsTab(),
+                            _buildRoomLayoutTab(),
+                          ],
+                        ),
                 ),
+              ],
+            ),
     );
 
     return _isEditing
@@ -922,8 +971,56 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
           );
   }
 
+  Widget _buildSportSelector() {
+    if (_supportedSports.length <= 1) return const SizedBox.shrink();
+
+    final Map<String, String> names = {
+      'ping_pong': 'Ping Pong',
+      'padel': 'Padel',
+      'tenis': 'Tenis',
+      'fotbal': 'Fotbal',
+      'handbal': 'Handbal',
+      'baschet': 'Baschet',
+    };
+
+    return Container(
+      width: double.infinity,
+      color: const Color(0xFF131A2A),
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Row(
+          children: _supportedSports.map((s) {
+            final isSelected = s == _selectedSport;
+            return Padding(
+              padding: const EdgeInsets.only(right: 8.0),
+              child: ChoiceChip(
+                label: Text(names[s] ?? s, style: TextStyle(color: isSelected ? Colors.black : Colors.white)),
+                selected: isSelected,
+                selectedColor: const Color(0xFF00E5FF),
+                backgroundColor: const Color(0xFF1E293B),
+                onSelected: (val) {
+                  if (val) {
+                    setState(() {
+                      _selectedSport = s;
+                      _movingTable = null; // reset move mode
+                    });
+                  }
+                },
+              ),
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
   Widget _buildBookingsTab() {
-    final activeBookings = _matchesToday.where((m) => m['status'] != 'cancelled').toList();
+    final activeBookings = _matchesToday.where((m) {
+      final String matchSport = m['sport'] ?? 'ping_pong';
+      return m['status'] != 'cancelled' && matchSport == _selectedSport;
+    }).toList();
     // Sort by start hour
     activeBookings.sort((a, b) => (a['startHour'] as num).compareTo(b['startHour'] as num));
 
@@ -965,7 +1062,7 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
         final String? hostAvatar = booking['hostAvatarUrl'];
 
         // Find table name
-        String tableName = 'Masa $tableId';
+        String tableName = '${_selectedSport == 'ping_pong' ? 'Masa' : 'Teren'} $tableId';
         for (var t in _customTables) {
           if (t['tableId'] == tableId) {
             tableName = t['name'] ?? tableName;
@@ -1296,7 +1393,7 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
               ),
               const SizedBox(height: 4),
               const Text(
-                '• Atinge un spațiu liber pentru a adăuga o masă.\n• Atinge o masă pentru a o edita, șterge sau a-i schimba poziția.',
+                '• Atinge un spațiu liber pentru a adăuga un element.\n• Atinge un element pentru a-l edita, șterge sau a-i schimba poziția.',
                 style: TextStyle(color: Colors.white54, fontSize: 11),
               ),
               const SizedBox(height: 8),

@@ -14,6 +14,8 @@ class PingPongLocation {
   final bool offersSubscription;
   final double subscriptionPrice;
   final List<Map<String, dynamic>> extraServices;
+  final List<String> supportedSports;
+  final bool isPublic;
 
   const PingPongLocation({
     required this.id,
@@ -31,6 +33,8 @@ class PingPongLocation {
     this.offersSubscription = false,
     this.subscriptionPrice = 150.0,
     this.extraServices = const [],
+    this.supportedSports = const ['ping_pong'],
+    this.isPublic = false,
   }) : indoorTables = indoorTables ?? numTables;
 }
 

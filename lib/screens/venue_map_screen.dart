@@ -66,6 +66,8 @@ class _VenueMarker {
   final String address;
   final String? priceText;
   final LatLng coords;
+  final bool isPublic;
+  final List<String> supportedSports;
 
   const _VenueMarker({
     required this.id,
@@ -74,6 +76,8 @@ class _VenueMarker {
     required this.address,
     required this.priceText,
     required this.coords,
+    this.isPublic = false,
+    this.supportedSports = const ['ping_pong'],
   });
 }
 
@@ -92,6 +96,7 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
   _VenueMarker? _selected;
   bool _loading = true;
   String _filterCity = '';
+  List<String> _selectedSports = [];
   LatLng? _userLocation;
   String _drawerSearchQuery = '';
   bool _onlyVisibleInBounds = true;
@@ -134,6 +139,9 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
         final name    = (data['venueName'] as String?)?.trim() ?? 'Sală necunoscută';
         final price   = data['pricePerHourText'] as String?;
 
+        final isPublic = data['isPublic'] as bool? ?? false;
+        final supportedSports = List<String>.from(data['supportedSports'] ?? ['ping_pong']);
+
         final coords = _coordsForCity(city);
         if (coords == null) continue; // skip venues with unknown city
 
@@ -145,6 +153,8 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
           city: city,
           address: address,
           priceText: price,
+          isPublic: isPublic,
+          supportedSports: supportedSports,
           coords: LatLng(
             coords.latitude  + offset.$1,
             coords.longitude + offset.$2,
@@ -178,10 +188,14 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
   }
 
   List<_VenueMarker> get _filteredMarkers {
-    if (_filterCity.isEmpty) return _markers;
-    return _markers.where(
-      (m) => m.city.toLowerCase().contains(_filterCity.toLowerCase()),
-    ).toList();
+    Iterable<_VenueMarker> filtered = _markers;
+    if (_filterCity.isNotEmpty) {
+      filtered = filtered.where((m) => m.city.toLowerCase().contains(_filterCity.toLowerCase()));
+    }
+    if (_selectedSports.isNotEmpty) {
+      filtered = filtered.where((m) => _selectedSports.any((s) => m.supportedSports.contains(s)));
+    }
+    return filtered.toList();
   }
 
   List<_VenueMarker> get _drawerFilteredMarkers {
@@ -231,35 +245,76 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(56),
+          preferredSize: const Size.fromHeight(100),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-            child: TextField(
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                hintText: 'Filtrează după oraș...',
-                hintStyle: const TextStyle(color: Colors.white38),
-                prefixIcon: const Icon(Icons.search, color: Color(0xFF00E5FF)),
-                filled: true,
-                fillColor: const Color(0xFF0A0E17),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Color(0xFF00E5FF), width: 1),
+            child: Column(
+              children: [
+                TextField(
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    hintText: 'Filtrează după oraș...',
+                    hintStyle: const TextStyle(color: Colors.white38),
+                    prefixIcon: const Icon(Icons.search, color: Color(0xFF00E5FF)),
+                    filled: true,
+                    fillColor: const Color(0xFF0A0E17),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFF00E5FF), width: 1),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFF1A2A3A), width: 1),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFF00E5FF), width: 1.5),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  ),
+                  onChanged: (val) => setState(() {
+                    _filterCity = val;
+                    _selected = null;
+                  }),
                 ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Color(0xFF1A2A3A), width: 1),
+                const SizedBox(height: 8),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      {'id': 'ping_pong', 'label': 'Ping Pong'},
+                      {'id': 'padel', 'label': 'Padel'},
+                      {'id': 'tenis', 'label': 'Tenis'},
+                      {'id': 'fotbal', 'label': 'Fotbal'},
+                      {'id': 'handbal', 'label': 'Handbal'},
+                      {'id': 'baschet', 'label': 'Baschet'},
+                    ].map((sport) {
+                      final bool isSelected = _selectedSports.contains(sport['id']);
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8.0),
+                        child: FilterChip(
+                          label: Text(sport['label']!),
+                          selected: isSelected,
+                          selectedColor: const Color(0xFF00E5FF),
+                          labelStyle: TextStyle(color: isSelected ? Colors.black : Colors.white, fontSize: 12),
+                          backgroundColor: const Color(0xFF1E293B),
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
+                          onSelected: (val) {
+                            setState(() {
+                              if (val) {
+                                _selectedSports.add(sport['id']!);
+                              } else {
+                                _selectedSports.remove(sport['id']);
+                              }
+                              _selected = null;
+                            });
+                          },
+                        ),
+                      );
+                    }).toList(),
+                  ),
                 ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Color(0xFF00E5FF), width: 1.5),
-                ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              ),
-              onChanged: (val) => setState(() {
-                _filterCity = val;
-                _selected = null;
-              }),
+              ],
             ),
           ),
         ),
@@ -422,6 +477,9 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
 
   Marker _buildMarker(_VenueMarker m) {
     final isSelected = _selected == m;
+    final markerColor = m.isPublic ? const Color(0xFF00FF66) : const Color(0xFF00E5FF);
+    final markerIcon = m.isPublic ? Icons.park : Icons.sports_tennis;
+
     return Marker(
       point: m.coords,
       width: isSelected ? 48 : 38,
@@ -431,23 +489,23 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           decoration: BoxDecoration(
-            color: isSelected ? const Color(0xFF00E5FF) : const Color(0xFF131A2A),
+            color: isSelected ? markerColor : const Color(0xFF131A2A),
             shape: BoxShape.circle,
             border: Border.all(
-              color: isSelected ? Colors.white : const Color(0xFF00E5FF),
+              color: isSelected ? Colors.white : markerColor,
               width: isSelected ? 3 : 2,
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF00E5FF).withValues(alpha: isSelected ? 0.7 : 0.4),
+                color: markerColor.withValues(alpha: isSelected ? 0.7 : 0.4),
                 blurRadius: isSelected ? 16 : 8,
                 spreadRadius: isSelected ? 2 : 0,
               ),
             ],
           ),
           child: Icon(
-            Icons.sports_tennis,
-            color: isSelected ? Colors.black : const Color(0xFF00E5FF),
+            markerIcon,
+            color: isSelected ? Colors.black : markerColor,
             size: isSelected ? 24 : 18,
           ),
         ),
@@ -526,7 +584,17 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
               ],
             ),
           ],
-          if (m.priceText != null && m.priceText!.isNotEmpty) ...[
+          if (m.isPublic) ...[
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFF00FF66).withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: const Text('Locație Publică - Gratuit', style: TextStyle(color: Color(0xFF00FF66), fontSize: 12, fontWeight: FontWeight.bold)),
+            ),
+          ] else if (m.priceText != null && m.priceText!.isNotEmpty) ...[
             const SizedBox(height: 6),
             Row(
               children: [
@@ -539,6 +607,27 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
                   ),
                 ),
               ],
+            ),
+          ],
+          if (m.supportedSports.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: m.supportedSports.map((sport) {
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1E293B),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: Colors.grey[800]!),
+                  ),
+                  child: Text(
+                    sport.toUpperCase(),
+                    style: const TextStyle(color: Colors.grey, fontSize: 10),
+                  ),
+                );
+              }).toList(),
             ),
           ],
           const SizedBox(height: 12),
@@ -705,29 +794,45 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
                           height: 40,
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? const Color(0xFF00E5FF).withValues(alpha: 0.15)
+                                ? (m.isPublic ? const Color(0xFF00FF66) : const Color(0xFF00E5FF)).withValues(alpha: 0.15)
                                 : const Color(0xFF131A2A),
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(
                               color: isSelected
-                                  ? const Color(0xFF00E5FF)
+                                  ? (m.isPublic ? const Color(0xFF00FF66) : const Color(0xFF00E5FF))
                                   : const Color(0xFF1A2A3A),
                               width: 1,
                             ),
                           ),
                           child: Icon(
-                            Icons.sports_tennis,
-                            color: isSelected ? const Color(0xFF00E5FF) : Colors.white38,
+                            m.isPublic ? Icons.park : Icons.sports_tennis,
+                            color: isSelected ? (m.isPublic ? const Color(0xFF00FF66) : const Color(0xFF00E5FF)) : Colors.white38,
                             size: 20,
                           ),
                         ),
-                        title: Text(
-                          m.name,
-                          style: TextStyle(
-                            color: isSelected ? const Color(0xFF00E5FF) : Colors.white,
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                            fontSize: 14,
-                          ),
+                        title: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                m.name,
+                                style: TextStyle(
+                                  color: isSelected ? (m.isPublic ? const Color(0xFF00FF66) : const Color(0xFF00E5FF)) : Colors.white,
+                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                            if (m.isPublic)
+                              Container(
+                                margin: const EdgeInsets.only(left: 8),
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF00FF66).withValues(alpha: 0.2),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: const Text('PUBLIC', style: TextStyle(color: Color(0xFF00FF66), fontSize: 9, fontWeight: FontWeight.bold)),
+                              ),
+                          ],
                         ),
                         subtitle: Text(
                           m.city + (m.address.isNotEmpty ? ' · ${m.address}' : ''),

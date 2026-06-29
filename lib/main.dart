@@ -18,7 +18,11 @@ void main() async {
     print("Eroare Firebase: $e");
   }
   
-  await StripeService.instance.init();
+  try {
+    await StripeService.instance.init();
+  } catch (e) {
+    print("Eroare Stripe init: $e");
+  }
   
   runApp(const PingPongPlayhubApp());
 }

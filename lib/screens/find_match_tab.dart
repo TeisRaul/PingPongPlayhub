@@ -16,6 +16,7 @@ class _FindMatchTabState extends State<FindMatchTab> {
   String _searchQuery = '';
   String _filterCity = 'Toate';
   String _filterLocationId = 'Toate';
+  List<String> _selectedSports = [];
 
   List<PingPongLocation> _allLocations = List.from(mockLocations);
   bool _isLoadingLocs = false;
@@ -228,6 +229,41 @@ class _FindMatchTabState extends State<FindMatchTab> {
                   ),
                 ],
               ),
+              const SizedBox(height: 16),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    {'id': 'ping_pong', 'label': 'Ping Pong'},
+                    {'id': 'padel', 'label': 'Padel'},
+                    {'id': 'tenis', 'label': 'Tenis'},
+                    {'id': 'fotbal', 'label': 'Fotbal'},
+                    {'id': 'handbal', 'label': 'Handbal'},
+                    {'id': 'baschet', 'label': 'Baschet'},
+                  ].map((sport) {
+                    final bool isSelected = _selectedSports.contains(sport['id']);
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8.0),
+                      child: FilterChip(
+                        label: Text(sport['label']!),
+                        selected: isSelected,
+                        selectedColor: const Color(0xFF00E5FF),
+                        labelStyle: TextStyle(color: isSelected ? Colors.black : Colors.white),
+                        backgroundColor: const Color(0xFF1E293B),
+                        onSelected: (val) {
+                          setState(() {
+                            if (val) {
+                              _selectedSports.add(sport['id']!);
+                            } else {
+                              _selectedSports.remove(sport['id']);
+                            }
+                          });
+                        },
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
             ],
           ),
         ),
@@ -269,6 +305,17 @@ class _FindMatchTabState extends State<FindMatchTab> {
                 if (_searchQuery.isNotEmpty) {
                   final searchStr = '${data['city']} ${data['hostUsername']} ${data['locationName']}'.toLowerCase();
                   if (!searchStr.contains(_searchQuery)) return false;
+                }
+
+                // Filtru Sport
+                if (_selectedSports.isNotEmpty) {
+                  final String? matchSport = data['sport'] as String?;
+                  if (matchSport == null || !_selectedSports.contains(matchSport)) {
+                    // Meciurile vechi nu au 'sport', deci le consideram 'ping_pong' by default
+                    if (!(_selectedSports.contains('ping_pong') && matchSport == null)) {
+                      return false;
+                    }
+                  }
                 }
 
                 return true;
@@ -339,7 +386,12 @@ class _FindMatchTabState extends State<FindMatchTab> {
                             children: [
                               const Icon(Icons.location_on, size: 16, color: Colors.grey),
                               const SizedBox(width: 8),
-                              Expanded(child: Text('${data['locationName']} (${data['city']})', style: const TextStyle(color: Colors.white))),
+                              Expanded(
+                                child: Text(
+                                  '${data['locationName']} (${data['city']}) • ${data['sport'] != null ? data['sport'].toString().toUpperCase() : 'PING PONG'}',
+                                  style: const TextStyle(color: Colors.white),
+                                ),
+                              ),
                             ],
                           ),
                           const SizedBox(height: 8),

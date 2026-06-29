@@ -28,6 +28,7 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
   bool _isLoadingLocs = false;
 
   // Step 1: Locatie
+  String _selectedSport = 'ping_pong';
   String? _selectedCity;
   PingPongLocation? _selectedLocation;
   String? _selectedTableType; // null = not chosen, 'indoor' or 'outdoor'
@@ -215,7 +216,7 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
   List<PingPongLocation> get _filteredLocations {
     if (_selectedCity == null) return [];
     return _allLocations
-        .where((loc) => loc.city.trim().toLowerCase() == _selectedCity!.trim().toLowerCase())
+        .where((loc) => loc.city.trim().toLowerCase() == _selectedCity!.trim().toLowerCase() && loc.supportedSports.contains(_selectedSport))
         .toList();
   }
 
@@ -275,9 +276,16 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
         if (blockedDates.contains(dateStr)) {
           isDayBlocked = true;
         }
-        if (venueData.containsKey('customTables')) {
+
+        if (venueData.containsKey('layouts')) {
+          final layouts = venueData['layouts'] as Map<String, dynamic>;
+          if (layouts.containsKey(_selectedSport)) {
+            customTables = List<Map<String, dynamic>>.from(layouts[_selectedSport] ?? []);
+          }
+        } else if (venueData.containsKey('customTables') && _selectedSport == 'ping_pong') {
           customTables = List<Map<String, dynamic>>.from(venueData['customTables'] ?? []);
         }
+
         if (venueData.containsKey('trainingConfig')) {
           trainingConfig = Map<String, dynamic>.from(venueData['trainingConfig'] ?? {});
         }
@@ -422,6 +430,26 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
     return fallbackHour;
   }
 
+  int _getIndoorCount() {
+    if (_venueData != null && _venueData!.containsKey('resourcesPerSport')) {
+      final rps = _venueData!['resourcesPerSport'] as Map<String, dynamic>;
+      if (rps.containsKey(_selectedSport)) {
+        return rps[_selectedSport]['indoor'] as int? ?? 0;
+      }
+    }
+    return _selectedLocation?.indoorTables ?? 0;
+  }
+
+  int _getOutdoorCount() {
+    if (_venueData != null && _venueData!.containsKey('resourcesPerSport')) {
+      final rps = _venueData!['resourcesPerSport'] as Map<String, dynamic>;
+      if (rps.containsKey(_selectedSport)) {
+        return rps[_selectedSport]['outdoor'] as int? ?? 0;
+      }
+    }
+    return _selectedLocation?.outdoorTables ?? 0;
+  }
+
   Map<String, dynamic>? _getTableAt(int x, int y, List<Map<String, dynamic>> tables) {
     for (var t in tables) {
       if (t['x'] == x && t['y'] == y) {
@@ -501,6 +529,7 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
         'visibility': _visibility.toLowerCase(),
         'isFriendly': _matchType == 'Amical',
         'city': _selectedCity,
+        'sport': _selectedSport,
         'locationId': _selectedLocation!.id,
         'locationName': _selectedLocation!.name,
         'date': DateFormat('yyyy-MM-dd').format(_selectedDate),
@@ -682,12 +711,14 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
         steps: [
           Step(
             title: const Text('Unde joci?'),
-            subtitle: const Text('Oraș și Locație'),
+            subtitle: const Text('Sport, Oraș și Locație'),
             isActive: _currentStep >= 0,
             state: _currentStep > 0 ? StepState.complete : StepState.indexed,
             content: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                _buildSportSelector(),
+                const SizedBox(height: 16),
                 CitySelectorField(
                   selectedCity: _selectedCity,
                   cityOptions: _cityOptions,
@@ -820,7 +851,7 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
                     children: [
                       Expanded(
                         child: GestureDetector(
-                          onTap: _selectedLocation!.indoorTables > 0
+                          onTap: _getIndoorCount() > 0
                               ? () => setState(() {
                                     _selectedTableType = 'indoor';
                                     _selectedTable = null;
@@ -832,14 +863,14 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
                             decoration: BoxDecoration(
                               color: _selectedTableType == 'indoor'
                                   ? const Color(0xFF00E5FF).withValues(alpha: 0.2)
-                                  : _selectedLocation!.indoorTables == 0
+                                  : _getIndoorCount() == 0
                                       ? Colors.grey.withValues(alpha: 0.1)
                                       : const Color(0xFF1E293B),
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
                                 color: _selectedTableType == 'indoor'
                                     ? const Color(0xFF00E5FF)
-                                    : _selectedLocation!.indoorTables == 0
+                                    : _getIndoorCount() == 0
                                         ? Colors.grey.withValues(alpha: 0.3)
                                         : Colors.grey[700]!,
                                 width: _selectedTableType == 'indoor' ? 2 : 1,
@@ -851,7 +882,7 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
                                   Icons.house_outlined,
                                   color: _selectedTableType == 'indoor'
                                       ? const Color(0xFF00E5FF)
-                                      : _selectedLocation!.indoorTables == 0
+                                      : _getIndoorCount() == 0
                                           ? Colors.grey[600]
                                           : Colors.white70,
                                   size: 28,
@@ -863,16 +894,16 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
                                     fontWeight: FontWeight.bold,
                                     color: _selectedTableType == 'indoor'
                                         ? const Color(0xFF00E5FF)
-                                        : _selectedLocation!.indoorTables == 0
+                                        : _getIndoorCount() == 0
                                             ? Colors.grey[600]
                                             : Colors.white,
                                   ),
                                 ),
                                 Text(
-                                  '${_selectedLocation!.indoorTables} mese',
+                                  '${_getIndoorCount()} mese',
                                   style: TextStyle(
                                     fontSize: 11,
-                                    color: _selectedLocation!.indoorTables == 0
+                                    color: _getIndoorCount() == 0
                                         ? Colors.grey[600]
                                         : Colors.grey,
                                   ),
@@ -885,7 +916,7 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: GestureDetector(
-                          onTap: _selectedLocation!.outdoorTables > 0
+                          onTap: _getOutdoorCount() > 0
                               ? () => setState(() {
                                     _selectedTableType = 'outdoor';
                                     _selectedTable = null;
@@ -897,14 +928,14 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
                             decoration: BoxDecoration(
                               color: _selectedTableType == 'outdoor'
                                   ? const Color(0xFF00FF66).withValues(alpha: 0.2)
-                                  : _selectedLocation!.outdoorTables == 0
+                                  : _getOutdoorCount() == 0
                                       ? Colors.grey.withValues(alpha: 0.1)
                                       : const Color(0xFF1E293B),
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
                                 color: _selectedTableType == 'outdoor'
                                     ? const Color(0xFF00FF66)
-                                    : _selectedLocation!.outdoorTables == 0
+                                    : _getOutdoorCount() == 0
                                         ? Colors.grey.withValues(alpha: 0.3)
                                         : Colors.grey[700]!,
                                 width: _selectedTableType == 'outdoor' ? 2 : 1,
@@ -916,7 +947,7 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
                                   Icons.park_outlined,
                                   color: _selectedTableType == 'outdoor'
                                       ? const Color(0xFF00FF66)
-                                      : _selectedLocation!.outdoorTables == 0
+                                      : _getOutdoorCount() == 0
                                           ? Colors.grey[600]
                                           : Colors.white70,
                                   size: 28,
@@ -928,16 +959,16 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
                                     fontWeight: FontWeight.bold,
                                     color: _selectedTableType == 'outdoor'
                                         ? const Color(0xFF00FF66)
-                                        : _selectedLocation!.outdoorTables == 0
+                                        : _getOutdoorCount() == 0
                                             ? Colors.grey[600]
                                             : Colors.white,
                                   ),
                                 ),
                                 Text(
-                                  '${_selectedLocation!.outdoorTables} mese',
+                                  '${_getOutdoorCount()} mese',
                                   style: TextStyle(
                                     fontSize: 11,
-                                    color: _selectedLocation!.outdoorTables == 0
+                                    color: _getOutdoorCount() == 0
                                         ? Colors.grey[600]
                                         : Colors.grey,
                                   ),
@@ -1164,8 +1195,8 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
                                     childAspectRatio: 1.2,
                                   ),
                                   itemCount: _selectedTableType == 'outdoor'
-                                      ? _selectedLocation!.outdoorTables
-                                      : _selectedLocation!.indoorTables,
+                                      ? _getOutdoorCount()
+                                      : _getIndoorCount(),
                                   itemBuilder: (context, index) {
                                     final tableId = index + 1;
                                     final isReserved = _reservedTables.contains(tableId);
@@ -1412,6 +1443,49 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSportSelector() {
+    final sports = [
+      {'id': 'ping_pong', 'label': 'Ping Pong'},
+      {'id': 'padel', 'label': 'Padel'},
+      {'id': 'tenis', 'label': 'Tenis'},
+      {'id': 'fotbal', 'label': 'Fotbal'},
+      {'id': 'handbal', 'label': 'Handbal'},
+      {'id': 'baschet', 'label': 'Baschet'},
+    ];
+    return Container(
+      width: double.infinity,
+      alignment: Alignment.centerLeft,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: sports.map((s) {
+            final isSelected = _selectedSport == s['id'];
+            return Padding(
+              padding: const EdgeInsets.only(right: 8.0),
+              child: ChoiceChip(
+                label: Text(s['label']!),
+                selected: isSelected,
+                selectedColor: const Color(0xFF00E5FF),
+                labelStyle: TextStyle(color: isSelected ? Colors.black : Colors.white),
+                backgroundColor: const Color(0xFF1E293B),
+                onSelected: (val) {
+                  if (val) {
+                    setState(() {
+                      _selectedSport = s['id']!;
+                      _selectedLocation = null;
+                      _selectedTableType = null;
+                      _selectedExtraServices.clear();
+                    });
+                  }
+                },
+              ),
+            );
+          }).toList(),
+        ),
       ),
     );
   }

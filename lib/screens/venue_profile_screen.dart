@@ -558,6 +558,25 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
     );
   }
 
+  Widget _buildSportChip(String sportKey) {
+    final Map<String, String> names = {
+      'ping_pong': 'Ping Pong',
+      'padel': 'Padel',
+      'tenis': 'Tenis',
+      'fotbal': 'Fotbal',
+      'handbal': 'Handbal',
+      'baschet': 'Baschet',
+    };
+    return Chip(
+      backgroundColor: const Color(0xFF131A2A),
+      side: const BorderSide(color: Color(0xFF00E5FF), width: 0.8),
+      label: Text(
+        names[sportKey] ?? sportKey,
+        style: const TextStyle(color: Colors.white, fontSize: 13),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
@@ -697,6 +716,35 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
           ),
         ),
 
+        if (data['isPublic'] == true) ...[
+          const SizedBox(height: 12),
+          Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.green.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.green, width: 1),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.park, color: Colors.green, size: 16),
+                  SizedBox(width: 6),
+                  Text(
+                    'Locație Publică (Gratis)',
+                    style: TextStyle(
+                      color: Colors.green,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+
         const SizedBox(height: 30),
         const Divider(color: Colors.grey, thickness: 0.5),
 
@@ -707,6 +755,19 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
         _buildProfileDetailRow(Icons.email_outlined, 'Email', data['email'] ?? '-'),
         _buildProfileDetailRow(Icons.language_outlined, 'Website', data['website']?.toString().isEmpty == true ? '-' : (data['website'] ?? '-')),
         _buildProfileDetailRow(Icons.location_on_outlined, 'Locație', '${data['address'] ?? '-'}, ${data['city'] ?? '-'}'),
+
+        const SizedBox(height: 20),
+        const Divider(color: Colors.grey, thickness: 0.5),
+
+        // Section: Supported Sports
+        _buildSectionHeader('Sporturi Suportate'),
+        (data['supportedSports'] != null && (data['supportedSports'] as List).isNotEmpty)
+            ? Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: (data['supportedSports'] as List).map((s) => _buildSportChip(s.toString())).toList(),
+              )
+            : const Text('Doar Ping Pong (Legacy)', style: TextStyle(color: Colors.grey)),
 
         const SizedBox(height: 20),
         const Divider(color: Colors.grey, thickness: 0.5),
