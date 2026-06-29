@@ -59,10 +59,17 @@ class _AddPublicLocationScreenState extends State<AddPublicLocationScreen> {
       
       for (String sport in activeSports) {
         int numTables = _resources[sport] ?? 1;
-        layouts[sport] = List.generate(numTables, (index) => {
-          'id': index + 1,
-          'type': 'outdoor',
-        });
+        List<Map<String, dynamic>> sportLayout = [];
+        for (int i = 0; i < numTables; i++) {
+          sportLayout.add({
+            'tableId': i + 1,
+            'name': 'Masa/Teren ${i + 1}',
+            'type': 'indoor',
+            'x': i % 5,
+            'y': i ~/ 5,
+          });
+        }
+        layouts[sport] = sportLayout;
       }
 
       await docRef.set({

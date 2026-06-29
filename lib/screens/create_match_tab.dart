@@ -167,6 +167,7 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
           offersSubscription: offersSubscription,
           subscriptionPrice: subscriptionPrice,
           extraServices: extraServices,
+          isPublic: data['isPublic'] as bool? ?? false,
         ));
       }
 
@@ -277,13 +278,15 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
           isDayBlocked = true;
         }
 
-        if (venueData.containsKey('layouts')) {
-          final layouts = venueData['layouts'] as Map<String, dynamic>;
-          if (layouts.containsKey(_selectedSport)) {
-            customTables = List<Map<String, dynamic>>.from(layouts[_selectedSport] ?? []);
+        if (_venueData != null && _selectedLocation?.isPublic != true) {
+          if (_venueData!.containsKey('layouts')) {
+            final layouts = _venueData!['layouts'] as Map<String, dynamic>;
+            if (layouts.containsKey(_selectedSport)) {
+              customTables = List<Map<String, dynamic>>.from(layouts[_selectedSport] ?? []);
+            }
+          } else if (venueData.containsKey('customTables') && _selectedSport == 'ping_pong') {
+            customTables = List<Map<String, dynamic>>.from(venueData['customTables'] ?? []);
           }
-        } else if (venueData.containsKey('customTables') && _selectedSport == 'ping_pong') {
-          customTables = List<Map<String, dynamic>>.from(venueData['customTables'] ?? []);
         }
 
         if (venueData.containsKey('trainingConfig')) {

@@ -240,6 +240,7 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
       int totalOutdoor = 0;
       Map<String, Map<String, int>> resourcesPerSport = {};
       List<String> activeSports = [];
+      Map<String, List<Map<String, dynamic>>> generatedLayouts = {};
 
       _supportedSports.forEach((sport, isActive) {
         if (isActive) {
@@ -249,6 +250,33 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
           resourcesPerSport[sport] = {'indoor': indoor, 'outdoor': outdoor};
           totalIndoor += indoor;
           totalOutdoor += outdoor;
+          
+          List<Map<String, dynamic>> sportLayout = [];
+          int logicalId = 1;
+          
+          // Place indoor tables/fields sequentially
+          for (int i = 0; i < indoor; i++) {
+            sportLayout.add({
+              'tableId': logicalId++,
+              'name': 'Teren/Masă ${i + 1}',
+              'type': 'indoor',
+              'x': i % 5,
+              'y': i ~/ 5,
+            });
+          }
+          
+          // Place outdoor tables/fields sequentially on their OWN grid
+          for (int i = 0; i < outdoor; i++) {
+            sportLayout.add({
+              'tableId': logicalId++,
+              'name': 'Teren/Masă ${i + 1} Out',
+              'type': 'outdoor',
+              'x': i % 5,
+              'y': i ~/ 5,
+            });
+          }
+          
+          generatedLayouts[sport] = sportLayout;
         }
       });
       final int totalTables = totalIndoor + totalOutdoor;
@@ -270,7 +298,7 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
         'resourcesPerSport': resourcesPerSport,
         'isPublic': _isPublic,
         'allowHalfHourRentals': _allowHalfHourRentals,
-        'layouts': {},
+        'layouts': generatedLayouts,
         'facilities': selectedFacilities,
         'priceType': _priceType,
         'flatPriceHour': flatPriceHour,

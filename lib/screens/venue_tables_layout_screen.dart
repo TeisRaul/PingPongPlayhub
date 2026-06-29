@@ -34,6 +34,7 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
 
   List<String> _supportedSports = ['ping_pong'];
   String _selectedSport = 'ping_pong';
+  String _selectedEnvironment = 'indoor'; // 'indoor' or 'outdoor'
   Map<String, List<Map<String, dynamic>>> _layouts = {};
 
   List<Map<String, dynamic>> get _customTables => _layouts[_selectedSport] ?? [];
@@ -128,11 +129,10 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
         'y': row,
       });
     }
-    // Lay out outdoor tables
+    // Lay out outdoor tables (on their own grid)
     for (int i = 0; i < outdoor; i++) {
-      int idx = indoor + i;
-      int row = idx ~/ 4;
-      int col = idx % 4;
+      int row = i ~/ 4;
+      int col = i % 4;
       list.add({
         'tableId': logicalId++,
         'name': 'Teren/Masă ${i + 1} Out',
@@ -190,7 +190,12 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
   Map<String, dynamic>? _getTableAt(int x, int y) {
     for (var table in _customTables) {
       if (table['x'] == x && table['y'] == y) {
-        return table;
+        // 'training' tables are usually indoor.
+        bool isIndoorType = table['type'] == 'indoor' || table['type'] == 'training';
+        bool isOutdoorType = table['type'] == 'outdoor';
+        
+        if (_selectedEnvironment == 'indoor' && isIndoorType) return table;
+        if (_selectedEnvironment == 'outdoor' && isOutdoorType) return table;
       }
     }
     return null;
@@ -1354,6 +1359,32 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
                       style: TextStyle(color: Colors.white38, fontWeight: FontWeight.bold, fontSize: 10, letterSpacing: 2),
                     ),
                     const SizedBox(height: 12),
+                    // Environment Toggle
+                    ToggleButtons(
+                      isSelected: [_selectedEnvironment == 'indoor', _selectedEnvironment == 'outdoor'],
+                      onPressed: (index) {
+                        setState(() {
+                          _selectedEnvironment = index == 0 ? 'indoor' : 'outdoor';
+                        });
+                      },
+                      color: Colors.white54,
+                      selectedColor: Colors.black,
+                      fillColor: const Color(0xFF00E5FF),
+                      borderColor: const Color(0xFF1E293B),
+                      selectedBorderColor: const Color(0xFF00E5FF),
+                      borderRadius: BorderRadius.circular(8),
+                      children: const [
+                        Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 16),
+                          child: Text('Indoor', style: TextStyle(fontWeight: FontWeight.bold)),
+                        ),
+                        Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 16),
+                          child: Text('Outdoor', style: TextStyle(fontWeight: FontWeight.bold)),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
                     // The 2D Grid
                     Table(
                       defaultColumnWidth: const FixedColumnWidth(70),
@@ -1401,18 +1432,45 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
                 width: double.infinity,
                 child: ElevatedButton.icon(
                   onPressed: _showTrainingConfigDialog,
-                  icon: const Icon(Icons.school_outlined, size: 16),
-                  label: const Text('Configurează Antrenamente Copii', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  icon: const Icon(Icons.settings_suggest, size: 16),
+                  label: const Text('Configurare Antrenamente Copii', style: TextStyle(fontSize: 12)),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.purple.withValues(alpha: 0.2),
+                    backgroundColor: Colors.purpleAccent.withValues(alpha: 0.1),
                     foregroundColor: Colors.purpleAccent,
-                    side: const BorderSide(color: Colors.purpleAccent, width: 1),
+                    side: const BorderSide(color: Colors.purpleAccent),
                     padding: const EdgeInsets.symmetric(vertical: 8),
                   ),
                 ),
               )
             ],
           ),
+        ),
+
+        const SizedBox(height: 12),
+        // Environment Toggle for Edit Mode
+        ToggleButtons(
+          isSelected: [_selectedEnvironment == 'indoor', _selectedEnvironment == 'outdoor'],
+          onPressed: (index) {
+            setState(() {
+              _selectedEnvironment = index == 0 ? 'indoor' : 'outdoor';
+            });
+          },
+          color: Colors.white54,
+          selectedColor: Colors.black,
+          fillColor: const Color(0xFF00E5FF),
+          borderColor: const Color(0xFF1E293B),
+          selectedBorderColor: const Color(0xFF00E5FF),
+          borderRadius: BorderRadius.circular(8),
+          children: const [
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              child: Text('Indoor', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              child: Text('Outdoor', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
         ),
 
         // 2D ROOM LAYOUT VIEW IN EDIT MODE
