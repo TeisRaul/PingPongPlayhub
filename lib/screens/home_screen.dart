@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import '../utils/level_utils.dart';
 import 'login_screen.dart';
+import 'admin/admin_dashboard.dart';
 import 'my_profile_screen.dart';
 import 'find_match_screen.dart';
 import 'my_matches_screen.dart';
@@ -68,6 +69,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Map<String, dynamic>? userData;
   bool _isLoading = true;
   bool isVenue = false;
+  bool isAdmin = false;
 
   @override
   void initState() {
@@ -79,6 +81,9 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
+        // Super Admin Hardcode
+        final bool isSuperAdmin = (user.email == 'teisraul@yahoo.co.uk');
+
         // First try to load from players collection (users)
         final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
         if (doc.exists) {
@@ -86,6 +91,7 @@ class _HomeScreenState extends State<HomeScreen> {
             setState(() {
               userData = doc.data();
               isVenue = false;
+              isAdmin = isSuperAdmin || (userData?['isAdmin'] == true);
               _isLoading = false;
             });
           }
@@ -97,11 +103,13 @@ class _HomeScreenState extends State<HomeScreen> {
               setState(() {
                 userData = venueDoc.data();
                 isVenue = true;
+                isAdmin = isSuperAdmin;
                 _isLoading = false;
               });
             }
           } else {
             if (mounted) {
+              isAdmin = isSuperAdmin;
               setState(() => _isLoading = false);
             }
           }
@@ -435,7 +443,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
       drawer: const PlayerDrawer(activePage: 'dashboard'),
-      body: isVenue ? _buildVenueDashboard() : _buildPlayerBody(),
+      body: isAdmin ? const AdminDashboard() : (isVenue ? _buildVenueDashboard() : _buildPlayerBody()),
     );
   }
 
