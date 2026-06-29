@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../venue_signup_screen.dart';
+import 'add_public_location_screen.dart';
 
 class AdminVenueDetailScreen extends StatefulWidget {
   final String venueId;
@@ -198,16 +199,29 @@ class _AdminVenueDetailScreenState extends State<AdminVenueDetailScreen> {
             const SizedBox(height: 16),
             ElevatedButton.icon(
               onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => VenueSignupScreen(
-                      isEditMode: true,
-                      venueId: widget.venueId,
-                      venueData: widget.venueData,
+                if (widget.venueData['isPublic'] == true) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => AddPublicLocationScreen(
+                        isEditMode: true,
+                        venueId: widget.venueId,
+                        venueData: widget.venueData,
+                      ),
                     ),
-                  ),
-                );
+                  );
+                } else {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => VenueSignupScreen(
+                        isEditMode: true,
+                        venueId: widget.venueId,
+                        venueData: widget.venueData,
+                      ),
+                    ),
+                  );
+                }
               },
               icon: const Icon(Icons.edit_document),
               label: const Text('Editează Sală Complet (Formular)'),

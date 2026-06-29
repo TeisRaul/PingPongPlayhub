@@ -3,6 +3,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../data/mock_locations.dart';
 import '../widgets/city_selector.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'dart:async';
 
 class VenueSignupScreen extends StatefulWidget {
   final bool isAdminCreating;
@@ -35,6 +40,11 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
   final _cityController = TextEditingController();
   final _addressController = TextEditingController();
   final _websiteController = TextEditingController();
+
+  List<Map<String, dynamic>> _addressSuggestions = [];
+  Timer? _debounce;
+  bool _isVerifying = false;
+  LatLng? _verifiedLocation;
 
   bool _isPublic = false;
   bool _allowHalfHourRentals = true;
@@ -129,6 +139,13 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
       _addressController.text = data['address'] ?? '';
       _websiteController.text = data['website'] ?? '';
       
+      if (data['latitude'] != null && data['longitude'] != null) {
+        _verifiedLocation = LatLng(
+          (data['latitude'] as num).toDouble(),
+          (data['longitude'] as num).toDouble(),
+        );
+      }
+      
       _isPublic = data['isPublic'] ?? false;
       _allowHalfHourRentals = data['allowHalfHourRentals'] ?? true;
       
@@ -213,7 +230,53 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
     _ibanController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _debounce?.cancel();
     super.dispose();
+  }
+
+  void _onAddressChanged(String value) {
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+    if (value.length < 3) {
+      setState(() => _addressSuggestions = []);
+      return;
+    }
+
+    _debounce = Timer(const Duration(milliseconds: 600), () async {
+      final city = _cityController.text;
+      if (city.isEmpty) return;
+      setState(() => _isVerifying = true);
+      
+      try {
+        final query = Uri.encodeComponent('$value, $city, Romania');
+        final url = Uri.parse('https://nominatim.openstreetmap.org/search?q=$query&format=json&limit=5');
+        final response = await http.get(url, headers: {'User-Agent': 'PingPongPlayhub/1.0'});
+
+        if (response.statusCode == 200) {
+          final List data = json.decode(response.body);
+          if (mounted) {
+            setState(() {
+              _addressSuggestions = data.map((e) => e as Map<String, dynamic>).toList();
+            });
+          }
+        }
+      } catch (e) {
+        // ignore
+      } finally {
+        if (mounted) setState(() => _isVerifying = false);
+      }
+    });
+  }
+
+  void _selectAddress(Map<String, dynamic> option) {
+    _addressController.text = option['display_name'] ?? '';
+    final lat = double.parse(option['lat'].toString());
+    final lon = double.parse(option['lon'].toString());
+    
+    setState(() {
+      _verifiedLocation = LatLng(lat, lon);
+      _addressSuggestions = [];
+      FocusScope.of(context).unfocus();
+    });
   }
 
   Future<void> _selectTime(BuildContext context, TextEditingController controller) async {
@@ -407,6 +470,8 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
         'cui': _cuiController.text.trim(),
         'iban': _ibanController.text.trim(),
         'isVerified': true,
+        if (_verifiedLocation != null) 'latitude': _verifiedLocation!.latitude,
+        if (_verifiedLocation != null) 'longitude': _verifiedLocation!.longitude,
       };
 
       if (!widget.isEditMode) {
@@ -560,7 +625,7 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF0A0E17),
       appBar: AppBar(
-        title: const Text('Înregistrare Sală / Club'),
+        title: Text(widget.isEditMode ? 'Editare Sală' : 'Înregistrare Sală / Club'),
         backgroundColor: const Color(0xFF131A2A),
         elevation: 0,
       ),
@@ -578,20 +643,22 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
                   color: Color(0xFF00E5FF),
                 ),
                 const SizedBox(height: 12),
-                const Text(
-                  'Creează Cont de Sală',
+                Text(
+                  widget.isEditMode ? 'Editare Detalii Sală' : 'Creează Cont de Sală',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
                   ),
                 ),
                 const SizedBox(height: 6),
-                const Text(
-                  'Completează detaliile clubului tău pentru a începe organizarea de turnee și meciuri.',
+                Text(
+                  widget.isEditMode 
+                      ? 'Actualizează informațiile locației tale.'
+                      : 'Completează detaliile clubului tău pentru a începe organizarea de turnee și meciuri.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey, fontSize: 13),
+                  style: const TextStyle(color: Colors.grey, fontSize: 13),
                 ),
 
                 // 1. Date Contact Business
@@ -662,45 +729,108 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
 
                 // 2. Adresă și Mediu Online
                 _buildSectionHeader('2. Adresă & Locație'),
-                Row(
+                CitySelectorField(
+                  selectedCity: _cityController.text.isEmpty ? null : _cityController.text,
+                  cityOptions: romanianCities,
+                  onCitySelected: (val) {
+                    setState(() {
+                      _cityController.text = val;
+                    });
+                  },
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Oraș obligatoriu';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                Stack(
+                  alignment: Alignment.centerRight,
                   children: [
-                    Expanded(
-                      flex: 4,
-                      child: CitySelectorField(
-                        selectedCity: _cityController.text.isEmpty ? null : _cityController.text,
-                        cityOptions: romanianCities,
-                        onCitySelected: (val) {
-                          setState(() {
-                            _cityController.text = val;
-                          });
-                        },
-                        validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return 'Oraș obligatoriu';
-                          }
-                          return null;
-                        },
+                    TextFormField(
+                      controller: _addressController,
+                      onChanged: _onAddressChanged,
+                      decoration: const InputDecoration(
+                        labelText: 'Adresă completă',
+                        prefixIcon: Icon(Icons.map_outlined),
                       ),
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Adresă obligatorie';
+                        }
+                        return null;
+                      },
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      flex: 6,
-                      child: TextFormField(
-                        controller: _addressController,
-                        decoration: const InputDecoration(
-                          labelText: 'Adresă completă',
-                          prefixIcon: Icon(Icons.map_outlined),
+                    if (_isVerifying)
+                      const Padding(
+                        padding: EdgeInsets.only(right: 16.0),
+                        child: SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(color: Color(0xFF00E5FF), strokeWidth: 2),
                         ),
-                        validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return 'Adresă obligatorie';
-                          }
-                          return null;
-                        },
                       ),
-                    ),
                   ],
                 ),
+                if (_addressSuggestions.isNotEmpty)
+                  Container(
+                    margin: const EdgeInsets.only(top: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E293B),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey[800]!),
+                    ),
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: _addressSuggestions.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1, color: Colors.black26),
+                      itemBuilder: (context, index) {
+                        final option = _addressSuggestions[index];
+                        return ListTile(
+                          leading: const Icon(Icons.location_on, color: Colors.grey),
+                          title: Text(option['display_name'] ?? '', style: const TextStyle(color: Colors.white, fontSize: 13)),
+                          onTap: () => _selectAddress(option),
+                        );
+                      },
+                    ),
+                  ),
+                const SizedBox(height: 16),
+                if (_verifiedLocation != null)
+                  Container(
+                    height: 200,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFF00E5FF)),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: FlutterMap(
+                        options: MapOptions(
+                          initialCenter: _verifiedLocation!,
+                          initialZoom: 15.0,
+                        ),
+                        children: [
+                          TileLayer(
+                            urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                            userAgentPackageName: 'com.pingpongplayhub.app',
+                          ),
+                          MarkerLayer(
+                            markers: [
+                              Marker(
+                                point: _verifiedLocation!,
+                                width: 40,
+                                height: 40,
+                                child: const Icon(Icons.location_on, color: Colors.red, size: 40),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 const SizedBox(height: 16),
                 TextFormField(
                   controller: _websiteController,
