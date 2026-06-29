@@ -111,8 +111,9 @@ class _AdminVenuesListScreenState extends State<AdminVenuesListScreen> {
           );
         },
       ),
-      ],
-      ),
+    ),
+  ],
+),
     );
   }
 }

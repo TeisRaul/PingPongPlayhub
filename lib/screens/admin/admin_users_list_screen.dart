@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'admin_matches_list_screen.dart';
 
 class AdminUsersListScreen extends StatefulWidget {
@@ -123,6 +124,7 @@ class AdminUserDetailScreen extends StatefulWidget {
 
 class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
   late TextEditingController _nameController;
+  late TextEditingController _emailController;
   late TextEditingController _phoneController;
   late TextEditingController _levelController;
   late TextEditingController _progressController;
@@ -135,6 +137,7 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.userData['fullName'] ?? '');
+    _emailController = TextEditingController(text: widget.userData['email'] ?? '');
     _phoneController = TextEditingController(text: widget.userData['phone'] ?? '');
     _levelController = TextEditingController(text: (widget.userData['level'] ?? 1).toString());
     _progressController = TextEditingController(text: (widget.userData['progress'] ?? 0.0).toString());
@@ -147,6 +150,7 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
     try {
       await FirebaseFirestore.instance.collection('users').doc(widget.userId).update({
         'fullName': _nameController.text.trim(),
+        'email': _emailController.text.trim(),
         'phone': _phoneController.text.trim(),
         'level': int.tryParse(_levelController.text.trim()) ?? 1,
         'progress': double.tryParse(_progressController.text.trim()) ?? 0.0,
@@ -211,6 +215,29 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
     }
   }
 
+  Future<void> _sendPasswordReset() async {
+    final email = _emailController.text.trim();
+    if (email.isEmpty) return;
+    
+    setState(() => _isLoading = true);
+    try {
+      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Email de resetare trimis la $email!'), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Eroare la trimiterea email-ului: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -236,12 +263,18 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
               backgroundColor: Color(0xFF1E293B),
               child: Icon(Icons.person, color: Color(0xFF00E5FF), size: 40),
             ),
-            const SizedBox(height: 16),
-            Text(
-              widget.userData['email'] ?? 'Fără email',
-              style: const TextStyle(color: Colors.grey, fontSize: 16),
-            ),
             const SizedBox(height: 32),
+            TextFormField(
+              controller: _emailController,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(
+                labelText: 'Email (Contact & Login)',
+                labelStyle: TextStyle(color: Colors.grey),
+                enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.grey)),
+                focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF00E5FF))),
+              ),
+            ),
+            const SizedBox(height: 16),
             TextFormField(
               controller: _nameController,
               style: const TextStyle(color: Colors.white),
@@ -373,9 +406,24 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
+                  onPressed: _isLoading ? null : _sendPasswordReset,
+                  icon: const Icon(Icons.lock_reset),
+                  label: const Text('Trimite Email Resetare Parolă', style: TextStyle(fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    foregroundColor: Colors.orangeAccent,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    side: const BorderSide(color: Colors.orangeAccent),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
                   onPressed: _isLoading ? null : _deleteUser,
                   icon: const Icon(Icons.delete),
-                  label: const Text('Șterge Profil (Banare)'),
+                  label: const Text('Șterge Utilizator', style: TextStyle(fontWeight: FontWeight.bold)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.transparent,
                     foregroundColor: Colors.redAccent,
