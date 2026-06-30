@@ -809,6 +809,78 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
         const SizedBox(height: 25),
         const Divider(color: Colors.grey, thickness: 0.5),
 
+        // Section: Meniu & Servicii (Inventory)
+        _buildSectionHeader('Meniu & Echipamente'),
+        StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('venues')
+              .doc(user.uid)
+              .collection('inventory')
+              .snapshots(),
+          builder: (context, invSnapshot) {
+            if (invSnapshot.hasError) {
+              return const Text('Eroare la încărcarea meniului.', style: TextStyle(color: Colors.red));
+            }
+            if (invSnapshot.connectionState == ConnectionState.waiting) {
+              return const CircularProgressIndicator(color: Color(0xFF00E5FF));
+            }
+
+            final items = invSnapshot.data?.docs ?? [];
+            if (items.isEmpty) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8.0),
+                child: Text('Niciun produs adăugat în meniu.', style: TextStyle(color: Colors.grey)),
+              );
+            }
+
+            return Column(
+              children: items.map((doc) {
+                final itemData = doc.data() as Map<String, dynamic>;
+                final String name = itemData['name'] ?? '';
+                final String category = itemData['category'] ?? '';
+                final double price = (itemData['price'] as num?)?.toDouble() ?? 0.0;
+
+                IconData iconData = Icons.local_drink;
+                if (category == 'Echipament') iconData = Icons.sports_tennis;
+                else if (category == 'Mâncare') iconData = Icons.restaurant;
+                else if (category == 'Apă') iconData = Icons.water_drop;
+                else if (category == 'Cafea') iconData = Icons.local_cafe;
+                else if (category == 'Snack') iconData = Icons.fastfood;
+
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12.0),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1E293B),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(iconData, color: const Color(0xFF00E5FF), size: 20),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+                            Text(category, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                          ],
+                        ),
+                      ),
+                      Text('$price RON', style: const TextStyle(color: Color(0xFF00E5FF), fontWeight: FontWeight.bold, fontSize: 14)),
+                    ],
+                  ),
+                );
+              }).toList(),
+            );
+          },
+        ),
+
+        const SizedBox(height: 25),
+        const Divider(color: Colors.grey, thickness: 0.5),
+
         // Section 4: Schedule
         _buildSectionHeader('Program de Funcționare'),
         _buildScheduleRow('Luni - Vineri', schedule['Luni-Vineri'] ?? '08:00 - 22:00'),

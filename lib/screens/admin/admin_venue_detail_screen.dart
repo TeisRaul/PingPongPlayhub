@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../venue_signup_screen.dart';
 import 'add_public_location_screen.dart';
+import 'admin_bar_inventory_screen.dart';
+import 'admin_reports_screen.dart';
 
 class AdminVenueDetailScreen extends StatefulWidget {
   final String venueId;
@@ -65,7 +68,10 @@ class _AdminVenueDetailScreenState extends State<AdminVenueDetailScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => AdminVenueMatchesScreen(venueId: widget.venueId),
+        builder: (_) => AdminVenueMatchesScreen(
+          venueId: widget.venueId,
+          posProvider: widget.venueData['posProvider'] ?? 'none',
+        ),
       ),
     );
   }
@@ -236,6 +242,25 @@ class _AdminVenueDetailScreenState extends State<AdminVenueDetailScreen> {
             const Divider(color: Colors.grey),
             const SizedBox(height: 16),
             ElevatedButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => AdminBarInventoryScreen(venueId: widget.venueId),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.local_cafe),
+              label: const Text('Gestionează Bar / Consumație', style: TextStyle(fontWeight: FontWeight.bold)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF131A2A),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                side: const BorderSide(color: Colors.grey),
+              ),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
               onPressed: _manageMatches,
               icon: const Icon(Icons.list_alt),
               label: const Text('Gestionează Meciuri (Plăți)'),
@@ -244,6 +269,39 @@ class _AdminVenueDetailScreenState extends State<AdminVenueDetailScreen> {
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 side: const BorderSide(color: Colors.grey),
+              ),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => AdminReportsScreen(venueId: widget.venueId),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.point_of_sale),
+              label: const Text('Rapoarte și Casierie (Z, X)'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF131A2A),
+                foregroundColor: const Color(0xFF00FF66),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                side: const BorderSide(color: Color(0xFF00FF66)),
+              ),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: () {
+                _showPOSConfigDialog(context);
+              },
+              icon: const Icon(Icons.settings_cell),
+              label: const Text('Configurare Smart POS'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF131A2A),
+                foregroundColor: Colors.blueAccent,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                side: const BorderSide(color: Colors.blueAccent),
               ),
             ),
             const SizedBox(height: 16),
@@ -263,11 +321,86 @@ class _AdminVenueDetailScreenState extends State<AdminVenueDetailScreen> {
       ),
     );
   }
+
+  void _showPOSConfigDialog(BuildContext context) {
+    String currentPOS = widget.venueData['posProvider'] ?? 'none';
+    
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF1E293B),
+              title: const Text('Configurare Smart POS', style: TextStyle(color: Colors.white)),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Selectează sistemul POS folosit în locație pentru App-to-App integration:', style: TextStyle(color: Colors.grey, fontSize: 13)),
+                  const SizedBox(height: 16),
+                  RadioListTile<String>(
+                    title: const Text('Niciunul (POS Tradițional)', style: TextStyle(color: Colors.white)),
+                    activeColor: const Color(0xFF00E5FF),
+                    value: 'none',
+                    groupValue: currentPOS,
+                    onChanged: (val) => setDialogState(() => currentPOS = val!),
+                  ),
+                  RadioListTile<String>(
+                    title: const Text('Viva Wallet', style: TextStyle(color: Colors.white)),
+                    activeColor: const Color(0xFF00E5FF),
+                    value: 'viva',
+                    groupValue: currentPOS,
+                    onChanged: (val) => setDialogState(() => currentPOS = val!),
+                  ),
+                  RadioListTile<String>(
+                    title: const Text('SumUp', style: TextStyle(color: Colors.white)),
+                    activeColor: const Color(0xFF00E5FF),
+                    value: 'sumup',
+                    groupValue: currentPOS,
+                    onChanged: (val) => setDialogState(() => currentPOS = val!),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Anulează', style: TextStyle(color: Colors.grey)),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    Navigator.pop(context);
+                    await FirebaseFirestore.instance.collection('venues').doc(widget.venueId).update({
+                      'posProvider': currentPOS,
+                    });
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Configurație POS salvată!'), backgroundColor: Colors.green));
+                      // Refresh the screen state to reflect changes if needed
+                      setState(() {
+                        widget.venueData['posProvider'] = currentPOS;
+                      });
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00E5FF), foregroundColor: Colors.black),
+                  child: const Text('Salvează'),
+                ),
+              ],
+            );
+          }
+        );
+      }
+    );
+  }
 }
 
 class AdminVenueMatchesScreen extends StatelessWidget {
   final String venueId;
-  const AdminVenueMatchesScreen({super.key, required this.venueId});
+  final String posProvider;
+  
+  const AdminVenueMatchesScreen({
+    super.key, 
+    required this.venueId,
+    required this.posProvider,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -316,7 +449,7 @@ class AdminVenueMatchesScreen extends StatelessWidget {
                   subtitle: Text('Status: $status | Plată: $paymentStatus', style: const TextStyle(color: Colors.grey, fontSize: 12)),
                   trailing: ElevatedButton(
                     onPressed: () {
-                      _showMatchAdminOptions(context, doc.id, data);
+                      _showMatchAdminOptions(context, doc.id, data, posProvider);
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF00E5FF),
@@ -333,10 +466,13 @@ class AdminVenueMatchesScreen extends StatelessWidget {
     );
   }
 
-  void _showMatchAdminOptions(BuildContext context, String matchId, Map<String, dynamic> data) {
+  void _showMatchAdminOptions(BuildContext context, String matchId, Map<String, dynamic> data, String posProvider) {
+    final List<dynamic> barItems = data['barOrderItems'] ?? [];
+    
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF131A2A),
+      isScrollControlled: true,
       builder: (context) => Padding(
         padding: const EdgeInsets.all(24.0),
         child: Column(
@@ -344,20 +480,74 @@ class AdminVenueMatchesScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const Text('Opțiuni Admin Meci', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
+            if (barItems.isNotEmpty) ...[
+              const Text('Consumație Bar Curentă:', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold)),
+              ...barItems.map((item) => Text('- ${item['name']} (x${item['quantity']}) - ${item['price']} RON', style: const TextStyle(color: Colors.grey))),
+              const SizedBox(height: 16),
+            ],
             ElevatedButton(
-              onPressed: () async {
+              onPressed: () {
                 Navigator.pop(context);
-                await FirebaseFirestore.instance.collection('matches').doc(matchId).update({
-                  'paymentStatus': 'confirmed',
-                });
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Plată aprobată manual!'), backgroundColor: Colors.green));
-                }
+                _showAddBarItemDialog(context, matchId, data);
               },
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00FF66), foregroundColor: Colors.black),
-              child: const Text('Aprobă Plată Manual'),
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00E5FF), foregroundColor: Colors.black),
+              child: const Text('Adaugă Consumație Bar (Tab)'),
             ),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      Navigator.pop(context);
+                      await FirebaseFirestore.instance.collection('matches').doc(matchId).update({
+                        'paymentStatus': 'confirmed',
+                        'paymentMethod': 'Cash la locație',
+                      });
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Încasat Cash!'), backgroundColor: Colors.green));
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00FF66), foregroundColor: Colors.black),
+                    child: const Text('Încasează Cash', textAlign: TextAlign.center),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      Navigator.pop(context);
+                      await FirebaseFirestore.instance.collection('matches').doc(matchId).update({
+                        'paymentStatus': 'confirmed',
+                        'paymentMethod': 'Card la POS fizic',
+                      });
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Încasat pe POS (Card)!'), backgroundColor: Colors.blueAccent));
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent, foregroundColor: Colors.white),
+                    child: const Text('Încasează Card (POS)', textAlign: TextAlign.center),
+                  ),
+                ),
+              ],
+            ),
+            if (posProvider != 'none') ...[
+              const SizedBox(height: 12),
+              ElevatedButton.icon(
+                onPressed: () async {
+                  Navigator.pop(context);
+                  _launchSmartPOS(context, data['price'] ?? 0.0, matchId, posProvider);
+                },
+                icon: const Icon(Icons.contactless),
+                label: Text('Trimite către Smart POS ($posProvider)'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF1E293B),
+                  foregroundColor: const Color(0xFF00E5FF),
+                  side: const BorderSide(color: Color(0xFF00E5FF)),
+                ),
+              ),
+            ],
             const SizedBox(height: 12),
             ElevatedButton(
               onPressed: () async {
@@ -376,6 +566,120 @@ class AdminVenueMatchesScreen extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  void _launchSmartPOS(BuildContext context, num amount, String matchId, String provider) async {
+    // import 'package:url_launcher/url_launcher.dart'; // Trebuie adăugat la nivel global
+    
+    // Convert to minor units (bani / cents) depending on provider, for RO usually RON * 100
+    final int amountInMinorUnits = (amount * 100).toInt();
+    
+    Uri? uri;
+    if (provider == 'viva') {
+      uri = Uri.parse('vivapay://pay/v1?amount=$amountInMinorUnits&merchantRef=$matchId&callback=pingpongplayhub://pos-success?matchId=$matchId');
+    } else if (provider == 'sumup') {
+      // https://developer.sumup.com/docs/sumup-app/
+      uri = Uri.parse('sumupmerchant://pay/1.0?amount=${amount.toStringAsFixed(2)}&currency=RON&affiliate-key=YOUR_AFFILIATE_KEY&callback=pingpongplayhub://pos-success?matchId=$matchId');
+    }
+    
+    if (uri != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Se lansează POS-ul $provider...')));
+      
+      try {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Eroare la lansarea aplicației POS: $e')));
+        }
+      }
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('POS Provider necunoscut.')));
+    }
+  }
+
+  void _showAddBarItemDialog(BuildContext context, String matchId, Map<String, dynamic> matchData) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF131A2A),
+      isScrollControlled: true,
+      builder: (context) {
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.6,
+          builder: (context, scrollController) {
+            return Column(
+              children: [
+                const Padding(
+                  padding: EdgeInsets.all(16.0),
+                  child: Text('Meniu Bar', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                ),
+                Expanded(
+                  child: StreamBuilder<QuerySnapshot>(
+                    stream: FirebaseFirestore.instance.collection('venues').doc(venueId).collection('inventory').where('isActive', isEqualTo: true).snapshots(),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+                      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                        return const Center(child: Text('Nu există produse în bar.', style: TextStyle(color: Colors.grey)));
+                      }
+                      
+                      final items = snapshot.data!.docs;
+                      return ListView.builder(
+                        controller: scrollController,
+                        itemCount: items.length,
+                        itemBuilder: (context, index) {
+                          final doc = items[index];
+                          final data = doc.data() as Map<String, dynamic>;
+                          return ListTile(
+                            title: Text(data['name'] ?? '', style: const TextStyle(color: Colors.white)),
+                            subtitle: Text('${data['price']} RON', style: const TextStyle(color: Colors.grey)),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.add_circle, color: Color(0xFF00E5FF)),
+                              onPressed: () async {
+                                // Add to match
+                                List<dynamic> currentItems = List.from(matchData['barOrderItems'] ?? []);
+                                bool found = false;
+                                for (var i = 0; i < currentItems.length; i++) {
+                                  if (currentItems[i]['id'] == doc.id) {
+                                    currentItems[i]['quantity'] = (currentItems[i]['quantity'] ?? 0) + 1;
+                                    found = true;
+                                    break;
+                                  }
+                                }
+                                if (!found) {
+                                  currentItems.add({
+                                    'id': doc.id,
+                                    'name': data['name'],
+                                    'price': data['price'],
+                                    'quantity': 1,
+                                  });
+                                }
+                                
+                                double currentPrice = (matchData['price'] ?? 0.0).toDouble();
+                                currentPrice += (data['price'] ?? 0).toDouble();
+                                
+                                await FirebaseFirestore.instance.collection('matches').doc(matchId).update({
+                                  'barOrderItems': currentItems,
+                                  'price': currentPrice,
+                                });
+                                
+                                if (context.mounted) {
+                                  Navigator.pop(context);
+                                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Produs adăugat pe notă!'), backgroundColor: Colors.green));
+                                }
+                              },
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            );
+          }
+        );
+      },
     );
   }
 }

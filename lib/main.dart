@@ -4,6 +4,7 @@ import 'screens/login_screen.dart';
 import 'firebase_options.dart';
 
 import 'services/stripe_service.dart';
+import 'services/deep_link_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,6 +25,8 @@ void main() async {
     print("Eroare Stripe init: $e");
   }
   
+  DeepLinkService.instance.init();
+  
   runApp(const PingPongPlayhubApp());
 }
 
@@ -33,7 +36,7 @@ class PingPongPlayhubApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'PingPong Playhub',
+      title: 'Playhub',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         brightness: Brightness.dark,

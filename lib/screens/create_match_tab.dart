@@ -36,6 +36,10 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
   String _visibility = 'Public';
   String _matchType = 'Competitiv';
   Map<String, int> _selectedExtraServices = {};
+  
+  // Bar Inventory
+  List<Map<String, dynamic>> _barInventory = [];
+  Map<String, int> _selectedBarItems = {};
 
   // Step 2: Data, Ora si Masa
   DateTime _selectedDate = DateTime.now();
@@ -198,6 +202,24 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
       if (mounted) {
         setState(() => _isLoadingLocs = false);
       }
+    }
+  }
+
+  Future<void> _loadBarInventory(String venueId) async {
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('venues')
+          .doc(venueId)
+          .collection('inventory')
+          .where('isActive', isEqualTo: true)
+          .get();
+      if (mounted) {
+        setState(() {
+          _barInventory = snap.docs.map((d) => {'id': d.id, ...d.data()}).toList();
+        });
+      }
+    } catch (e) {
+      debugPrint('Eroare incarcare inventar bar: $e');
     }
   }
 
@@ -518,6 +540,26 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
             totalAmount += count * (service['price'] as num).toDouble();
           }
         }
+        
+        for (var item in _barInventory) {
+          int count = _selectedBarItems[item['id']] ?? 0;
+          if (count > 0) {
+             totalAmount += count * (item['price'] as num).toDouble();
+          }
+        }
+      }
+
+      List<Map<String, dynamic>> finalBarOrder = [];
+      for (var item in _barInventory) {
+        int count = _selectedBarItems[item['id']] ?? 0;
+        if (count > 0) {
+           finalBarOrder.add({
+             'id': item['id'],
+             'name': item['name'],
+             'price': item['price'],
+             'quantity': count,
+           });
+        }
       }
 
       final matchData = {
@@ -546,6 +588,7 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
         'status': 'open',
         'price': totalAmount,
         'extraServices': _selectedExtraServices,
+        'barOrderItems': finalBarOrder,
         'createdAt': FieldValue.serverTimestamp(),
       };
 
@@ -604,6 +647,8 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
           _invoiceRegController.clear();
           _invoiceAddressController.clear();
           _invoiceEmailController.clear();
+          _barInventory.clear();
+          _selectedBarItems.clear();
         });
       }
     } catch (e) {
@@ -615,6 +660,64 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  Widget _buildInventoryRow(Map<String, dynamic> item) {
+    final String id = item['id'];
+    final String name = item['name'] ?? '';
+    final String category = item['category'] ?? '';
+    final double price = (item['price'] as num).toDouble();
+    final int count = _selectedBarItems[id] ?? 0;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E293B),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey[800]!),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Icon(
+                category == 'Echipament' ? Icons.sports_tennis :
+                category == 'Mâncare' ? Icons.restaurant :
+                category == 'Apă' ? Icons.water_drop :
+                category == 'Cafea' ? Icons.local_cafe :
+                category == 'Snack' ? Icons.fastfood : Icons.local_drink,
+                color: const Color(0xFF00E5FF),
+              ),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  Text('$price RON', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                ],
+              ),
+            ],
+          ),
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.remove_circle_outline, color: Colors.grey),
+                onPressed: count > 0
+                    ? () => setState(() => _selectedBarItems[id] = count - 1)
+                    : null,
+              ),
+              Text('$count', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+              IconButton(
+                icon: const Icon(Icons.add_circle_outline, color: Color(0xFF00E5FF)),
+                onPressed: () => setState(() => _selectedBarItems[id] = count + 1),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -642,6 +745,9 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
             // Mesele sunt deja dezactivate în UI dacă există un turneu sau un blocaj,
             // astfel încât utilizatorul nu poate selecta o masă indisponibilă și nu poate continua.
           } else if (_currentStep == 2) {
+             // Step Bar Inventory
+             // Mergem la pasul 3 (Plata)
+          } else if (_currentStep == 3) {
             if (_paymentMethod.contains('Card')) {
               double amount = LevelUtils.calculateTotalBookingPrice(
                 _selectedLocation!.pricePerHourText,
@@ -653,6 +759,13 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
                 int count = _selectedExtraServices[service['name']] ?? 0;
                 if (count > 0) {
                   amount += count * (service['price'] as num).toDouble();
+                }
+              }
+              
+              for (var item in _barInventory) {
+                int count = _selectedBarItems[item['id']] ?? 0;
+                if (count > 0) {
+                   amount += count * (item['price'] as num).toDouble();
                 }
               }
 
@@ -674,7 +787,7 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
             return;
           }
 
-          if (_currentStep < 3) {
+          if (_currentStep < 4) {
             setState(() => _currentStep += 1);
             if (_currentStep == 1) _checkTableAvailability();
           }
@@ -685,7 +798,7 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
           }
         },
         controlsBuilder: (context, details) {
-          final isLastStep = _currentStep == 3;
+          final isLastStep = _currentStep == 4;
           return Padding(
             padding: const EdgeInsets.only(top: 24.0),
             child: Row(
@@ -747,7 +860,10 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
                       _selectedHours.clear();
                       _selectedTable = null;
                       _selectedExtraServices.clear();
+                      _barInventory.clear();
+                      _selectedBarItems.clear();
                     });
+                    if (val != null) _loadBarInventory(val.id);
                   },
                 ),
                 if (_selectedLocation != null) ...[
@@ -1252,10 +1368,38 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
                   ),
           ),
           Step(
-            title: const Text('Cum dorești să plătești?'),
-            subtitle: const Text('Metodă plată'),
+            title: const Text('Echipamente & Bar (Opțional)'),
+            subtitle: const Text('Închiriază palete sau comandă băuturi la masă'),
             isActive: _currentStep >= 2,
             state: _currentStep > 2 ? StepState.complete : StepState.indexed,
+            content: _barInventory.isEmpty
+                ? const Text('Această sală nu are momentan un meniu configurat.', style: TextStyle(color: Colors.grey))
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (_barInventory.any((item) => item['category'] == 'Echipament')) ...[
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 8.0),
+                          child: Text('Echipamente (Închiriere)', style: TextStyle(color: Color(0xFF00E5FF), fontWeight: FontWeight.bold, fontSize: 16)),
+                        ),
+                        ..._barInventory.where((item) => item['category'] == 'Echipament').map((item) => _buildInventoryRow(item)).toList(),
+                        const SizedBox(height: 16),
+                      ],
+                      if (_barInventory.any((item) => item['category'] != 'Echipament')) ...[
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 8.0),
+                          child: Text('Băuturi & Snack-uri', style: TextStyle(color: Color(0xFF00E5FF), fontWeight: FontWeight.bold, fontSize: 16)),
+                        ),
+                        ..._barInventory.where((item) => item['category'] != 'Echipament').map((item) => _buildInventoryRow(item)).toList(),
+                      ],
+                    ],
+                  ),
+          ),
+          Step(
+            title: const Text('Cum dorești să plătești?'),
+            subtitle: const Text('Metodă plată'),
+            isActive: _currentStep >= 3,
+            state: _currentStep > 3 ? StepState.complete : StepState.indexed,
             content: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1276,6 +1420,19 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
                           _startHour!,
                           _endHour!,
                         );
+                      }
+                      
+                      for (var item in _barInventory) {
+                        int count = _selectedBarItems[item['id']] ?? 0;
+                        if (count > 0) {
+                           totalAmount += count * (item['price'] as num).toDouble();
+                        }
+                      }
+                      for (var service in _selectedLocation!.extraServices) {
+                        int count = _selectedExtraServices[service['name']] ?? 0;
+                        if (count > 0) {
+                          totalAmount += count * (service['price'] as num).toDouble();
+                        }
                       }
                     }
                     return Container(
@@ -1382,7 +1539,7 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
           Step(
             title: const Text('Rezumat'),
             subtitle: const Text('Verifică înainte de creare'),
-            isActive: _currentStep >= 3,
+            isActive: _currentStep >= 4,
             content: Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -1398,6 +1555,17 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
                   _summaryRow(Icons.access_time, 'Interval Orare', '${_startHour ?? '-'}:00 - ${_endHour ?? '-'}:00 (${((_endHour ?? 0) - (_startHour ?? 0))} ore)'),
                   _summaryRow(Icons.table_restaurant, 'Masa', _selectedTable != null ? 'Masa $_selectedTable (${_selectedTableType ?? 'N/A'})' : '-'),
                   _summaryRow(Icons.house_outlined, 'Tip', _selectedTableType == 'indoor' ? '🏠 Indoor' : _selectedTableType == 'outdoor' ? '🌳 Outdoor' : '-'),
+                  Builder(builder: (context) {
+                    List<String> barDesc = [];
+                    for (var item in _barInventory) {
+                      int count = _selectedBarItems[item['id']] ?? 0;
+                      if (count > 0) {
+                         barDesc.add('${item['name']} x$count');
+                      }
+                    }
+                    if (barDesc.isEmpty) return const SizedBox.shrink();
+                    return _summaryRow(Icons.local_cafe, 'Consumație Bar', barDesc.join('\n'));
+                  }),
                   const Divider(color: Colors.grey),
                   _summaryRow(Icons.emoji_events, 'Tip Meci', _matchType),
                   _summaryRow(Icons.payment, 'Plată', _paymentMethod),

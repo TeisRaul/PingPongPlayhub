@@ -105,8 +105,14 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
   bool _offerSubscription = false;
   final _subscriptionPriceController = TextEditingController(text: '150');
   
+  // 4. Servicii Extra
   List<Map<String, dynamic>> _extraServices = [];
+  
+  // Bar & Echipamente (Initial Inventory)
+  List<Map<String, dynamic>> _initialInventory = [];
+  final List<String> _inventoryCategories = ['Suc', 'Apă', 'Cafea', 'Bere', 'Mâncare', 'Snack', 'Echipament', 'Altul'];
 
+  // 5. Financiar
   final _cuiController = TextEditingController();
   final _ibanController = TextEditingController();
 
@@ -478,6 +484,22 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
         venueData['blockedDates'] = [];
         venueData['createdAt'] = FieldValue.serverTimestamp();
         await FirebaseFirestore.instance.collection('venues').doc(uid).set(venueData);
+        
+        // Write initial inventory
+        if (_initialInventory.isNotEmpty) {
+          final batch = FirebaseFirestore.instance.batch();
+          for (var item in _initialInventory) {
+            final docRef = FirebaseFirestore.instance.collection('venues').doc(uid).collection('inventory').doc();
+            batch.set(docRef, {
+              'name': item['name'],
+              'category': item['category'],
+              'price': item['price'],
+              'isActive': true,
+              'createdAt': FieldValue.serverTimestamp(),
+            });
+          }
+          await batch.commit();
+        }
         
         if (widget.isAdminCreating) {
           // Also create a dummy user document so they can reset password later
@@ -1186,9 +1208,70 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
                   icon: const Icon(Icons.add, color: Color(0xFF00E5FF)),
                   label: const Text('Adaugă Serviciu Extra', style: TextStyle(color: Color(0xFF00E5FF))),
                 ),
+                
+                // Inventar Bar & Echipamente
+                _buildSectionHeader('5. Inventar Bar & Echipamente de Închiriat'),
+                const Text(
+                  'Adaugă produsele vândute la bar (Sucuri, Beri, Apă, Mâncare) sau echipamentele pe care le poți închiria (Palete, Set Mingi, etc.).',
+                  style: TextStyle(color: Colors.grey, fontSize: 13),
+                ),
+                const SizedBox(height: 12),
+                ...List.generate(_initialInventory.length, (idx) {
+                  var item = _initialInventory[idx];
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8.0),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          flex: 3,
+                          child: TextFormField(
+                            initialValue: item['name'],
+                            style: const TextStyle(color: Colors.white, fontSize: 13),
+                            decoration: const InputDecoration(labelText: 'Nume Produs', isDense: true),
+                            onChanged: (val) => setState(() => _initialInventory[idx]['name'] = val),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          flex: 2,
+                          child: DropdownButtonFormField<String>(
+                            value: item['category'],
+                            dropdownColor: const Color(0xFF131A2A),
+                            style: const TextStyle(color: Colors.white, fontSize: 12),
+                            decoration: const InputDecoration(labelText: 'Categorie', isDense: true),
+                            items: _inventoryCategories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
+                            onChanged: (val) {
+                              if (val != null) setState(() => _initialInventory[idx]['category'] = val);
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          flex: 2,
+                          child: TextFormField(
+                            initialValue: item['price'].toString(),
+                            keyboardType: TextInputType.number,
+                            style: const TextStyle(color: Colors.white, fontSize: 13),
+                            decoration: const InputDecoration(labelText: 'Preț (RON)', isDense: true),
+                            onChanged: (val) => setState(() => _initialInventory[idx]['price'] = double.tryParse(val) ?? 0.0),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.redAccent),
+                          onPressed: () => setState(() => _initialInventory.removeAt(idx)),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+                TextButton.icon(
+                  onPressed: () => setState(() => _initialInventory.add({'name': '', 'category': 'Suc', 'price': 0.0})),
+                  icon: const Icon(Icons.add_shopping_cart, color: Color(0xFF00E5FF)),
+                  label: const Text('Adaugă Produs / Echipament', style: TextStyle(color: Color(0xFF00E5FF))),
+                ),
 
-                // 5. Date Financiare
-                _buildSectionHeader('5. Date Financiare (Salarizare)'),
+                // 6. Date Financiare
+                _buildSectionHeader('6. Date Financiare (Salarizare)'),
                 TextFormField(
                   controller: _cuiController,
                   decoration: const InputDecoration(
@@ -1211,9 +1294,9 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
                   },
                 ),
 
-                // 6. Securitate
+                // 7. Securitate
                 if (!widget.isAdminCreating && !widget.isEditMode) ...[
-                  _buildSectionHeader('6. Securitate Cont'),
+                  _buildSectionHeader('7. Securitate Cont'),
                   TextFormField(
                     controller: _passwordController,
                     obscureText: _obscurePassword,
