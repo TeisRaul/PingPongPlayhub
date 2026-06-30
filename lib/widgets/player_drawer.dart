@@ -16,6 +16,7 @@ import '../screens/venue_map_screen.dart';
 import '../screens/venue_tables_layout_screen.dart';
 import '../screens/venue_finances_screen.dart';
 import '../screens/leaderboard_screen.dart';
+import '../screens/trainer_dashboard.dart';
 
 class PlayerDrawer extends StatefulWidget {
   final String activePage;
@@ -283,6 +284,13 @@ class _PlayerDrawerState extends State<PlayerDrawer> {
                       pageKey: 'dashboard',
                       onTap: () => _navigateTo('dashboard', const HomeScreen()),
                     ),
+                    if (userData?['isTrainer'] == true)
+                      _buildDrawerItem(
+                        icon: Icons.sports,
+                        title: 'Panou Antrenor',
+                        pageKey: 'trainer_dashboard',
+                        onTap: () => _navigateTo('trainer_dashboard', const TrainerDashboard()),
+                      ),
                     _buildDrawerItem(
                       icon: Icons.leaderboard_outlined,
                       title: 'Clasament Live',

@@ -46,10 +46,29 @@ class _SignupScreenState extends State<SignupScreen> {
   String _passwordStrengthText = '';
   Color _passwordStrengthColor = Colors.transparent;
 
+  // Trainer variables
+  bool _isTrainer = false;
+  String? _selectedVenueId;
+  final _trainerPriceController = TextEditingController();
+  final _trainerIbanController = TextEditingController();
+  List<Map<String, dynamic>> _venuesList = [];
+
   @override
   void initState() {
     super.initState();
     _passwordController.addListener(_updatePasswordStrength);
+    _fetchVenues();
+  }
+
+  Future<void> _fetchVenues() async {
+    try {
+      final query = await FirebaseFirestore.instance.collection('venues').get();
+      setState(() {
+        _venuesList = query.docs.map((doc) => {'id': doc.id, 'name': doc['venueName']}).toList();
+      });
+    } catch (e) {
+      debugPrint('Error fetching venues: $e');
+    }
   }
 
   void _updatePasswordStrength() {
@@ -102,6 +121,8 @@ class _SignupScreenState extends State<SignupScreen> {
     _dobController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _trainerPriceController.dispose();
+    _trainerIbanController.dispose();
     super.dispose();
   }
 
@@ -299,6 +320,10 @@ class _SignupScreenState extends State<SignupScreen> {
                                 'pingPongLevel': 'Începător',
                                 'matchesPlayed': 0,
                                 'rating': 0,
+                                'isTrainer': _isTrainer,
+                                'trainerVenueId': _isTrainer ? _selectedVenueId : null,
+                                'trainerPrice': _isTrainer ? (double.tryParse(_trainerPriceController.text) ?? 0.0) : null,
+                                'trainerIban': _isTrainer ? _trainerIbanController.text.trim() : null,
                                 'createdAt': FieldValue.serverTimestamp(),
                               });
 
@@ -540,6 +565,58 @@ class _SignupScreenState extends State<SignupScreen> {
                     return null;
                   },
                 ),
+                const SizedBox(height: 24),
+
+                SwitchListTile(
+                  title: const Text('Sunt Antrenor Personal', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  subtitle: const Text('Bifează dacă oferi servicii de antrenor la o sală', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                  value: _isTrainer,
+                  activeColor: const Color(0xFF00E5FF),
+                  onChanged: (val) => setState(() => _isTrainer = val),
+                  contentPadding: EdgeInsets.zero,
+                ),
+                if (_isTrainer) ...[
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<String>(
+                    value: _selectedVenueId,
+                    dropdownColor: const Color(0xFF131A2A),
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    decoration: const InputDecoration(
+                      labelText: 'Selectează Sala',
+                      prefixIcon: Icon(Icons.business),
+                    ),
+                    items: _venuesList.map((v) {
+                      return DropdownMenuItem<String>(
+                        value: v['id'],
+                        child: Text(v['name']),
+                      );
+                    }).toList(),
+                    onChanged: (val) => setState(() => _selectedVenueId = val),
+                    validator: (val) => _isTrainer && val == null ? 'Selectează sala unde antrenezi' : null,
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _trainerPriceController,
+                    keyboardType: TextInputType.number,
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    decoration: const InputDecoration(
+                      labelText: 'Preț pe oră (RON)',
+                      prefixIcon: Icon(Icons.monetization_on_outlined),
+                    ),
+                    validator: (val) => _isTrainer && (val == null || val.isEmpty) ? 'Introdu prețul' : null,
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _trainerIbanController,
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    decoration: const InputDecoration(
+                      labelText: 'IBAN pentru plată (Opțional)',
+                      prefixIcon: Icon(Icons.account_balance),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+
                 const SizedBox(height: 32),
 
                 // Buton Inregistrare cu stare de loading

@@ -56,6 +56,8 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
     'fotbal': false,
     'handbal': false,
     'baschet': false,
+    'mma': false,
+    'box': false,
   };
 
   final Map<String, String> _sportNames = {
@@ -65,6 +67,8 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
     'fotbal': 'Fotbal',
     'handbal': 'Handbal',
     'baschet': 'Baschet',
+    'mma': 'MMA',
+    'box': 'Box',
   };
 
   final Map<String, TextEditingController> _indoorResourcesControllers = {
@@ -103,6 +107,8 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
 
   // Subscription & Equipment
   bool _offerSubscription = false;
+  String _subscriptionType = 'unlimited'; // 'unlimited' or 'limited'
+  final _subscriptionEntriesController = TextEditingController(text: '10');
   final _subscriptionPriceController = TextEditingController(text: '150');
   
   // 4. Servicii Extra
@@ -187,6 +193,8 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
       _dynamicPriceHalfAfterController.text = (pricing['dynamicPriceHalfAfter'] ?? 20).toString();
       
       _offerSubscription = data['offerSubscription'] ?? false;
+      _subscriptionType = data['subscriptionType'] ?? 'unlimited';
+      _subscriptionEntriesController.text = (data['subscriptionEntries'] ?? 10).toString();
       _subscriptionPriceController.text = (data['subscriptionPrice'] ?? 150).toString();
       
       _extraServices = (data['extraServices'] as List?)?.cast<Map<String, dynamic>>() ?? [];
@@ -464,6 +472,8 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
         'dynamicPriceHourAfter': dynamicPriceHourAfter,
         'dynamicPriceHalfAfter': dynamicPriceHalfAfter,
         'offersSubscription': _offerSubscription,
+        'subscriptionType': _subscriptionType,
+        'subscriptionEntries': _offerSubscription && _subscriptionType == 'limited' ? (int.tryParse(_subscriptionEntriesController.text) ?? 10) : 0,
         'subscriptionPrice': _offerSubscription ? (double.tryParse(_subscriptionPriceController.text) ?? 150.0) : 0.0,
         'extraServices': _extraServices,
         'pricePerHour': mainPrice,
@@ -1143,6 +1153,44 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
                 ),
                 if (_offerSubscription) ...[
                   const SizedBox(height: 16),
+                  DropdownButtonFormField<String>(
+                    value: _subscriptionType,
+                    dropdownColor: const Color(0xFF131A2A),
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    decoration: const InputDecoration(
+                      labelText: 'Tip Abonament',
+                      prefixIcon: Icon(Icons.merge_type),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'unlimited', child: Text('Intrări Nelimitate')),
+                      DropdownMenuItem(value: 'limited', child: Text('Număr Limitat de Intrări')),
+                    ],
+                    onChanged: (val) {
+                      setState(() {
+                        _subscriptionType = val ?? 'unlimited';
+                      });
+                    },
+                  ),
+                  if (_subscriptionType == 'limited') ...[
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _subscriptionEntriesController,
+                      keyboardType: TextInputType.number,
+                      style: const TextStyle(color: Colors.white, fontSize: 14),
+                      decoration: const InputDecoration(
+                        labelText: 'Număr Intrări pe Lună',
+                        prefixIcon: Icon(Icons.confirmation_number_outlined),
+                      ),
+                      validator: (value) {
+                        if (_offerSubscription && _subscriptionType == 'limited') {
+                          if (value == null || value.trim().isEmpty) return 'Introdu numărul de intrări';
+                          if (int.tryParse(value) == null) return 'Valoare invalidă';
+                        }
+                        return null;
+                      },
+                    ),
+                  ],
+                  const SizedBox(height: 16),
                   TextFormField(
                     controller: _subscriptionPriceController,
                     keyboardType: TextInputType.number,
@@ -1162,9 +1210,9 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
                 ],
 
                 const SizedBox(height: 24),
-                _buildSectionHeader('Servicii Extra (Mâncare, Echipament, etc.)'),
+                _buildSectionHeader('4. Alte Servicii Extra'),
                 const Text(
-                  'Adaugă servicii suplimentare pe care le oferiți contra cost (ex: Închiriere palete, Apă plată, Sucuri).',
+                  'Adaugă servicii speciale pe care le oferiți, altele decât produsele de bar sau echipamentele. Ex: Antrenor personal, Masaj, Închiriere robot antrenament.',
                   style: TextStyle(color: Colors.grey, fontSize: 12),
                 ),
                 const SizedBox(height: 12),

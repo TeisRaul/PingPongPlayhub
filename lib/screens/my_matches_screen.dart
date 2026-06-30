@@ -423,8 +423,8 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
                 ),
               ),
               const SizedBox(height: 20),
-              Text('${data['locationName']} - ${data['date']}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-              Text('${data['startHour']}:00 - ${data['endHour']}:00', style: const TextStyle(color: Colors.grey)),
+              Text('${data['locationName'] ?? 'Sală'} - ${data['date'] ?? ''}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              Text('${data['startHour'] ?? '?'}:00 - ${data['endHour'] ?? '?'}:00', style: const TextStyle(color: Colors.grey)),
             ],
           ),
           actions: [
@@ -438,23 +438,36 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
     );
   }
 
-  void _addToCalendar(Map<String, dynamic> data) {
-    final dateStr = data['date'] as String; // yyyy-MM-dd
-    final startHour = data['startHour'] as int;
-    final endHour = data['endHour'] as int;
+  void _addToCalendar(Map<String, dynamic> data) async {
+    try {
+      final dateStr = data['date'] as String? ?? '2026-01-01'; // fallback
+      final startHour = data['startHour'] as int? ?? 10;
+      final endHour = data['endHour'] as int? ?? 11;
 
-    final startDate = DateTime.parse('$dateStr ${startHour.toString().padLeft(2, '0')}:00:00');
-    final endDate = DateTime.parse('$dateStr ${endHour.toString().padLeft(2, '0')}:00:00');
+      final startDate = DateTime.parse('$dateStr ${startHour.toString().padLeft(2, '0')}:00:00');
+      final endDate = DateTime.parse('$dateStr ${endHour.toString().padLeft(2, '0')}:00:00');
 
-    final Event event = Event(
-      title: 'Meci Ping Pong',
-      description: 'Rezervare PingPong Playhub la ${data['locationName']}',
-      location: '${data['locationName']}, ${data['city']}',
-      startDate: startDate,
-      endDate: endDate,
-    );
+      final Event event = Event(
+        title: 'Meci Playhub',
+        description: 'Rezervare la ${data['locationName'] ?? 'Sală'}',
+        location: '${data['locationName'] ?? 'Sală'}, ${data['city'] ?? ''}',
+        startDate: startDate,
+        endDate: endDate,
+      );
 
-    Add2Calendar.addEvent2Cal(event);
+      final success = await Add2Calendar.addEvent2Cal(event);
+      if (!success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Nu am putut deschide calendarul pe acest dispozitiv.'), backgroundColor: Colors.orange),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Funcția Calendar este disponibilă doar pe mobil (iOS/Android).'), backgroundColor: Colors.orange),
+        );
+      }
+    }
   }
 
   Widget _buildMatchCard(String docId, Map<String, dynamic> data, bool isPast) {

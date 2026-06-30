@@ -8,9 +8,11 @@ import 'package:url_launcher/url_launcher.dart';
 import '../widgets/player_drawer.dart';
 import '../data/mock_locations.dart';
 import '../widgets/city_selector.dart';
+import 'payment_screen.dart';
 
 class VenueProfileScreen extends StatefulWidget {
-  const VenueProfileScreen({super.key});
+  final String? venueId;
+  const VenueProfileScreen({super.key, this.venueId});
 
   @override
   State<VenueProfileScreen> createState() => _VenueProfileScreenState();
@@ -45,6 +47,8 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
 
   // Subscription & Equipment
   bool _offerSubscription = false;
+  String _subscriptionType = 'unlimited';
+  final _subscriptionEntriesController = TextEditingController(text: '10');
   final _subscriptionPriceController = TextEditingController(text: '150');
   
   List<Map<String, dynamic>> _extraServices = [];
@@ -92,6 +96,7 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
     _dOpenCtrl.dispose();
     _dCloseCtrl.dispose();
     _subscriptionPriceController.dispose();
+    _subscriptionEntriesController.dispose();
     super.dispose();
   }
 
@@ -118,6 +123,8 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
     _ibanController.text = data['iban'] ?? '';
     _allowHalfHour = data['allowHalfHour'] ?? false;
     _offerSubscription = data['offersSubscription'] ?? false;
+    _subscriptionType = data['subscriptionType'] ?? 'unlimited';
+    _subscriptionEntriesController.text = (data['subscriptionEntries'] ?? 10).toString();
     _subscriptionPriceController.text = (data['subscriptionPrice'] ?? 150.0).toString();
     
     _extraServices = List<Map<String, dynamic>>.from(
@@ -255,6 +262,8 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
           'iban': _ibanController.text.trim(),
           'allowHalfHour': _allowHalfHour,
           'offersSubscription': _offerSubscription,
+          'subscriptionType': _subscriptionType,
+          'subscriptionEntries': _offerSubscription && _subscriptionType == 'limited' ? (int.tryParse(_subscriptionEntriesController.text) ?? 10) : 0,
           'subscriptionPrice': _offerSubscription ? (double.tryParse(_subscriptionPriceController.text) ?? 150.0) : 0.0,
           'extraServices': _extraServices,
         });
@@ -566,6 +575,8 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
       'fotbal': 'Fotbal',
       'handbal': 'Handbal',
       'baschet': 'Baschet',
+      'mma': 'MMA',
+      'box': 'Box',
     };
     return Chip(
       backgroundColor: const Color(0xFF131A2A),
@@ -579,13 +590,18 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      return const Scaffold(body: Center(child: Text('Nu ești autentificat.')));
+    final currentUser = FirebaseAuth.instance.currentUser;
+    final targetVenueId = widget.venueId ?? currentUser?.uid;
+
+    if (targetVenueId == null) {
+      return const Scaffold(body: Center(child: Text('Eroare: Nu s-a putut găsi ID-ul sălii.')));
     }
+    
+    // Dacă am primit venueId specific, nu permitem editarea (mod vizualizare)
+    final bool isReadOnly = widget.venueId != null && widget.venueId != currentUser?.uid;
 
     return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instance.collection('venues').doc(user.uid).snapshots(),
+      stream: FirebaseFirestore.instance.collection('venues').doc(targetVenueId).snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
@@ -601,24 +617,37 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
         final venueData = snapshot.data!.data() as Map<String, dynamic>;
 
         return Scaffold(
-          drawer: const PlayerDrawer(activePage: 'venue_profile'),
+          drawer: isReadOnly ? null : const PlayerDrawer(activePage: 'venue_profile'),
           appBar: AppBar(
             backgroundColor: Colors.transparent,
             elevation: 0,
-            leading: !_isEditing
-                ? Builder(
-                    builder: (context) => IconButton(
-                      icon: const Icon(Icons.menu, color: Color(0xFF00E5FF)),
-                      onPressed: () {
-                        Scaffold.of(context).openDrawer();
-                      },
-                    ),
+            leading: isReadOnly 
+                ? IconButton(
+                    icon: const Icon(Icons.arrow_back, color: Colors.white),
+                    onPressed: () => Navigator.pop(context),
                   )
-                : null,
-            title: Text(_isEditing ? 'Editează Profilul Sălii' : 'Profilul Sălii'),
+                : (!_isEditing
+                    ? Builder(
+                        builder: (context) => IconButton(
+                          icon: const Icon(Icons.menu, color: Color(0xFF00E5FF)),
+                          onPressed: () {
+                            Scaffold.of(context).openDrawer();
+                          },
+                        ),
+                      )
+                    : IconButton(
+                        icon: const Icon(Icons.close, color: Colors.redAccent),
+                        onPressed: () {
+                          setState(() {
+                            _isEditing = false;
+                          });
+                        },
+                      )),
+            title: Text(_isEditing ? 'Editează Profilul Sălii' : (isReadOnly ? venueData['venueName'] ?? 'Profil Sală' : 'Profilul Sălii'),
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             centerTitle: true,
             actions: [
-              if (!_isEditing)
+              if (!_isEditing && !isReadOnly)
                 IconButton(
                   icon: const Icon(Icons.edit, color: Color(0xFF00E5FF)),
                   onPressed: () => _enterEditMode(venueData),
@@ -629,15 +658,138 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
               ? const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)))
               : SingleChildScrollView(
                   padding: const EdgeInsets.all(20.0),
-                  child: _isEditing ? _buildEditForm() : _buildVisualProfile(venueData),
+                  child: _isEditing ? _buildEditForm() : _buildVisualProfile(venueData, targetVenueId, isReadOnly),
                 ),
         );
       },
     );
   }
 
+  Future<void> _buySubscription(String targetVenueId, Map<String, dynamic> data) async {
+    final amount = double.tryParse(data['subscriptionPrice']?.toString() ?? '150') ?? 150.0;
+    
+    final success = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PaymentScreen(
+          amount: amount,
+          venueId: targetVenueId,
+          destinationAccountId: data['stripeAccountId'],
+        ),
+      ),
+    );
+
+    if (success == true) {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).collection('subscriptions').add({
+          'venueId': targetVenueId,
+          'type': data['subscriptionType'],
+          'entries': data['subscriptionEntries'],
+          'price': amount,
+          'purchasedAt': FieldValue.serverTimestamp(),
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Abonament achiziționat cu succes!'), backgroundColor: Colors.green),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _showReviewDialog(String targetVenueId) async {
+    final commentController = TextEditingController();
+    double currentRating = 5.0;
+
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF131A2A),
+              title: const Text('Adaugă o recenzie', style: TextStyle(color: Colors.white)),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(5, (index) {
+                      return IconButton(
+                        icon: Icon(
+                          index < currentRating ? Icons.star : Icons.star_border,
+                          color: Colors.yellowAccent,
+                          size: 32,
+                        ),
+                        onPressed: () {
+                          setDialogState(() {
+                            currentRating = index + 1.0;
+                          });
+                        },
+                      );
+                    }),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: commentController,
+                    maxLines: 3,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: const InputDecoration(
+                      labelText: 'Cum a fost experiența ta?',
+                      labelStyle: TextStyle(color: Colors.grey),
+                      enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.grey)),
+                      focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF00E5FF))),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Anulează', style: TextStyle(color: Colors.redAccent)),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00E5FF), foregroundColor: Colors.black),
+                  onPressed: () async {
+                    if (commentController.text.trim().isEmpty) return;
+                    final user = FirebaseAuth.instance.currentUser!;
+                    final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+                    final username = userDoc.data()?['username'] ?? 'Jucător';
+                    final avatarUrl = userDoc.data()?['avatarUrl'];
+
+                    await FirebaseFirestore.instance
+                        .collection('venues')
+                        .doc(targetVenueId)
+                        .collection('reviews')
+                        .add({
+                      'authorId': user.uid,
+                      'authorUsername': username,
+                      'authorAvatarUrl': avatarUrl,
+                      'rating': currentRating,
+                      'comment': commentController.text.trim(),
+                      'createdAt': FieldValue.serverTimestamp(),
+                    });
+
+                    if (mounted) {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Recenzia a fost adăugată!'), backgroundColor: Colors.green),
+                      );
+                    }
+                  },
+                  child: const Text('Trimite'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   // --- 1. VISUAL PROFILE (READ-ONLY) ---
-  Widget _buildVisualProfile(Map<String, dynamic> data) {
+  Widget _buildVisualProfile(Map<String, dynamic> data, String targetVenueId, bool isReadOnly) {
     final bool isVerified = data['isVerified'] ?? false;
     final List<dynamic> facilities = data['facilities'] ?? [];
     final List<dynamic> blockedDates = data['blockedDates'] ?? [];
@@ -814,7 +966,7 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
         StreamBuilder<QuerySnapshot>(
           stream: FirebaseFirestore.instance
               .collection('venues')
-              .doc(user.uid)
+              .doc(targetVenueId)
               .collection('inventory')
               .snapshots(),
           builder: (context, invSnapshot) {
@@ -901,11 +1053,26 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
         ),
         _buildProfileDetailRow(
           Icons.star_outline,
-          'Abonament Lunar',
+          'Abonament',
           data['offersSubscription'] == true 
-              ? '${data['subscriptionPrice'] ?? 150} RON / lună' 
+              ? '${data['subscriptionPrice'] ?? 150} RON pentru ${data['subscriptionType'] == 'unlimited' ? 'Nelimitat' : '${data['subscriptionEntries']} intrări'}' 
               : 'Nu este disponibil',
         ),
+        if (isReadOnly && data['offersSubscription'] == true) ...[
+          const SizedBox(height: 8),
+          Center(
+            child: ElevatedButton.icon(
+              icon: const Icon(Icons.credit_card, size: 18),
+              label: const Text('Cumpără Abonament'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF00E5FF),
+                foregroundColor: Colors.black,
+              ),
+              onPressed: () => _buySubscription(targetVenueId, data),
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
         if (data['extraServices'] != null && (data['extraServices'] as List).isNotEmpty)
           ...((data['extraServices'] as List).map((srv) => _buildProfileDetailRow(
                 Icons.add_circle_outline,
@@ -921,47 +1088,49 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
         _buildProfileDetailRow(Icons.description_outlined, 'CUI Fiscal', data['cui']?.toString().isEmpty == true ? '-' : (data['cui'] ?? '-')),
         _buildProfileDetailRow(Icons.account_balance_wallet_outlined, 'IBAN de Plată', data['iban']?.toString().isEmpty == true ? '-' : (data['iban'] ?? '-')),
         
-        const SizedBox(height: 16),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: const Color(0xFF635BFF).withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFF635BFF).withValues(alpha: 0.5)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Row(
-                children: [
-                  Icon(Icons.payment, color: Color(0xFF635BFF)),
-                  SizedBox(width: 8),
-                  Text('Încasări prin Stripe', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                (data['stripeAccountId'] != null)
-                    ? 'Contul Stripe este conectat. Sunteți pregătit să încasați plăți automat în IBAN-ul dvs.'
-                    : 'Pentru a putea încasa banii din rezervări, trebuie să vă conectați IBAN-ul prin Stripe.',
-                style: const TextStyle(color: Colors.white70, fontSize: 13),
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => _setupStripeConnect(data['stripeAccountId']),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF635BFF),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                  child: Text((data['stripeAccountId'] != null) ? 'Gestionează Cont Stripe' : 'Configurați Încasări Stripe'),
+        if (!isReadOnly) ...[
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF635BFF).withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFF635BFF).withValues(alpha: 0.5)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.payment, color: Color(0xFF635BFF)),
+                    SizedBox(width: 8),
+                    Text('Încasări prin Stripe', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                  ],
                 ),
-              ),
-            ],
+                const SizedBox(height: 8),
+                Text(
+                  (data['stripeAccountId'] != null)
+                      ? 'Contul Stripe este conectat. Sunteți pregătit să încasați plăți automat în IBAN-ul dvs.'
+                      : 'Pentru a putea încasa banii din rezervări, trebuie să vă conectați IBAN-ul prin Stripe.',
+                  style: const TextStyle(color: Colors.white70, fontSize: 13),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => _setupStripeConnect(data['stripeAccountId']),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF635BFF),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    child: Text((data['stripeAccountId'] != null) ? 'Gestionează Cont Stripe' : 'Configurați Încasări Stripe'),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
+        ],
 
         const SizedBox(height: 25),
         const Divider(color: Colors.grey, thickness: 0.5),
@@ -971,17 +1140,18 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             _buildSectionHeader('Zile Blocate (Fără Rezervări)'),
-            IconButton(
-              icon: const Icon(Icons.add_circle_outline, color: Color(0xFF00E5FF)),
-              onPressed: () => _addBlockedDate(blockedDates),
-            ),
+            if (!isReadOnly)
+              IconButton(
+                icon: const Icon(Icons.add_circle_outline, color: Color(0xFF00E5FF)),
+                onPressed: () => _addBlockedDate(blockedDates),
+              ),
           ],
         ),
         const SizedBox(height: 8),
         blockedDates.isEmpty
             ? const Padding(
                 padding: EdgeInsets.symmetric(vertical: 8.0),
-                child: Text('Nu aveți nicio dată blocată.', style: TextStyle(color: Colors.grey, fontSize: 14)),
+                child: Text('Nicio dată blocată.', style: TextStyle(color: Colors.grey, fontSize: 14)),
               )
             : Wrap(
                 spacing: 8,
@@ -994,11 +1164,19 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
                       dateStr.toString(),
                       style: const TextStyle(color: Colors.white, fontSize: 13),
                     ),
-                    deleteIcon: const Icon(Icons.cancel, color: Colors.redAccent, size: 18),
-                    onDeleted: () => _removeBlockedDate(dateStr.toString(), blockedDates),
+                    deleteIcon: isReadOnly ? null : const Icon(Icons.cancel, color: Colors.redAccent, size: 18),
+                    onDeleted: isReadOnly ? null : () => _removeBlockedDate(dateStr.toString(), blockedDates),
                   );
                 }).toList(),
               ),
+
+        const SizedBox(height: 25),
+        const Divider(color: Colors.grey, thickness: 0.5),
+
+        // Section 6.5: Trainers List
+        _buildSectionHeader('Antrenori Asociați'),
+        const SizedBox(height: 8),
+        _buildTrainersList(targetVenueId, isReadOnly),
 
         const SizedBox(height: 25),
         const Divider(color: Colors.grey, thickness: 0.5),
@@ -1008,7 +1186,13 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             _buildSectionHeader('Recenzii Jucători'),
-            if (data['rating'] != null)
+            if (isReadOnly)
+              TextButton.icon(
+                icon: const Icon(Icons.add_comment, color: Color(0xFF00E5FF), size: 16),
+                label: const Text('Adaugă Recenzie', style: TextStyle(color: Color(0xFF00E5FF))),
+                onPressed: () => _showReviewDialog(targetVenueId),
+              ),
+            if (!isReadOnly && data['rating'] != null)
               Row(
                 children: [
                   const Icon(Icons.star, color: Colors.yellowAccent, size: 20),
@@ -1022,12 +1206,13 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
           ],
         ),
         const SizedBox(height: 8),
-        _buildReviewsList(FirebaseAuth.instance.currentUser?.uid ?? ''),
+        _buildReviewsList(targetVenueId),
 
         const SizedBox(height: 35),
 
         // Security Actions
-        OutlinedButton.icon(
+        if (!isReadOnly)
+          OutlinedButton.icon(
           onPressed: _showChangePasswordDialog,
           icon: const Icon(Icons.lock_outline),
           label: const Text('Schimbă Parola Contului'),
@@ -1125,6 +1310,160 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildTrainersList(String venueId, bool isReadOnly) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('users')
+          .where('isTrainer', isEqualTo: true)
+          .where('trainerVenueId', isEqualTo: venueId)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)));
+        }
+        final docs = snapshot.data!.docs;
+        if (docs.isEmpty) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8.0),
+            child: Text('Niciun antrenor asociat acestei săli.', style: TextStyle(color: Colors.grey, fontSize: 14)),
+          );
+        }
+
+        return Column(
+          children: docs.map((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            final name = '${data['firstName'] ?? ''} ${data['lastName'] ?? ''}'.trim();
+            final price = data['trainerPrice'] ?? 0;
+            return Card(
+              color: const Color(0xFF1E293B),
+              margin: const EdgeInsets.only(bottom: 12),
+              child: ListTile(
+                leading: const CircleAvatar(
+                  backgroundColor: Color(0xFF131A2A),
+                  child: Icon(Icons.sports, color: Color(0xFF00E5FF)),
+                ),
+                title: Text(name.isEmpty ? 'Antrenor Necunoscut' : name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                subtitle: Text('Preț: $price RON/oră', style: const TextStyle(color: Color(0xFF00E5FF))),
+                trailing: isReadOnly ? Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.rate_review, color: Colors.yellowAccent, size: 20),
+                      onPressed: () => _showTrainerReviewDialog(doc.id),
+                    ),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF00E5FF),
+                        foregroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                        minimumSize: Size.zero,
+                      ),
+                      onPressed: () {
+                        // Rezervare antrenor (mock or actual scheduling logic)
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Rezervarea antrenorului $name este în lucru!')),
+                        );
+                      },
+                      child: const Text('Rezervă', style: TextStyle(fontSize: 12)),
+                    ),
+                  ],
+                ) : null,
+              ),
+            );
+          }).toList(),
+        );
+      },
+    );
+  }
+
+  Future<void> _showTrainerReviewDialog(String trainerId) async {
+    final commentController = TextEditingController();
+    double currentRating = 5.0;
+
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF131A2A),
+              title: const Text('Recenzie Antrenor', style: TextStyle(color: Colors.white)),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(5, (index) {
+                      return IconButton(
+                        icon: Icon(
+                          index < currentRating ? Icons.star : Icons.star_border,
+                          color: Colors.yellowAccent,
+                          size: 32,
+                        ),
+                        onPressed: () {
+                          setDialogState(() {
+                            currentRating = index + 1.0;
+                          });
+                        },
+                      );
+                    }),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: commentController,
+                    maxLines: 3,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: const InputDecoration(
+                      labelText: 'Părerea ta despre antrenor',
+                      labelStyle: TextStyle(color: Colors.grey),
+                      enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.grey)),
+                      focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF00E5FF))),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Anulează', style: TextStyle(color: Colors.redAccent)),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00E5FF), foregroundColor: Colors.black),
+                  onPressed: () async {
+                    if (commentController.text.trim().isEmpty) return;
+                    final user = FirebaseAuth.instance.currentUser!;
+                    final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+                    final username = userDoc.data()?['username'] ?? 'Jucător';
+
+                    await FirebaseFirestore.instance
+                        .collection('users')
+                        .doc(trainerId)
+                        .collection('reviews')
+                        .add({
+                      'authorId': user.uid,
+                      'authorUsername': username,
+                      'rating': currentRating,
+                      'comment': commentController.text.trim(),
+                      'createdAt': FieldValue.serverTimestamp(),
+                    });
+
+                    if (mounted) {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Recenzie adăugată pentru antrenor!'), backgroundColor: Colors.green),
+                      );
+                    }
+                  },
+                  child: const Text('Trimite'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
@@ -1519,6 +1858,44 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
           ),
           if (_offerSubscription) ...[
             const SizedBox(height: 16),
+            DropdownButtonFormField<String>(
+              value: _subscriptionType,
+              dropdownColor: const Color(0xFF131A2A),
+              style: const TextStyle(color: Colors.white, fontSize: 14),
+              decoration: const InputDecoration(
+                labelText: 'Tip Abonament',
+                prefixIcon: Icon(Icons.merge_type),
+              ),
+              items: const [
+                DropdownMenuItem(value: 'unlimited', child: Text('Intrări Nelimitate')),
+                DropdownMenuItem(value: 'limited', child: Text('Număr Limitat de Intrări')),
+              ],
+              onChanged: (val) {
+                setState(() {
+                  _subscriptionType = val ?? 'unlimited';
+                });
+              },
+            ),
+            if (_subscriptionType == 'limited') ...[
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _subscriptionEntriesController,
+                keyboardType: TextInputType.number,
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+                decoration: const InputDecoration(
+                  labelText: 'Număr Intrări pe Lună',
+                  prefixIcon: Icon(Icons.confirmation_number_outlined),
+                ),
+                validator: (value) {
+                  if (_offerSubscription && _subscriptionType == 'limited') {
+                    if (value == null || value.trim().isEmpty) return 'Introdu numărul de intrări';
+                    if (int.tryParse(value) == null) return 'Valoare invalidă';
+                  }
+                  return null;
+                },
+              ),
+            ],
+            const SizedBox(height: 16),
             TextFormField(
               controller: _subscriptionPriceController,
               keyboardType: TextInputType.number,
@@ -1537,7 +1914,12 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
             ),
           ],
           const SizedBox(height: 16),
-          _buildSectionHeader('Servicii Extra'),
+          _buildSectionHeader('Alte Servicii Extra (ex: Antrenor, Masaj)'),
+          const Text(
+            'Adaugă servicii speciale, altele decât produsele de bar sau echipamentele de închiriat (vezi Secțiunea Meniu & Echipamente pentru bar).',
+            style: TextStyle(color: Colors.grey, fontSize: 12),
+          ),
+          const SizedBox(height: 8),
           ..._extraServices.asMap().entries.map((entry) {
             int idx = entry.key;
             var service = entry.value;

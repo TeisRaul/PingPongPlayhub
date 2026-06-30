@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'dart:async';
 import '../utils/level_utils.dart';
 import 'login_screen.dart';
 import 'admin/admin_dashboard.dart';
@@ -71,10 +72,38 @@ class _HomeScreenState extends State<HomeScreen> {
   bool isVenue = false;
   bool isAdmin = false;
 
+  final ScrollController _newsScrollController = ScrollController();
+  Timer? _newsTimer;
+
   @override
   void initState() {
     super.initState();
     _loadUserData();
+    _startNewsAutoScroll();
+  }
+
+  void _startNewsAutoScroll() {
+    _newsTimer = Timer.periodic(const Duration(milliseconds: 50), (timer) {
+      if (_newsScrollController.hasClients) {
+        double maxScroll = _newsScrollController.position.maxScrollExtent;
+        double currentScroll = _newsScrollController.position.pixels;
+        double delta = 1.0; // Viteza de scroll
+
+        if (currentScroll >= maxScroll) {
+          // Resetăm scroll-ul la început discret (ideal listă infinită, dar e ok așa)
+          _newsScrollController.jumpTo(0);
+        } else {
+          _newsScrollController.jumpTo(currentScroll + delta);
+        }
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _newsTimer?.cancel();
+    _newsScrollController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadUserData() async {
@@ -373,7 +402,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
         ),
-        title: const Text('PingPong Playhub'),
+        title: const Text('Playhub'),
         centerTitle: true,
         actions: [
           if (!isVenue) ...[
@@ -512,7 +541,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                         const SizedBox(height: 4),
                         const Text(
-                          'Bun venit în arena PingPong Playhub!',
+                          'Bun venit în arena Playhub!',
                           style: TextStyle(color: Colors.grey, fontSize: 14),
                         ),
                       ],
@@ -955,44 +984,94 @@ class _HomeScreenState extends State<HomeScreen> {
     final List<Map<String, dynamic>> items = [
       {
         'title': 'Știai că?',
-        'subtitle': 'Viteză record de smash',
-        'content': 'Cel mai rapid smash din istorie a fost înregistrat la viteza de 116 km/h, lovit de neozeelandezul Lark Brandt în 2003!',
-        'icon': Icons.lightbulb_outline,
+        'subtitle': 'Viteză record de smash (Ping Pong)',
+        'content': 'Cel mai rapid smash din istoria tenisului de masă a fost înregistrat la 116 km/h, reușit de Lark Brandt în 2003!',
+        'icon': Icons.sports_tennis,
         'color': const Color(0xFFFF9800),
       },
       {
-        'title': 'Mondialul Playhub 2026',
-        'subtitle': 'Eveniment oficial',
-        'content': 'Înscrierile sunt deschise pentru Master Series! Premii record de 5000 RON și rating dublu pentru câștigători.',
-        'icon': Icons.emoji_events_outlined,
-        'color': const Color(0xFFFFD700),
+        'title': 'Formula 1',
+        'subtitle': 'Cea mai rapidă oprire',
+        'content': 'Recordul absolut pentru cel mai rapid pit stop în Formula 1 este de doar 1.80 secunde, realizat de echipa McLaren în 2023!',
+        'icon': Icons.directions_car,
+        'color': Colors.redAccent,
       },
       {
-        'title': 'Știai că?',
-        'subtitle': 'Palete în culori neon',
-        'content': 'ITTF aprobă acum utilizarea fețelor de palete în culori vibrante precum albastru, verde, roz sau violet (pe lângă negru)!',
-        'icon': Icons.palette_outlined,
-        'color': const Color(0xFFFF00FF),
+        'title': 'Gimnastică',
+        'subtitle': 'Scorul perfect',
+        'content': 'Nadia Comăneci a fost prima gimnastă din istorie care a primit nota perfectă de 10 la Jocurile Olimpice de la Montreal (1976).',
+        'icon': Icons.star,
+        'color': Colors.amber,
       },
       {
-        'title': 'Mese inteligente cu senzori',
-        'subtitle': 'Tehnologie IoT',
-        'content': 'Playhub Arena începe testarea meselor dotate cu senzori optici și laser pentru determinarea automată a marginilor.',
-        'icon': Icons.sensors,
-        'color': const Color(0xFF00E5FF),
+        'title': 'Curiozitate MMA',
+        'subtitle': 'Luptă fulger',
+        'content': 'Cel mai scurt meci din istoria UFC a durat doar 5 secunde, record stabilit de Jorge Masvidal împotriva lui Ben Askren!',
+        'icon': Icons.sports_martial_arts,
+        'color': Colors.red,
       },
       {
-        'title': 'Știai că?',
-        'subtitle': 'Rotație extremă',
-        'content': 'O minge lovită puternic de un profesionist se poate roti cu până la 150 de rotații pe secundă (9000 RPM)!',
-        'icon': Icons.sync,
-        'color': const Color(0xFF00FF66),
+        'title': 'Știai că? Box',
+        'subtitle': 'Legenda Neînvinsă',
+        'content': 'Rocky Marciano este singurul campion mondial la categoria grea care s-a retras neînvins, cu un uimitor palmares de 49-0!',
+        'icon': Icons.sports_mma,
+        'color': Colors.orangeAccent,
       },
+      {
+        'title': 'Atletism',
+        'subtitle': 'Viteza Omului',
+        'content': 'Usain Bolt deține recordul mondial la 100m alergare (9.58 secunde), atingând o viteză maximă de 44.72 km/h!',
+        'icon': Icons.directions_run,
+        'color': Colors.yellowAccent,
+      },
+      {
+        'title': 'Natație',
+        'subtitle': 'Regele Medaliilor',
+        'content': 'Michael Phelps are cele mai multe medalii olimpice câștigate vreodată de un sportiv: 28 de medalii, dintre care 23 de aur!',
+        'icon': Icons.pool,
+        'color': Colors.lightBlue,
+      },
+      {
+        'title': 'Legendele Tenisului',
+        'subtitle': 'Record de Grand Slam-uri',
+        'content': 'Novak Djokovic deține recordul absolut pentru cele mai multe titluri de Grand Slam câștigate la simplu masculin: 24!',
+        'icon': Icons.sports_tennis,
+        'color': Colors.lightGreenAccent,
+      },
+      {
+        'title': 'Fotbal',
+        'subtitle': 'Cel mai vechi club',
+        'content': 'Sheffield FC este recunoscut ca fiind cel mai vechi club de fotbal din lume, fiind fondat oficial în 1857.',
+        'icon': Icons.sports_soccer,
+        'color': Colors.greenAccent,
+      },
+      {
+        'title': 'Baschet',
+        'subtitle': '100 de puncte!',
+        'content': 'Wilt Chamberlain deține recordul NBA pentru cele mai multe puncte înscrise într-un singur meci: 100 de puncte în 1962!',
+        'icon': Icons.sports_basketball,
+        'color': Colors.deepOrangeAccent,
+      },
+      {
+        'title': 'Volei',
+        'subtitle': 'Durată record',
+        'content': 'Cel mai lung meci de volei din istorie a durat 85 de ore, jucat în 2011 de o echipă din Olanda.',
+        'icon': Icons.sports_volleyball,
+        'color': Colors.teal,
+      },
+      {
+        'title': 'Golf',
+        'subtitle': 'Pe Lună',
+        'content': 'Golful este unul dintre cele două sporturi jucate pe Lună! Astronautul Alan Shepard a lovit două mingi de golf în 1971.',
+        'icon': Icons.sports_golf,
+        'color': Colors.white70,
+      }
     ];
 
     return SizedBox(
       height: 165,
       child: ListView.builder(
+        controller: _newsScrollController,
         scrollDirection: Axis.horizontal,
         itemCount: items.length,
         itemBuilder: (context, idx) {

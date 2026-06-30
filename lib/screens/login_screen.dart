@@ -267,14 +267,19 @@ class _LoginScreenState extends State<LoginScreen> {
             children: [
               const SizedBox(height: 60),
               // App Logo / Title
-              const Icon(
-                Icons.sports_tennis,
-                size: 80,
-                color: Color(0xFF00E5FF),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: const [
+                  Icon(Icons.sports_soccer, size: 45, color: Color(0xFF00E5FF)),
+                  SizedBox(width: 12),
+                  Icon(Icons.sports_tennis, size: 65, color: Color(0xFF00E5FF)),
+                  SizedBox(width: 12),
+                  Icon(Icons.sports_basketball, size: 45, color: Color(0xFF00E5FF)),
+                ],
               ),
               const SizedBox(height: 16),
               const Text(
-                'PingPong Playhub',
+                'Playhub',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 28,
