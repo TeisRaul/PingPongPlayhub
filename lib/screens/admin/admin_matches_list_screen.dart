@@ -157,7 +157,7 @@ class _AdminMatchesListScreenState extends State<AdminMatchesListScreen> {
                         trailing: const Icon(Icons.chevron_right, color: Colors.grey),
                         onTap: () {
                           // Show detail modal or screen
-                          _showMatchDetails(context, data);
+                          _showMatchDetails(context, filteredMatches[index].id, data);
                         },
                       ),
                     );
@@ -171,7 +171,7 @@ class _AdminMatchesListScreenState extends State<AdminMatchesListScreen> {
     );
   }
 
-  void _showMatchDetails(BuildContext context, Map<String, dynamic> data) {
+  void _showMatchDetails(BuildContext context, String matchId, Map<String, dynamic> data) {
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF131A2A),
@@ -201,7 +201,28 @@ class _AdminMatchesListScreenState extends State<AdminMatchesListScreen> {
               ...(data['players'] as List? ?? []).map((p) {
                 return Text('- ${p['name']} (Nivel: ${p['level']})', style: const TextStyle(color: Colors.grey));
               }),
+              
               const SizedBox(height: 32),
+              
+              if (data['status'] != 'cancelled')
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _promptCancelMatch(matchId);
+                    },
+                    icon: const Icon(Icons.cancel, size: 18),
+                    label: const Text('Anulează Meci (Admin)'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.redAccent,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 12),
+              
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
@@ -215,6 +236,57 @@ class _AdminMatchesListScreenState extends State<AdminMatchesListScreen> {
               ),
             ],
           ),
+        );
+      },
+    );
+  }
+
+  void _promptCancelMatch(String matchId) {
+    final TextEditingController reasonController = TextEditingController();
+    
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF131A2A),
+          title: const Text('Anulare Meci', style: TextStyle(color: Colors.white)),
+          content: TextField(
+            controller: reasonController,
+            style: const TextStyle(color: Colors.white),
+            decoration: const InputDecoration(
+              hintText: 'Motivul anulării (ex: Eroare de sistem)...',
+              hintStyle: TextStyle(color: Colors.grey),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('ÎNAPOI', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (reasonController.text.trim().isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Introduceți un motiv!'), backgroundColor: Colors.red));
+                  return;
+                }
+                
+                try {
+                  await FirebaseFirestore.instance.collection('matches').doc(matchId).update({
+                    'status': 'cancelled',
+                    'cancellationReason': reasonController.text.trim(),
+                  });
+                  if (mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Meci anulat cu succes!'), backgroundColor: Colors.green));
+                  }
+                } catch (e) {
+                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Eroare: $e'), backgroundColor: Colors.red));
+                }
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+              child: const Text('ANULEAZĂ MECI', style: TextStyle(color: Colors.white)),
+            ),
+          ],
         );
       },
     );

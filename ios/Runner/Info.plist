@@ -66,5 +66,9 @@
         <string>vivapay</string>
         <string>sumupmerchant</string>
     </array>
+    <key>NSCameraUsageDescription</key>
+    <string>Playhub necesită acces la cameră pentru scanarea codurilor QR de Check-in la sală.</string>
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>Playhub necesită acces la galerie pentru a încărca poze de profil și postări.</string>
 </dict>
 </plist>

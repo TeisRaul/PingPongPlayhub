@@ -5,6 +5,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'dart:async';
 import '../utils/level_utils.dart';
+import '../services/stripe_service.dart';
+import 'qr_scanner_screen.dart';
+import 'create_post_screen.dart';
 import 'login_screen.dart';
 import 'admin/admin_dashboard.dart';
 import 'my_profile_screen.dart';
@@ -17,6 +20,8 @@ import 'tournaments_screen.dart';
 import 'venue_profile_screen.dart';
 import 'venue_booking_history_screen.dart';
 import 'venue_tables_layout_screen.dart';
+import 'qr_scanner_screen.dart';
+import 'create_post_screen.dart';
 import '../widgets/player_drawer.dart';
 
 class ParallelogramClipper extends CustomClipper<Path> {
@@ -156,6 +161,32 @@ class _HomeScreenState extends State<HomeScreen> {
           SnackBar(content: Text('Eroare la încărcarea profilului: $e'), backgroundColor: Colors.red),
         );
       }
+    }
+  }
+
+  Future<void> _scanCheckInQR() async {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const QrScannerScreen()),
+    );
+  }
+
+  Future<void> _markNoShow(String docId, String hostUid) async {
+    try {
+      await FirebaseFirestore.instance.collection('matches').doc(docId).update({
+        'status': 'cancelled',
+        'cancellationReason': 'No-Show raportat de sală',
+      });
+      if (hostUid.isNotEmpty) {
+        await FirebaseFirestore.instance.collection('users').doc(hostUid).update({
+          'trustScore': FieldValue.increment(-5),
+        });
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Jucător marcat ca absent (No-Show). Penalizare aplicată.'), backgroundColor: Colors.orange));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Eroare: $e')));
     }
   }
 
@@ -1602,9 +1633,50 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 24),
 
                   // Bookings List Header
-                  const Text(
-                    'Programări active / Rezervări mese',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Programări active / Rezervări mese',
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                        ),
+                      ),
+                      ElevatedButton.icon(
+                        onPressed: () => _scanCheckInQR(),
+                        icon: const Icon(Icons.qr_code_scanner, color: Colors.black, size: 18),
+                        label: const Text('SCAN QR', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF00E5FF),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Bookings List Header
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Programări active / Rezervări mese',
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                        ),
+                      ),
+                      ElevatedButton.icon(
+                        onPressed: () => _scanCheckInQR(),
+                        icon: const Icon(Icons.qr_code_scanner, color: Colors.black, size: 18),
+                        label: const Text('SCAN QR', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF00E5FF),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 12),
 
@@ -1804,12 +1876,13 @@ class _HomeScreenState extends State<HomeScreen> {
                                       ),
                                   ],
                                 ),
-                                if (!isCancelled) ...[
                                   const SizedBox(height: 16),
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.end,
+                                  Wrap(
+                                    spacing: 8,
+                                    runSpacing: 8,
+                                    alignment: WrapAlignment.end,
                                     children: [
-                                      if (canConfirmCash) ...[
+                                      if (canConfirmCash)
                                         ElevatedButton.icon(
                                           onPressed: () => _confirmBookingPayment(docId),
                                           icon: const Icon(Icons.check, size: 16),
@@ -1820,21 +1893,29 @@ class _HomeScreenState extends State<HomeScreen> {
                                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                           ),
                                         ),
-                                        const SizedBox(width: 8),
-                                      ],
+                                      if (!isCancelled && !(data['checkedIn'] == true))
+                                        ElevatedButton.icon(
+                                          onPressed: () => _markNoShow(docId, data['hostUid'] ?? ''),
+                                          icon: const Icon(Icons.person_off, size: 16),
+                                          label: const Text('NO-SHOW', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.orange,
+                                            foregroundColor: Colors.white,
+                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                          ),
+                                        ),
                                       OutlinedButton.icon(
                                         style: OutlinedButton.styleFrom(
                                           side: const BorderSide(color: Colors.redAccent),
                                           foregroundColor: Colors.redAccent,
-                                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                         ),
-                                        icon: const Icon(Icons.cancel_outlined, size: 18),
-                                        label: const Text('ANULEAZĂ REZERVAREA'),
+                                        icon: const Icon(Icons.cancel_outlined, size: 16),
+                                        label: const Text('ANULEAZĂ', style: TextStyle(fontSize: 11)),
                                         onPressed: () => _cancelBooking(docId, data),
                                       ),
                                     ],
                                   ),
-                                ]
                               ],
                             ),
                           ),

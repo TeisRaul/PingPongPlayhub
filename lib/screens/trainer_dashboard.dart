@@ -51,6 +51,40 @@ class _TrainerDashboardState extends State<TrainerDashboard> {
     }
   }
 
+  Future<void> _approveReschedule(String docId, String newDate, String newTime) async {
+    try {
+      await FirebaseFirestore.instance.collection('reservations').doc(docId).update({
+        'status': 'confirmed',
+        'date': newDate,
+        'time': newTime,
+        'requestedDate': FieldValue.delete(),
+        'requestedTime': FieldValue.delete(),
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Modificare aprobată!'), backgroundColor: Colors.green));
+        _fetchTrainerBookings();
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Eroare: $e')));
+    }
+  }
+
+  Future<void> _rejectReschedule(String docId) async {
+    try {
+      await FirebaseFirestore.instance.collection('reservations').doc(docId).update({
+        'status': 'confirmed',
+        'requestedDate': FieldValue.delete(),
+        'requestedTime': FieldValue.delete(),
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Modificare respinsă!'), backgroundColor: Colors.orange));
+        _fetchTrainerBookings();
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Eroare: $e')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (user == null) {
@@ -114,18 +148,77 @@ class _TrainerDashboardState extends State<TrainerDashboard> {
                           final clientName = b['clientName'] ?? 'Client Necunoscut';
                           final date = b['date'] ?? 'Dată necunoscută';
                           final time = b['time'] ?? 'Oră necunoscută';
+                          final status = b['status'] ?? 'confirmed';
                           
                           return Card(
                             color: const Color(0xFF1E293B),
                             margin: const EdgeInsets.only(bottom: 12),
-                            child: ListTile(
-                              leading: const CircleAvatar(
-                                backgroundColor: Color(0xFF131A2A),
-                                child: Icon(Icons.person, color: Color(0xFF00E5FF)),
+                            child: Padding(
+                              padding: const EdgeInsets.all(12.0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      const CircleAvatar(
+                                        backgroundColor: Color(0xFF131A2A),
+                                        child: Icon(Icons.person, color: Color(0xFF00E5FF)),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(clientName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                                            const SizedBox(height: 4),
+                                            Text('$date | $time', style: const TextStyle(color: Colors.grey)),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  if (status == 'reschedule_requested') ...[
+                                    const SizedBox(height: 12),
+                                    Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: Colors.orange.withValues(alpha: 0.1),
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(color: Colors.orangeAccent),
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                                        children: [
+                                          Text(
+                                            'Clientul dorește mutarea pe ${b['requestedDate']} la ora ${b['requestedTime']}',
+                                            style: const TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: ElevatedButton(
+                                                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                                                  onPressed: () => _approveReschedule(b['id'], b['requestedDate'], b['requestedTime']),
+                                                  child: const Text('Aprobă'),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Expanded(
+                                                child: OutlinedButton(
+                                                  style: OutlinedButton.styleFrom(foregroundColor: Colors.redAccent, side: const BorderSide(color: Colors.redAccent)),
+                                                  onPressed: () => _rejectReschedule(b['id']),
+                                                  child: const Text('Respinge'),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ],
                               ),
-                              title: Text(clientName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                              subtitle: Text('$date | $time', style: const TextStyle(color: Colors.grey)),
-                              trailing: const Icon(Icons.calendar_today, color: Color(0xFF00E5FF), size: 20),
                             ),
                           );
                         },

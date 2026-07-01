@@ -4,7 +4,9 @@ import 'add_public_location_screen.dart';
 import 'admin_venues_list_screen.dart';
 import 'admin_users_list_screen.dart';
 import 'admin_matches_list_screen.dart';
+import 'admin_trainers_list_screen.dart';
 import '../venue_signup_screen.dart';
+import '../../services/seed_data_service.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -144,6 +146,39 @@ class _AdminDashboardState extends State<AdminDashboard> {
           ),
           const SizedBox(height: 16),
           
+          // Seed Data Massively Button
+          ElevatedButton.icon(
+            onPressed: () async {
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (context) => const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF))),
+              );
+              try {
+                await SeedDataService.seedMassiveData(100);
+                if (mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Generare cu succes a 100 de înregistrări!'), backgroundColor: Colors.green));
+                  _loadStats(); // refresh counts
+                }
+              } catch (e) {
+                if (mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Eroare: $e'), backgroundColor: Colors.red));
+                }
+              }
+            },
+            icon: const Icon(Icons.rocket_launch, size: 22),
+            label: const Text('Generare Masivă (100 utilizatori)', style: TextStyle(fontWeight: FontWeight.bold)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.purple,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+          const SizedBox(height: 16),
+          
           // Manage Venues Button
           ElevatedButton.icon(
             onPressed: () {
@@ -164,6 +199,25 @@ class _AdminDashboardState extends State<AdminDashboard> {
           ),
           const SizedBox(height: 16),
 
+          // Manage Trainers Button
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AdminTrainersListScreen()),
+              );
+            },
+            icon: const Icon(Icons.sports_kabaddi, size: 22),
+            label: const Text('Gestiune Antrenori', style: TextStyle(fontWeight: FontWeight.bold)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFFD700),
+              foregroundColor: Colors.black,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+          const SizedBox(height: 16),
+          
           // Manage Users Button
           ElevatedButton.icon(
             onPressed: () {
@@ -206,27 +260,53 @@ class _AdminDashboardState extends State<AdminDashboard> {
           const Divider(color: Colors.grey),
           const SizedBox(height: 16),
           
-          // Create Standard Venue Button (Admin)
-          ElevatedButton.icon(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const VenueSignupScreen(isAdminCreating: true),
-                ),
-              );
-            },
-            icon: const Icon(Icons.add_business, size: 22),
-            label: const Text('Crează Sală Standard', style: TextStyle(fontWeight: FontWeight.bold)),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF131A2A),
-              foregroundColor: Colors.amberAccent,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              side: const BorderSide(color: Colors.amberAccent),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            // Create Standard Venue Button (Admin)
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const VenueSignupScreen(isAdminCreating: true),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.add_business, size: 22),
+              label: const Text('Crează Sală Standard', style: TextStyle(fontWeight: FontWeight.bold)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF131A2A),
+                foregroundColor: Colors.amberAccent,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                side: const BorderSide(color: Colors.amberAccent),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
             ),
-          ),
-        ],
+            const SizedBox(height: 16),
+            
+            // Seed Data Button (Debug)
+            ElevatedButton.icon(
+              onPressed: () async {
+                try {
+                  await SeedDataService.seedAll();
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Date de test generate cu succes!'), backgroundColor: Colors.green));
+                    _loadStats(); // refresh
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Eroare: $e'), backgroundColor: Colors.red));
+                  }
+                }
+              },
+              icon: const Icon(Icons.bug_report, size: 22),
+              label: const Text('Generare Date Test (Seed)', style: TextStyle(fontWeight: FontWeight.bold)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.deepPurple,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ],
       ),
     );
   }

@@ -17,6 +17,8 @@ import '../screens/venue_tables_layout_screen.dart';
 import '../screens/venue_finances_screen.dart';
 import '../screens/leaderboard_screen.dart';
 import '../screens/trainer_dashboard.dart';
+import '../screens/client_sessions_screen.dart';
+import '../screens/feed_screen.dart';
 
 class PlayerDrawer extends StatefulWidget {
   final String activePage;
@@ -240,6 +242,12 @@ class _PlayerDrawerState extends State<PlayerDrawer> {
                       onTap: () => _navigateTo('dashboard', const HomeScreen()),
                     ),
                     _buildDrawerItem(
+                      icon: Icons.forum_outlined,
+                      title: 'Comunitate (Feed)',
+                      pageKey: 'feed',
+                      onTap: () => _navigateTo('feed', const FeedScreen()),
+                    ),
+                    _buildDrawerItem(
                       icon: Icons.calendar_month_outlined,
                       title: 'Plan Cameră & Rezervări',
                       pageKey: 'tables_layout',
@@ -284,6 +292,12 @@ class _PlayerDrawerState extends State<PlayerDrawer> {
                       pageKey: 'dashboard',
                       onTap: () => _navigateTo('dashboard', const HomeScreen()),
                     ),
+                    _buildDrawerItem(
+                      icon: Icons.forum_outlined,
+                      title: 'Comunitate (Feed)',
+                      pageKey: 'feed',
+                      onTap: () => _navigateTo('feed', const FeedScreen()),
+                    ),
                     if (userData?['isTrainer'] == true)
                       _buildDrawerItem(
                         icon: Icons.sports,
@@ -320,6 +334,12 @@ class _PlayerDrawerState extends State<PlayerDrawer> {
                       title: 'Meciurile Mele',
                       pageKey: 'my_matches',
                       onTap: () => _navigateTo('my_matches', const MyMatchesScreen()),
+                    ),
+                    _buildDrawerItem(
+                      icon: Icons.fitness_center_outlined,
+                      title: 'Sesiuni Antrenor',
+                      pageKey: 'client_sessions',
+                      onTap: () => _navigateTo('client_sessions', const ClientSessionsScreen()),
                     ),
                     _buildDrawerItem(
                       icon: Icons.group_add_outlined,

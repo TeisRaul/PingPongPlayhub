@@ -10,12 +10,18 @@ class SignupScreen extends StatefulWidget {
   final String? initialFirstName;
   final String? initialLastName;
   final String? initialEmail;
+  final bool isEditMode;
+  final String? userId;
+  final Map<String, dynamic>? userData;
 
   const SignupScreen({
     super.key, 
     this.initialFirstName, 
     this.initialLastName, 
-    this.initialEmail
+    this.initialEmail,
+    this.isEditMode = false,
+    this.userId,
+    this.userData,
   });
 
   @override
@@ -49,7 +55,9 @@ class _SignupScreenState extends State<SignupScreen> {
   // Trainer variables
   bool _isTrainer = false;
   String? _selectedVenueId;
-  final _trainerPriceController = TextEditingController();
+  String _pricingType = 'Ambele';
+  final _trainerPricePerMonthController = TextEditingController();
+  final _trainerPricePerSessionController = TextEditingController();
   final _trainerIbanController = TextEditingController();
   List<Map<String, dynamic>> _venuesList = [];
 
@@ -58,6 +66,51 @@ class _SignupScreenState extends State<SignupScreen> {
     super.initState();
     _passwordController.addListener(_updatePasswordStrength);
     _fetchVenues();
+    
+    if (widget.isEditMode && widget.userData != null) {
+      _usernameController.text = widget.userData!['username'] ?? '';
+      _phoneController.text = (widget.userData!['phone'] ?? '').replaceAll('+40', '');
+      _fullPhoneNumber = widget.userData!['phone'] ?? '';
+      _dobController.text = widget.userData!['dob'] ?? widget.userData!['dateOfBirth'] ?? '';
+      _selectedCity = widget.userData!['city'];
+      _isTrainer = widget.userData!['isTrainer'] ?? false;
+      if (_isTrainer) {
+        _selectedVenueId = widget.userData!['trainerVenueId'];
+        _trainerPricePerMonthController.text = (widget.userData!['trainerPricePerMonth'] ?? '').toString();
+        _trainerPricePerSessionController.text = (widget.userData!['trainerPricePerSession'] ?? widget.userData!['trainerPrice'] ?? '').toString();
+        
+        bool hasMonth = widget.userData!['trainerPricePerMonth'] != null;
+        bool hasSession = widget.userData!['trainerPricePerSession'] != null || widget.userData!['trainerPrice'] != null;
+        if (hasMonth && hasSession) {
+          _pricingType = 'Ambele';
+        } else if (hasMonth) {
+          _pricingType = 'Preț / lună';
+        } else if (hasSession) {
+          _pricingType = 'Preț / ședință';
+        } else {
+          _pricingType = 'Ambele';
+        }
+        _trainerIbanController.text = widget.userData!['trainerIban'] ?? '';
+      }
+      
+      String firstName = widget.userData!['firstName'] ?? '';
+      String lastName = widget.userData!['lastName'] ?? '';
+      
+      if (firstName.isEmpty && lastName.isEmpty) {
+        String fullName = widget.userData!['fullName'] ?? widget.userData!['name'] ?? '';
+        final parts = fullName.split(' ');
+        if (parts.isNotEmpty) {
+           firstName = parts.first;
+           if (parts.length > 1) {
+             lastName = parts.sublist(1).join(' ');
+           }
+        }
+      }
+      
+      _firstNameController.text = firstName;
+      _lastNameController.text = lastName;
+      _emailController.text = widget.userData!['email'] ?? '';
+    }
   }
 
   Future<void> _fetchVenues() async {
@@ -121,7 +174,8 @@ class _SignupScreenState extends State<SignupScreen> {
     _dobController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
-    _trainerPriceController.dispose();
+    _trainerPricePerMonthController.dispose();
+    _trainerPricePerSessionController.dispose();
     _trainerIbanController.dispose();
     super.dispose();
   }
@@ -185,13 +239,15 @@ class _SignupScreenState extends State<SignupScreen> {
             .get();
             
         if (usernameQuery.docs.isNotEmpty) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Acest nume de utilizator este deja folosit.'), backgroundColor: Colors.red),
-            );
+          if (!widget.isEditMode || usernameQuery.docs.first.id != widget.userId) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Acest nume de utilizator este deja folosit.'), backgroundColor: Colors.red),
+              );
+            }
+            setState(() => _isLoading = false);
+            return;
           }
-          setState(() => _isLoading = false);
-          return;
         }
 
         // 1. Verificăm unicitatea numărului de telefon
@@ -201,12 +257,19 @@ class _SignupScreenState extends State<SignupScreen> {
             .get();
             
         if (phoneQuery.docs.isNotEmpty) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Acest număr de telefon este deja înregistrat.'), backgroundColor: Colors.red),
-            );
+          if (!widget.isEditMode || phoneQuery.docs.first.id != widget.userId) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Acest număr de telefon este deja înregistrat.'), backgroundColor: Colors.red),
+              );
+            }
+            setState(() => _isLoading = false);
+            return;
           }
-          setState(() => _isLoading = false);
+        }
+
+        if (widget.isEditMode) {
+          await _updateUser();
           return;
         }
 
@@ -239,6 +302,35 @@ class _SignupScreenState extends State<SignupScreen> {
         }
         setState(() => _isLoading = false);
       }
+    }
+  }
+
+  Future<void> _updateUser() async {
+    try {
+      await FirebaseFirestore.instance.collection('users').doc(widget.userId).update({
+        'firstName': _firstNameController.text.trim(),
+        'lastName': _lastNameController.text.trim(),
+        'email': _emailController.text.trim(),
+        'username': _usernameController.text.trim(),
+        'phone': _fullPhoneNumber,
+        'dob': _dobController.text.trim(),
+        'city': _selectedCity,
+        'isTrainer': _isTrainer,
+        if (_isTrainer) 'trainerVenueId': _selectedVenueId,
+        if (_isTrainer) 'trainerPricePerMonth': (_pricingType == 'Ambele' || _pricingType == 'Preț / lună') ? double.tryParse(_trainerPricePerMonthController.text) : null,
+        if (_isTrainer) 'trainerPricePerSession': (_pricingType == 'Ambele' || _pricingType == 'Preț / ședință') ? double.tryParse(_trainerPricePerSessionController.text) : null,
+        if (_isTrainer) 'trainerIban': _trainerIbanController.text.trim(),
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profil actualizat!'), backgroundColor: Colors.green));
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Eroare: $e'), backgroundColor: Colors.red));
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -322,7 +414,8 @@ class _SignupScreenState extends State<SignupScreen> {
                                 'rating': 0,
                                 'isTrainer': _isTrainer,
                                 'trainerVenueId': _isTrainer ? _selectedVenueId : null,
-                                'trainerPrice': _isTrainer ? (double.tryParse(_trainerPriceController.text) ?? 0.0) : null,
+                                'trainerPricePerMonth': _isTrainer ? ((_pricingType == 'Ambele' || _pricingType == 'Preț / lună') ? double.tryParse(_trainerPricePerMonthController.text) : null) : null,
+                                'trainerPricePerSession': _isTrainer ? ((_pricingType == 'Ambele' || _pricingType == 'Preț / ședință') ? double.tryParse(_trainerPricePerSessionController.text) : null) : null,
                                 'trainerIban': _isTrainer ? _trainerIbanController.text.trim() : null,
                                 'createdAt': FieldValue.serverTimestamp(),
                               });
@@ -390,9 +483,9 @@ class _SignupScreenState extends State<SignupScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text(
-                  'Creează Cont',
-                  style: TextStyle(
+                Text(
+                  widget.isEditMode ? 'Editează Cont' : 'Creează Cont',
+                  style: const TextStyle(
                     fontSize: 32,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
@@ -400,9 +493,9 @@ class _SignupScreenState extends State<SignupScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  'Completează detaliile de mai jos pentru a te alătura.',
-                  style: TextStyle(
+                Text(
+                  widget.isEditMode ? 'Modifică detaliile utilizatorului.' : 'Completează detaliile de mai jos pentru a te alătura.',
+                  style: const TextStyle(
                     fontSize: 16,
                     color: Colors.grey,
                   ),
@@ -460,6 +553,7 @@ class _SignupScreenState extends State<SignupScreen> {
 
                 // Telefon
                 IntlPhoneField(
+                  controller: _phoneController,
                   decoration: const InputDecoration(
                     labelText: 'Număr de telefon',
                     prefixIcon: Icon(Icons.phone_outlined),
@@ -494,78 +588,80 @@ class _SignupScreenState extends State<SignupScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // Parola
-                TextFormField(
-                  controller: _passwordController,
-                  obscureText: _obscurePassword,
-                  decoration: InputDecoration(
-                    labelText: 'Parolă',
-                    prefixIcon: const Icon(Icons.lock_outline),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                        color: Colors.grey,
+                if (!widget.isEditMode) ...[
+                  // Parola
+                  TextFormField(
+                    controller: _passwordController,
+                    obscureText: _obscurePassword,
+                    decoration: InputDecoration(
+                      labelText: 'Parolă',
+                      prefixIcon: const Icon(Icons.lock_outline),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                          color: Colors.grey,
+                        ),
+                        onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                       ),
-                      onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                     ),
+                    validator: _validatePassword,
                   ),
-                  validator: _validatePassword,
-                ),
-                if (_passwordStrengthText.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
-                          child: LinearProgressIndicator(
-                            value: _passwordStrength,
-                            backgroundColor: Colors.grey[800],
-                            color: _passwordStrengthColor,
-                            minHeight: 6,
+                  if (_passwordStrengthText.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: LinearProgressIndicator(
+                              value: _passwordStrength,
+                              backgroundColor: Colors.grey[800],
+                              color: _passwordStrengthColor,
+                              minHeight: 6,
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Text(
-                        _passwordStrengthText,
-                        style: TextStyle(
-                          color: _passwordStrengthColor,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
+                        const SizedBox(width: 12),
+                        Text(
+                          _passwordStrengthText,
+                          style: TextStyle(
+                            color: _passwordStrengthColor,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                ],
-                const SizedBox(height: 16),
-
-                // Confirmare Parola
-                TextFormField(
-                  controller: _confirmPasswordController,
-                  obscureText: _obscureConfirmPassword,
-                  decoration: InputDecoration(
-                    labelText: 'Confirmare parolă',
-                    prefixIcon: const Icon(Icons.lock_outline),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscureConfirmPassword ? Icons.visibility_off : Icons.visibility,
-                        color: Colors.grey,
-                      ),
-                      onPressed: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
+                      ],
                     ),
+                  ],
+                  const SizedBox(height: 16),
+
+                  // Confirmare Parola
+                  TextFormField(
+                    controller: _confirmPasswordController,
+                    obscureText: _obscureConfirmPassword,
+                    decoration: InputDecoration(
+                      labelText: 'Confirmare parolă',
+                      prefixIcon: const Icon(Icons.lock_outline),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscureConfirmPassword ? Icons.visibility_off : Icons.visibility,
+                          color: Colors.grey,
+                        ),
+                        onPressed: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
+                      ),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Confirmă parola';
+                      }
+                      if (value != _passwordController.text) {
+                        return 'Parolele nu coincid';
+                      }
+                      return null;
+                    },
                   ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Confirmă parola';
-                    }
-                    if (value != _passwordController.text) {
-                      return 'Parolele nu coincid';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 24),
+                  const SizedBox(height: 24),
+                ],
 
                 SwitchListTile(
                   title: const Text('Sunt Antrenor Personal', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
@@ -595,15 +691,56 @@ class _SignupScreenState extends State<SignupScreen> {
                     validator: (val) => _isTrainer && val == null ? 'Selectează sala unde antrenezi' : null,
                   ),
                   const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _trainerPriceController,
-                    keyboardType: TextInputType.number,
+                  DropdownButtonFormField<String>(
+                    value: _pricingType,
+                    dropdownColor: const Color(0xFF131A2A),
                     style: const TextStyle(color: Colors.white, fontSize: 14),
                     decoration: const InputDecoration(
-                      labelText: 'Preț pe oră (RON)',
-                      prefixIcon: Icon(Icons.monetization_on_outlined),
+                      labelText: 'Tip Tarif Antrenor',
+                      prefixIcon: Icon(Icons.category),
                     ),
-                    validator: (val) => _isTrainer && (val == null || val.isEmpty) ? 'Introdu prețul' : null,
+                    items: ['Ambele', 'Preț / lună', 'Preț / ședință'].map((type) {
+                      return DropdownMenuItem<String>(
+                        value: type,
+                        child: Text(type),
+                      );
+                    }).toList(),
+                    onChanged: (val) {
+                      if (val != null) {
+                        setState(() => _pricingType = val);
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      if (_pricingType == 'Ambele' || _pricingType == 'Preț / lună')
+                        Expanded(
+                          child: TextFormField(
+                            controller: _trainerPricePerMonthController,
+                            keyboardType: TextInputType.number,
+                            style: const TextStyle(color: Colors.white, fontSize: 14),
+                            decoration: const InputDecoration(
+                              labelText: 'Preț / lună (RON)',
+                              prefixIcon: Icon(Icons.monetization_on_outlined),
+                            ),
+                          ),
+                        ),
+                      if (_pricingType == 'Ambele')
+                        const SizedBox(width: 16),
+                      if (_pricingType == 'Ambele' || _pricingType == 'Preț / ședință')
+                        Expanded(
+                          child: TextFormField(
+                            controller: _trainerPricePerSessionController,
+                            keyboardType: TextInputType.number,
+                            style: const TextStyle(color: Colors.white, fontSize: 14),
+                            decoration: const InputDecoration(
+                              labelText: 'Preț / ședință',
+                              prefixIcon: Icon(Icons.monetization_on_outlined),
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
@@ -634,7 +771,7 @@ class _SignupScreenState extends State<SignupScreen> {
                             strokeWidth: 2,
                           ),
                         )
-                      : const Text('ÎNREGISTREAZĂ-TE'),
+                      : Text(widget.isEditMode ? 'SALVEAZĂ MODIFICĂRI' : 'ÎNREGISTREAZĂ-TE'),
                 ),
                 const SizedBox(height: 24),
               ],

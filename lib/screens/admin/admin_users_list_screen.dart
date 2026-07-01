@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'admin_matches_list_screen.dart';
+import '../signup_screen.dart';
 
 class AdminUsersListScreen extends StatefulWidget {
   const AdminUsersListScreen({super.key});
@@ -123,54 +124,16 @@ class AdminUserDetailScreen extends StatefulWidget {
 }
 
 class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
-  late TextEditingController _nameController;
-  late TextEditingController _emailController;
-  late TextEditingController _phoneController;
-  late TextEditingController _levelController;
-  late TextEditingController _progressController;
-  late TextEditingController _matchesController;
-  late TextEditingController _pointsController;
-  
   bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
-    _nameController = TextEditingController(text: widget.userData['fullName'] ?? '');
-    _emailController = TextEditingController(text: widget.userData['email'] ?? '');
-    _phoneController = TextEditingController(text: widget.userData['phone'] ?? '');
-    _levelController = TextEditingController(text: (widget.userData['level'] ?? 1).toString());
-    _progressController = TextEditingController(text: (widget.userData['progress'] ?? 0.0).toString());
-    _matchesController = TextEditingController(text: (widget.userData['totalMatches'] ?? 0).toString());
-    _pointsController = TextEditingController(text: (widget.userData['points'] ?? 0).toString());
   }
 
-  Future<void> _updateUser() async {
-    setState(() => _isLoading = true);
-    try {
-      await FirebaseFirestore.instance.collection('users').doc(widget.userId).update({
-        'fullName': _nameController.text.trim(),
-        'email': _emailController.text.trim(),
-        'phone': _phoneController.text.trim(),
-        'level': int.tryParse(_levelController.text.trim()) ?? 1,
-        'progress': double.tryParse(_progressController.text.trim()) ?? 0.0,
-        'totalMatches': int.tryParse(_matchesController.text.trim()) ?? 0,
-        'points': int.tryParse(_pointsController.text.trim()) ?? 0,
-      });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Date utilizator actualizate!'), backgroundColor: Colors.green),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Eroare: $e'), backgroundColor: Colors.red),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
+  @override
+  void dispose() {
+    super.dispose();
   }
 
   Future<void> _deleteUser() async {
@@ -215,9 +178,14 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
     }
   }
 
-  Future<void> _sendPasswordReset() async {
-    final email = _emailController.text.trim();
-    if (email.isEmpty) return;
+  Future<void> _sendPasswordReset(String? userEmail) async {
+    final email = userEmail?.toString().trim() ?? '';
+    if (email.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Utilizatorul nu are o adresă de email validă.'), backgroundColor: Colors.red),
+      );
+      return;
+    }
     
     setState(() => _isLoading = true);
     try {
@@ -254,187 +222,130 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
             ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          children: [
-            const CircleAvatar(
-              radius: 40,
-              backgroundColor: Color(0xFF1E293B),
-              child: Icon(Icons.person, color: Color(0xFF00E5FF), size: 40),
-            ),
-            const SizedBox(height: 32),
-            TextFormField(
-              controller: _emailController,
-              style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(
-                labelText: 'Email (Contact & Login)',
-                labelStyle: TextStyle(color: Colors.grey),
-                enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.grey)),
-                focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF00E5FF))),
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _nameController,
-              style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(
-                labelText: 'Nume Complet',
-                labelStyle: TextStyle(color: Colors.grey),
-                enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.grey)),
-                focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF00E5FF))),
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _phoneController,
-              style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(
-                labelText: 'Telefon',
-                labelStyle: TextStyle(color: Colors.grey),
-                enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.grey)),
-                focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF00E5FF))),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Row(
+      body: StreamBuilder<DocumentSnapshot>(
+        stream: FirebaseFirestore.instance.collection('users').doc(widget.userId).snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)));
+          }
+
+          if (!snapshot.hasData || !snapshot.data!.exists) {
+            return const Center(
+              child: Text('Utilizatorul nu mai există', style: TextStyle(color: Colors.grey)),
+            );
+          }
+
+          final freshData = snapshot.data!.data() as Map<String, dynamic>;
+
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
               children: [
-                Expanded(
-                  child: TextFormField(
-                    controller: _levelController,
-                    style: const TextStyle(color: Colors.white),
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'Nivel',
-                      labelStyle: TextStyle(color: Colors.grey),
-                      enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.grey)),
-                      focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF00E5FF))),
+                const CircleAvatar(
+                  radius: 40,
+                  backgroundColor: Color(0xFF1E293B),
+                  child: Icon(Icons.person, color: Color(0xFF00E5FF), size: 40),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  freshData['fullName'] ?? freshData['name'] ?? 'Fără Nume',
+                  style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center,
+                ),
+                if (freshData['email'] != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    freshData['email'],
+                    style: const TextStyle(color: Colors.grey, fontSize: 16),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+                const SizedBox(height: 32),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => AdminMatchesListScreen(
+                            initialSearchQuery: freshData['fullName'] ?? '',
+                          ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.history),
+                    label: const Text('Vezi Istoric Meciuri'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF131A2A),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      side: const BorderSide(color: Colors.grey),
                     ),
                   ),
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: TextFormField(
-                    controller: _progressController,
-                    style: const TextStyle(color: Colors.white),
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(
-                      labelText: 'Progres (XP)',
-                      labelStyle: TextStyle(color: Colors.grey),
-                      enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.grey)),
-                      focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF00E5FF))),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    controller: _matchesController,
-                    style: const TextStyle(color: Colors.white),
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'Meciuri Jucate',
-                      labelStyle: TextStyle(color: Colors.grey),
-                      enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.grey)),
-                      focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF00E5FF))),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: TextFormField(
-                    controller: _pointsController,
-                    style: const TextStyle(color: Colors.white),
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'Puncte',
-                      labelStyle: TextStyle(color: Colors.grey),
-                      enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.grey)),
-                      focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF00E5FF))),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 32),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _isLoading ? null : _updateUser,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF00E5FF),
-                  foregroundColor: Colors.black,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                ),
-                child: _isLoading
-                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.black))
-                    : const Text('Salvează Modificări', style: TextStyle(fontWeight: FontWeight.bold)),
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Divider(color: Colors.grey),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => AdminMatchesListScreen(
-                        initialSearchQuery: widget.userData['fullName'] ?? '',
+                if (freshData['email'] != 'teisraul@yahoo.co.uk') ...[
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: _isLoading ? null : () => _sendPasswordReset(freshData['email']),
+                      icon: const Icon(Icons.lock_reset),
+                      label: const Text('Trimite Email Resetare Parolă', style: TextStyle(fontWeight: FontWeight.bold)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.transparent,
+                        foregroundColor: Colors.orangeAccent,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        side: const BorderSide(color: Colors.orangeAccent),
                       ),
                     ),
-                  );
-                },
-                icon: const Icon(Icons.history),
-                label: const Text('Vezi Istoric Meciuri'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF131A2A),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  side: const BorderSide(color: Colors.grey),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: _isLoading ? null : _deleteUser,
+                      icon: const Icon(Icons.delete),
+                      label: const Text('Șterge Utilizator', style: TextStyle(fontWeight: FontWeight.bold)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.transparent,
+                        foregroundColor: Colors.redAccent,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        side: const BorderSide(color: Colors.redAccent),
+                      ),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => SignupScreen(
+                            isEditMode: true,
+                            userId: widget.userId,
+                            userData: freshData,
+                          ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.edit_document),
+                    label: const Text('Editează Utilizator Complet (Formular)'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF131A2A),
+                      foregroundColor: Colors.amberAccent,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      side: const BorderSide(color: Colors.amberAccent),
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ),
-            if (widget.userData['email'] != 'teisraul@yahoo.co.uk') ...[
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: _isLoading ? null : _sendPasswordReset,
-                  icon: const Icon(Icons.lock_reset),
-                  label: const Text('Trimite Email Resetare Parolă', style: TextStyle(fontWeight: FontWeight.bold)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.transparent,
-                    foregroundColor: Colors.orangeAccent,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    side: const BorderSide(color: Colors.orangeAccent),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: _isLoading ? null : _deleteUser,
-                  icon: const Icon(Icons.delete),
-                  label: const Text('Șterge Utilizator', style: TextStyle(fontWeight: FontWeight.bold)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.transparent,
-                    foregroundColor: Colors.redAccent,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    side: const BorderSide(color: Colors.redAccent),
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
+          );
+        },
       ),
     );
   }

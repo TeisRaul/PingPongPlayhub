@@ -1336,7 +1336,14 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
           children: docs.map((doc) {
             final data = doc.data() as Map<String, dynamic>;
             final name = '${data['firstName'] ?? ''} ${data['lastName'] ?? ''}'.trim();
-            final price = data['trainerPrice'] ?? 0;
+            final pricePerMonth = data['trainerPricePerMonth'];
+            final pricePerSession = data['trainerPricePerSession'] ?? data['trainerPrice'];
+            
+            String priceText = '';
+            if (pricePerSession != null) priceText += '$pricePerSession RON / ședință';
+            if (pricePerMonth != null) priceText += (priceText.isEmpty ? '' : ' | ') + '$pricePerMonth RON / lună';
+            if (priceText.isEmpty) priceText = 'Preț nesetat';
+
             return Card(
               color: const Color(0xFF1E293B),
               margin: const EdgeInsets.only(bottom: 12),
@@ -1346,7 +1353,7 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
                   child: Icon(Icons.sports, color: Color(0xFF00E5FF)),
                 ),
                 title: Text(name.isEmpty ? 'Antrenor Necunoscut' : name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                subtitle: Text('Preț: $price RON/oră', style: const TextStyle(color: Color(0xFF00E5FF))),
+                subtitle: Text('Preț: $priceText', style: const TextStyle(color: Color(0xFF00E5FF))),
                 trailing: isReadOnly ? Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [

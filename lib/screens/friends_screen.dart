@@ -429,15 +429,24 @@ class _FriendsScreenState extends State<FriendsScreen> {
 
         // Friends Stream
         Expanded(
-          child: StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('friendships')
-                .where('uids', arrayContains: user?.uid)
-                .snapshots(),
-            builder: (context, snapshot) {
-              if (snapshot.hasError) {
-                return Center(child: Text('Eroare la încărcare: ${snapshot.error}', style: const TextStyle(color: Colors.redAccent)));
+          child: StreamBuilder<DocumentSnapshot>(
+            stream: FirebaseFirestore.instance.collection('users').doc(user?.uid).snapshots(),
+            builder: (context, userSnapshot) {
+              List<dynamic> closeFriends = [];
+              if (userSnapshot.hasData && userSnapshot.data!.exists) {
+                final userData = userSnapshot.data!.data() as Map<String, dynamic>;
+                closeFriends = userData['closeFriends'] ?? [];
               }
+
+              return StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('friendships')
+                    .where('uids', arrayContains: user?.uid)
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.hasError) {
+                    return Center(child: Text('Eroare la încărcare: ${snapshot.error}', style: const TextStyle(color: Colors.redAccent)));
+                  }
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)));
               }
@@ -480,6 +489,8 @@ class _FriendsScreenState extends State<FriendsScreen> {
                   final String otherUsername = (usernames.length > otherIdx) ? usernames[otherIdx] : 'Utilizator';
                   final String? otherAvatar = (avatars.length > otherIdx) ? avatars[otherIdx] : null;
 
+                  final bool isCloseFriend = closeFriends.contains(otherUid);
+
                   return Card(
                     color: const Color(0xFF131A2A),
                     margin: const EdgeInsets.only(bottom: 12),
@@ -497,10 +508,14 @@ class _FriendsScreenState extends State<FriendsScreen> {
                             : null,
                       ),
                       title: Text(otherUsername, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                      subtitle: const Text('Prieten Mutual', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                      subtitle: Text(isCloseFriend ? 'Close Friend' : 'Prieten Mutual', style: TextStyle(color: isCloseFriend ? Colors.amber : Colors.grey, fontSize: 12)),
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
+                          IconButton(
+                            icon: Icon(isCloseFriend ? Icons.star : Icons.star_border, color: isCloseFriend ? Colors.amber : Colors.grey),
+                            onPressed: () => _toggleCloseFriend(otherUid, isCloseFriend),
+                          ),
                           IconButton(
                             icon: const Icon(Icons.chat_bubble_outline, color: Color(0xFF00E5FF)),
                             onPressed: () {
@@ -524,8 +539,10 @@ class _FriendsScreenState extends State<FriendsScreen> {
                 },
               );
             },
-          ),
-        ),
+          );
+        },
+      ),
+    ),
 
         // Action Button: Create Match
         Container(
@@ -549,6 +566,28 @@ class _FriendsScreenState extends State<FriendsScreen> {
         ),
       ],
     );
+  }
+
+  Future<void> _toggleCloseFriend(String friendUid, bool isCurrentlyClose) async {
+    final user = _currentUser;
+    if (user == null) return;
+    
+    final docRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
+    try {
+      if (isCurrentlyClose) {
+        await docRef.update({
+          'closeFriends': FieldValue.arrayRemove([friendUid])
+        });
+      } else {
+        await docRef.update({
+          'closeFriends': FieldValue.arrayUnion([friendUid])
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Eroare: $e')));
+      }
+    }
   }
 
   Widget _buildSearchTab() {
