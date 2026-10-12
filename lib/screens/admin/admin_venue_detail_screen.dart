@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../utils/hour_utils.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../venue_signup_screen.dart';
@@ -445,7 +446,7 @@ class AdminVenueMatchesScreen extends StatelessWidget {
                 color: const Color(0xFF131A2A),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 child: ListTile(
-                  title: Text('$date | Ora $startHour:00', style: const TextStyle(color: Colors.white)),
+                  title: Text('$date | Ora ${formatHour(startHour)}', style: const TextStyle(color: Colors.white)),
                   subtitle: Text('Status: $status | Plată: $paymentStatus', style: const TextStyle(color: Colors.grey, fontSize: 12)),
                   trailing: ElevatedButton(
                     onPressed: () {

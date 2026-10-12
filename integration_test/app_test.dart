@@ -51,7 +51,7 @@ void main() {
 
       } else {
         // Nu suntem logați, verificăm ecranul de Login
-        expect(find.text('Continuă cu Google'), findsOneWidget);
+        expect(find.text('Logează-te cu Google'), findsOneWidget);
         print('Aplicația necesită login manual pentru a rula restul testelor E2E.');
       }
     });

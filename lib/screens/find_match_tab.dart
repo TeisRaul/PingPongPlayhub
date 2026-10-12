@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/hour_utils.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../data/mock_locations.dart';
@@ -19,7 +20,6 @@ class _FindMatchTabState extends State<FindMatchTab> {
   List<String> _selectedSports = [];
 
   List<PingPongLocation> _allLocations = List.from(mockLocations);
-  bool _isLoadingLocs = false;
 
   @override
   void initState() {
@@ -29,7 +29,6 @@ class _FindMatchTabState extends State<FindMatchTab> {
 
   Future<void> _loadFirestoreLocations() async {
     if (!mounted) return;
-    setState(() => _isLoadingLocs = true);
     try {
       final snapshot = await FirebaseFirestore.instance
           .collection('venues')
@@ -81,10 +80,6 @@ class _FindMatchTabState extends State<FindMatchTab> {
       }
     } catch (e) {
       debugPrint('Eroare incarcare sali din Firestore in filtrul de meciuri: $e');
-    } finally {
-      if (mounted) {
-        setState(() => _isLoadingLocs = false);
-      }
     }
   }
 
@@ -290,8 +285,8 @@ class _FindMatchTabState extends State<FindMatchTab> {
                 // Verificare trecut
                 try {
                   final dateStr = data['date'] as String;
-                  final startHour = data['startHour'] as int;
-                  final matchStart = DateTime.parse('$dateStr ${startHour.toString().padLeft(2, '0')}:00:00');
+                  final startHour = hourValue(data['startHour']);
+                  final matchStart = dateAtHour(dateStr, startHour);
                   if (DateTime.now().isAfter(matchStart)) return false;
                 } catch (_) {}
 
@@ -403,7 +398,7 @@ class _FindMatchTabState extends State<FindMatchTab> {
                               const SizedBox(width: 16),
                               const Icon(Icons.access_time, size: 16, color: Colors.grey),
                               const SizedBox(width: 8),
-                              Text('${data['startHour']}:00 - ${data['endHour']}:00', style: const TextStyle(color: Colors.white)),
+                              Text('${formatHour(data['startHour'])} - ${formatHour(data['endHour'])}', style: const TextStyle(color: Colors.white)),
                             ],
                           ),
                           const SizedBox(height: 16),

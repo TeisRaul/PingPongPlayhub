@@ -85,7 +85,6 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
   final _invoiceEmailController = TextEditingController();
 
   List<PingPongLocation> _allLocations = List.from(mockLocations);
-  bool _isLoadingLocs = false;
 
   @override
   void dispose() {
@@ -106,7 +105,6 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
 
   Future<void> _loadFirestoreLocations() async {
     if (!mounted) return;
-    setState(() => _isLoadingLocs = true);
     try {
       final snapshot = await FirebaseFirestore.instance
           .collection('venues')
@@ -171,10 +169,6 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
       }
     } catch (e) {
       debugPrint('Eroare incarcare sali din Firestore in meci privat: $e');
-    } finally {
-      if (mounted) {
-        setState(() => _isLoadingLocs = false);
-      }
     }
   }
 
@@ -529,58 +523,6 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
-  }
-
-  Future<String?> _getBlockedReason() async {
-    if (_selectedLocation == null) return null;
-    try {
-      final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
-
-      // 1. Check if the venue has manually blocked the entire day
-      final venueQuery = await FirebaseFirestore.instance
-          .collection('venues')
-          .where('venueName', isEqualTo: _selectedLocation!.name)
-          .get();
-
-      if (venueQuery.docs.isNotEmpty) {
-        final data = venueQuery.docs.first.data();
-        final blockedDates = List<dynamic>.from(data['blockedDates'] ?? []);
-        if (blockedDates.contains(dateStr)) {
-          return 'day';
-        }
-      }
-
-      // 2. Check if there is an overlapping active tournament
-      if (_startHour != null && _endHour != null) {
-        final tourQuery = await FirebaseFirestore.instance
-            .collection('tournaments')
-            .where('venueName', isEqualTo: _selectedLocation!.name)
-            .where('date', isEqualTo: dateStr)
-            .get();
-
-        for (var doc in tourQuery.docs) {
-          final data = doc.data();
-          final String status = data['status'] ?? 'open';
-          if (status != 'open' && status != 'active') continue;
-
-          final String tourTime = data['time'] ?? '';
-          final String tourEndTime = data['endTime'] ?? '';
-          final String tourTitle = data['title'] ?? 'Turneu';
-
-          final int tourStart = _parseTimeStr(tourTime, 0);
-          final int tourEnd = _parseTimeStr(tourEndTime, tourStart + 3); // Fallback: 3 hours for legacy tournaments
-
-          // Verify time span overlap: matchStart < tourEnd && tourStart < matchEnd
-          if (_startHour! < tourEnd && tourStart < _endHour!) {
-            final String timeDisplay = tourEndTime.isNotEmpty ? '$tourTime - $tourEndTime' : '$tourTime (aprox. 3 ore)';
-            return 'tournament|$tourTitle|$timeDisplay';
-          }
-        }
-      }
-    } catch (e) {
-      debugPrint('Error checking blocked reason: $e');
-    }
-    return null;
   }
 
   int _parseTimeStr(String timeStr, int fallbackHour) {

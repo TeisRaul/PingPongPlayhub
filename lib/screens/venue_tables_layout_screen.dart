@@ -38,7 +38,6 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
   Map<String, List<Map<String, dynamic>>> _layouts = {};
 
   List<Map<String, dynamic>> get _customTables => _layouts[_selectedSport] ?? [];
-  set _customTables(List<Map<String, dynamic>> val) => _layouts[_selectedSport] = val;
 
   Map<String, dynamic> _trainingConfig = {
     'enabled': false,

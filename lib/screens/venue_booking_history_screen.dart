@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/hour_utils.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
@@ -43,22 +44,12 @@ class _VenueBookingHistoryScreenState extends State<VenueBookingHistoryScreen> {
     }
   }
 
-  bool _isPastMatch(String dateStr, int endHour) {
+  bool _isPastMatch(String dateStr, double endHour) {
     try {
-      final matchEnd = DateTime.parse('$dateStr ${endHour.toString().padLeft(2, '0')}:00:00');
+      final matchEnd = dateAtHour(dateStr, endHour);
       return DateTime.now().isAfter(matchEnd);
     } catch (_) {
       return false;
-    }
-  }
-
-  bool _isAllowedToConfirm(String dateStr, int startHour) {
-    try {
-      final matchStart = DateTime.parse('$dateStr ${startHour.toString().padLeft(2, '0')}:00:00');
-      final allowedTime = matchStart.subtract(const Duration(minutes: 10));
-      return DateTime.now().isAfter(allowedTime);
-    } catch (_) {
-      return true;
     }
   }
 
@@ -99,7 +90,7 @@ class _VenueBookingHistoryScreenState extends State<VenueBookingHistoryScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('Jucător: $hostName', style: const TextStyle(color: Colors.white70)),
-                Text('Data: ${data['date']} | ${data['startHour']}:00 - ${data['endHour']}:00', style: const TextStyle(color: Colors.white70)),
+                Text('Data: ${data['date']} | ${formatHour(data['startHour'])} - ${formatHour(data['endHour'])}', style: const TextStyle(color: Colors.white70)),
                 Text('Masa: ${data['tableId']}', style: const TextStyle(color: Colors.white70)),
                 const SizedBox(height: 10),
                 if (!isPaid) 
@@ -238,7 +229,7 @@ class _VenueBookingHistoryScreenState extends State<VenueBookingHistoryScreen> {
                   final data = doc.data() as Map<String, dynamic>;
                   final String status = data['status'] ?? 'open';
                   final String date = data['date'] ?? '';
-                  final int endHour = data['endHour'] ?? 0;
+                  final double endHour = hourValue(data['endHour']);
                   final bool isPast = _isPastMatch(date, endHour);
 
                   // A past match can be classified as historical
@@ -264,8 +255,8 @@ class _VenueBookingHistoryScreenState extends State<VenueBookingHistoryScreen> {
                   final bData = b.data() as Map<String, dynamic>;
                   final String aDate = aData['date'] ?? '';
                   final String bDate = bData['date'] ?? '';
-                  final int aHour = aData['startHour'] ?? 0;
-                  final int bHour = bData['startHour'] ?? 0;
+                  final double aHour = hourValue(aData['startHour']);
+                  final double bHour = hourValue(bData['startHour']);
 
                   int dateComp = bDate.compareTo(aDate);
                   if (dateComp != 0) return dateComp;
@@ -297,8 +288,8 @@ class _VenueBookingHistoryScreenState extends State<VenueBookingHistoryScreen> {
                     final data = filtered[index].data() as Map<String, dynamic>;
                     final String hostName = data['hostUsername'] ?? 'Host';
                     final String date = data['date'] ?? '';
-                    final int startHour = data['startHour'] ?? 0;
-                    final int endHour = data['endHour'] ?? 0;
+                    final double startHour = hourValue(data['startHour']);
+                    final double endHour = hourValue(data['endHour']);
                     final int tableId = data['tableId'] ?? 1;
                     final bool isFriendly = data['isFriendly'] ?? false;
                     final String status = data['status'] ?? 'open';
@@ -377,7 +368,7 @@ class _VenueBookingHistoryScreenState extends State<VenueBookingHistoryScreen> {
                                 const Icon(Icons.calendar_month, color: Colors.white38, size: 16),
                                 const SizedBox(width: 8),
                                 Text(
-                                  '$date  |  $startHour:00 - $endHour:00',
+                                  '$date  |  ${formatHour(startHour)} - ${formatHour(endHour)}',
                                   style: const TextStyle(color: Colors.white70, fontSize: 13),
                                 ),
                               ],

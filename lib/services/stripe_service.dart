@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
 import 'package:http/http.dart' as http;
 
@@ -7,12 +8,7 @@ class StripeService {
   StripeService._();
   static final StripeService instance = StripeService._();
 
-  // URL-ul catre functia Firebase (se va inlocui cu cel din productie dupa deploy)
-  // Deoarece suntem in faza de test/emulare locala, putem folosi emulatorul sau vom face deploy functiei.
-  // Pentru moment vom mock-ui cererea catre Firebase daca nu am facut deploy
-  // DAR daca am facut deploy, trebuie inlocuit cu URL-ul real (ex: https://us-central1-pingpongplayhub1.cloudfunctions.net/createStripePaymentIntent)
-  // Totusi, pentru simulare cat timp nu sunt pornite functiile in cloud: vom face call direct la API-ul Stripe pe client (DOAR PENTRU DEMONSTRATIE - In productie e complet nesigur)
-  // DAR conform cerintelor am facut Firebase Functions. Presupunem ca functia este live la acest URL:
+  // Functia Cloud care creeaza PaymentIntent-ul (cere utilizator autentificat).
   final String _createIntentUrl = 'https://us-central1-pingpongplayhub1.cloudfunctions.net/createStripePaymentIntent';
 
   Future<void> init() async {
@@ -28,26 +24,26 @@ class StripeService {
         'currency': 'ron',
         'venueId': venueId,
       };
-      
-      if (destinationAccountId != null && destinationAccountId.isNotEmpty) {
-        bodyData['destinationAccountId'] = destinationAccountId;
+
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw Exception('Trebuie să fii autentificat pentru a plăti.');
       }
+      final idToken = await user.getIdToken();
 
       final response = await http.post(
         Uri.parse(_createIntentUrl),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $idToken',
+        },
         body: jsonEncode(bodyData),
       );
 
-      String clientSecret = '';
-
-      if (response.statusCode == 200) {
-        final body = jsonDecode(response.body);
-        clientSecret = body['paymentIntent'];
-      } else {
-        // Fallback demo in caz ca functia nu e inca deployata
-        clientSecret = await _mockPaymentIntentForDemo(amount);
+      if (response.statusCode != 200) {
+        throw Exception('Nu s-a putut inițializa plata (${response.statusCode}).');
       }
+      final String clientSecret = jsonDecode(response.body)['paymentIntent'];
 
       // 2. Initializam Payment Sheet cu butoanele de Apple/Google Pay activate automat
       await Stripe.instance.initPaymentSheet(
@@ -100,32 +96,6 @@ class StripeService {
         );
       }
       return false;
-    }
-  }
-
-  // Backup pentru demo local daca nu avem functiile Cloud activate
-  Future<String> _mockPaymentIntentForDemo(double amount) async {
-    const String secretKey = 'sk_test_51TavkBFE1XwqOjnW3Z4Dd8yp8OzQGcajHc3dDhxPHYQpYqizY73xPTQYvtpM7OHO2axJZI2hZReldSf1bvH6EXUc001ofk2QZr';
-    
-    final body = {
-      'amount': (amount * 100).toInt().toString(),
-      'currency': 'ron',
-      'payment_method_types[]': 'card',
-    };
-
-    final response = await http.post(
-      Uri.parse('https://api.stripe.com/v1/payment_intents'),
-      headers: {
-        'Authorization': 'Bearer $secretKey',
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: body,
-    );
-
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body)['client_secret'];
-    } else {
-      throw Exception('Failed to mock intent');
     }
   }
 }

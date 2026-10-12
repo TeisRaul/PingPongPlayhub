@@ -46,15 +46,12 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
           .get();
 
       int w = 0;
-      int l = 0;
       
       // We assume there's a winnerUid field or we just read from user profile
       for (var match in matchesQuery.docs) {
         final data = match.data();
         if (data['winnerUid'] == user.uid) {
           w++;
-        } else if (data['winnerUid'] != null && data['winnerUid'] != user.uid) {
-          l++;
         }
       }
       
@@ -254,22 +251,30 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
                             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Completati ambele campuri!'), backgroundColor: Colors.red));
                             return;
                           }
-                          // Simplistic validation
-                          if (newPassCtrl.text.length < 8) {
-                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Parola nouă trebuie să aibă cel puțin 8 caractere!'), backgroundColor: Colors.red));
+                          final newP = newPassCtrl.text;
+                          if (newP.length < 8 ||
+                              !newP.contains(RegExp(r'[A-Z]')) ||
+                              !newP.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>]'))) {
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Parola nouă trebuie să aibă minim 8 caractere, o literă mare și un simbol.'), backgroundColor: Colors.red));
                             return;
                           }
                           
                           setDialogState(() => isSaving = true);
                           try {
-                            // Dummy: logic goes here to update password via FirebaseAuth
-                            await Future.delayed(const Duration(seconds: 1));
+                            final authUser = FirebaseAuth.instance.currentUser;
+                            if (authUser == null || authUser.email == null) {
+                              throw Exception('Nu ești autentificat cu email și parolă.');
+                            }
+                            final credential = EmailAuthProvider.credential(email: authUser.email!, password: oldPassCtrl.text);
+                            await authUser.reauthenticateWithCredential(credential);
+                            await authUser.updatePassword(newP);
                             if (mounted) {
                               Navigator.pop(context);
                               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Parola a fost schimbată!'), backgroundColor: Colors.green));
                             }
                           } catch (e) {
-                            if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Eroare: $e'), backgroundColor: Colors.red));
+                            final wrongOld = e is FirebaseAuthException && (e.code == 'wrong-password' || e.code == 'invalid-credential');
+                            if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(wrongOld ? 'Parola veche este incorectă.' : 'Eroare: $e'), backgroundColor: Colors.red));
                           } finally {
                             if (mounted) setDialogState(() => isSaving = false);
                           }

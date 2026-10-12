@@ -188,7 +188,7 @@ class SeedDataService {
     for (int i = 0; i < (count / 2).floor(); i++) {
       final authorId = userIds[random.nextInt(userIds.length)];
       final userSnap = await firestore.collection('users').doc(authorId).get();
-      final userData = userSnap.data() as Map<String, dynamic>?;
+      final userData = userSnap.data();
       
       if (userData != null) {
         await firestore.collection('posts').add({

@@ -1,95 +1,136 @@
 const {onRequest} = require("firebase-functions/v2/https");
+const {defineSecret} = require("firebase-functions/params");
 const admin = require("firebase-admin");
 
-// Initialize Firebase Admin
 admin.initializeApp();
 
-// Hardcoded Stripe Secret Key based on User provision
-const stripe = require("stripe")("sk_test_51TavkBFE1XwqOjnW3Z4Dd8yp8OzQGcajHc3dDhxPHYQpYqizY73xPTQYvtpM7OHO2axJZI2hZReldSf1bvH6EXUc001ofk2QZr");
+// Cheia secretă Stripe NU se mai ține în cod. Se setează o singură dată cu:
+//   firebase functions:secrets:set STRIPE_SECRET_KEY
+const STRIPE_SECRET_KEY = defineSecret("STRIPE_SECRET_KEY");
 
-exports.createStripePaymentIntent = onRequest({cors: true}, async (req, res) => {
+const PLATFORM_FEE_BANI = 500; // 5 RON
+const MIN_AMOUNT_RON = 1;
+const MAX_AMOUNT_RON = 2000;
+
+function getStripe() {
+  return require("stripe")(STRIPE_SECRET_KEY.value());
+}
+
+// Verifică Firebase ID token din header-ul Authorization: Bearer <token>.
+async function authenticate(req, res) {
+  const header = req.get("Authorization") || "";
+  const match = header.match(/^Bearer (.+)$/);
+  if (!match) {
+    res.status(401).json({error: "Missing auth token"});
+    return null;
+  }
+  try {
+    return await admin.auth().verifyIdToken(match[1]);
+  } catch (e) {
+    res.status(401).json({error: "Invalid auth token"});
+    return null;
+  }
+}
+
+const options = {cors: true, secrets: [STRIPE_SECRET_KEY]};
+
+exports.createStripePaymentIntent = onRequest(options, async (req, res) => {
   if (req.method !== "POST") {
     return res.status(405).send("Method Not Allowed");
   }
+  const decoded = await authenticate(req, res);
+  if (!decoded) return;
 
   try {
-    const { amount, currency = "ron", venueId, destinationAccountId } = req.body;
-    
-    if (!amount) {
-      return res.status(400).send("Missing amount");
+    const {amount, venueId} = req.body || {};
+
+    const amountRon = Number(amount);
+    if (!Number.isFinite(amountRon) ||
+        amountRon < MIN_AMOUNT_RON || amountRon > MAX_AMOUNT_RON) {
+      return res.status(400).json({error: "Invalid amount"});
+    }
+    if (typeof venueId !== "string" || venueId.length === 0) {
+      return res.status(400).json({error: "Missing venueId"});
     }
 
-    // Convert amount to cents for Stripe (e.g. 10.50 RON -> 1050)
-    const amountInCents = Math.round(parseFloat(amount) * 100);
+    const amountInBani = Math.round(amountRon * 100);
 
-    const paymentIntentConfig = {
-      amount: amountInCents,
-      currency: currency,
-      automatic_payment_methods: {
-        enabled: true,
-      },
-      metadata: {
-        venueId: venueId || "unknown",
-      }
+    const config = {
+      amount: amountInBani,
+      currency: "ron", // fix, nu mai vine de la client
+      automatic_payment_methods: {enabled: true},
+      metadata: {venueId, uid: decoded.uid},
     };
 
-    // If destinationAccountId is provided, we route funds and take 5 RON fee
-    if (destinationAccountId) {
-      paymentIntentConfig.transfer_data = {
-        destination: destinationAccountId,
-      };
-      // The platform fee is 5 RON = 500 bani
-      paymentIntentConfig.application_fee_amount = 500;
+    // Contul de destinație se citește din Firestore, nu de la client.
+    const venueDoc = await admin.firestore().collection("venues").doc(venueId).get();
+    const destination = venueDoc.exists ? venueDoc.data().stripeAccountId : null;
+    if (destination && amountInBani > PLATFORM_FEE_BANI) {
+      config.transfer_data = {destination};
+      config.application_fee_amount = PLATFORM_FEE_BANI;
     }
 
-    // Create a PaymentIntent
-    const paymentIntent = await stripe.paymentIntents.create(paymentIntentConfig);
+    const paymentIntent = await getStripe().paymentIntents.create(config);
 
     res.status(200).json({
       paymentIntent: paymentIntent.client_secret,
       ephemeralKey: "",
-      customer: ""
+      customer: "",
     });
   } catch (error) {
     console.error("Stripe Error:", error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({error: "Payment initialization failed"});
   }
 });
 
-exports.createStripeConnectAccount = onRequest({cors: true}, async (req, res) => {
+exports.createStripeConnectAccount = onRequest(options, async (req, res) => {
   if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
-  
+  const decoded = await authenticate(req, res);
+  if (!decoded) return;
+
   try {
-    const { email } = req.body;
-    const account = await stripe.accounts.create({
-      type: 'express',
-      email: email,
+    const account = await getStripe().accounts.create({
+      type: "express",
+      email: decoded.email || undefined, // din token, nu de la client
       capabilities: {
-        card_payments: { requested: true },
-        transfers: { requested: true },
+        card_payments: {requested: true},
+        transfers: {requested: true},
       },
     });
-
-    res.status(200).json({ accountId: account.id });
+    res.status(200).json({accountId: account.id});
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error("Stripe Connect Error:", error);
+    res.status(500).json({error: "Could not create account"});
   }
 });
 
-exports.createStripeAccountLink = onRequest({cors: true}, async (req, res) => {
+exports.createStripeAccountLink = onRequest(options, async (req, res) => {
   if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
-  
-  try {
-    const { accountId } = req.body;
-    const accountLink = await stripe.accountLinks.create({
-      account: accountId,
-      refresh_url: 'https://pingpongplayhub.web.app/reauth', // placeholders
-      return_url: 'https://pingpongplayhub.web.app/return',
-      type: 'account_onboarding',
-    });
+  const decoded = await authenticate(req, res);
+  if (!decoded) return;
 
-    res.status(200).json({ url: accountLink.url });
+  try {
+    const {accountId} = req.body || {};
+    if (typeof accountId !== "string" || !accountId.startsWith("acct_")) {
+      return res.status(400).json({error: "Invalid accountId"});
+    }
+
+    // Doar proprietarul sălii care are acest cont Stripe poate cere link-ul.
+    const owned = await admin.firestore().collection("venues")
+        .where("stripeAccountId", "==", accountId).limit(1).get();
+    if (owned.empty || owned.docs[0].id !== decoded.uid) {
+      return res.status(403).json({error: "Not allowed"});
+    }
+
+    const accountLink = await getStripe().accountLinks.create({
+      account: accountId,
+      refresh_url: "https://pingpongplayhub.web.app/reauth", // placeholders
+      return_url: "https://pingpongplayhub.web.app/return",
+      type: "account_onboarding",
+    });
+    res.status(200).json({url: accountLink.url});
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error("Stripe AccountLink Error:", error);
+    res.status(500).json({error: "Could not create link"});
   }
 });

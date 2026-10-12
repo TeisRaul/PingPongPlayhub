@@ -1,8 +1,231 @@
 rules_version = '2';
+
+// Reguli Firestore pentru PingPong Playhub.
+//
+// IMPORTANT: aplicația face încă multe scrieri între utilizatori direct din client
+// (rating după meci, trustScore, notificări, join la meci). Regulile de mai jos
+// blochează accesul anonim, escaladarea de privilegii (isAdmin/role/isVerified) și
+// modificarea plăților de către jucători, dar nu pot valida valorile.
+// Pasul următor: mută rating-ul, plățile și rezervările în Cloud Functions.
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // ---------- Helpers ----------
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function uid() {
+      return request.auth.uid;
+    }
+
+    function isOwner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function isSuperAdmin() {
+      return signedIn() && request.auth.token.email == 'teisraul@yahoo.co.uk';
+    }
+
+    function isAdmin() {
+      return isSuperAdmin() ||
+        (signedIn() &&
+         exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('isAdmin', false) == true);
+    }
+
+    // Câmpurile care se schimbă efectiv într-un update.
+    function changed() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    function isTournamentChat(chatId) {
+      return chatId.matches('tournament_.*');
+    }
+
+    // ---------- Utilizatori ----------
+    match /users/{userId} {
+      allow read: if signedIn();
+
+      // Contul nou nu își poate seta singur drepturi de admin / rol.
+      allow create: if isAdmin() ||
+        (isOwner(userId) && !request.resource.data.keys().hasAny(['isAdmin', 'role']));
+
+      allow update: if isAdmin() ||
+        // Propriul profil, fără câmpuri de privilegii.
+        (isOwner(userId) && !changed().hasAny(['isAdmin', 'role'])) ||
+        // Actualizări între utilizatori făcute de aplicație (rating după meci,
+        // trustScore, urmăriri). Doar aceste câmpuri.
+        (signedIn() && changed().hasOnly(['rating', 'trustScore', 'followers', 'following', 'followRequests']));
+
+      allow delete: if isAdmin();
+
+      match /subscriptions/{subId} {
+        allow read: if signedIn();
+        allow create: if isOwner(userId);
+        allow update, delete: if isOwner(userId) || isAdmin();
+      }
+
+      match /reviews/{reviewId} {
+        allow read: if signedIn();
+        allow create: if signedIn() && request.resource.data.get('authorId', '') == uid();
+        allow update, delete: if isAdmin();
+      }
+    }
+
+    // ---------- Săli ----------
+    match /venues/{venueId} {
+      allow read: if signedIn();
+
+      allow create: if isAdmin() || isOwner(venueId);
+
+      allow update: if isAdmin() ||
+        // Sala își editează profilul, dar nu își poate (re)seta verificarea sau rating-ul.
+        (isOwner(venueId) && !changed().hasAny(['isVerified', 'ratingTotal', 'ratingCount', 'rating'])) ||
+        // Orice jucător poate lăsa o recenzie (actualizează media sălii).
+        (signedIn() && changed().hasOnly(['ratingTotal', 'ratingCount', 'rating']));
+
+      allow delete: if isAdmin();
+
+      match /inventory/{itemId} {
+        allow read: if signedIn();
+        allow write: if isOwner(venueId) || isAdmin();
+      }
+
+      match /reviews/{reviewId} {
+        allow read: if signedIn();
+        allow create: if signedIn() &&
+          request.resource.data.get('authorUid', request.resource.data.get('authorId', '')) == uid();
+        allow update, delete: if isAdmin();
+      }
+    }
+
+    // ---------- Meciuri / rezervări ----------
+    match /matches/{matchId} {
+      allow read: if signedIn();
+
+      // Jucătorul creează pentru el; sala poate crea rezervări offline (locationId = uid sală).
+      allow create: if signedIn() &&
+        (request.resource.data.get('hostUid', '') == uid() ||
+         request.resource.data.get('locationId', '') == uid() ||
+         isAdmin());
+
+      allow update: if signedIn() && (
+        isAdmin() ||
+        // Sala poate modifica orice la rezervările ei (plăți, anulări, comenzi bar).
+        resource.data.get('locationId', '') == uid() ||
+        // Gazda / participanții: fără câmpurile de plată.
+        ((resource.data.get('hostUid', '') == uid() ||
+          uid() in resource.data.get('joinedUids', [])) &&
+         !changed().hasAny(['paymentStatus', 'paymentMethod', 'paymentSplit', 'price', 'refundedAmount', 'barOrderItems', 'extraServices', 'invoiceData', 'locationId'])) ||
+        // Alt jucător care se alătură la masă.
+        changed().hasOnly(['joinedPlayers', 'joinedUids', 'status'])
+      );
+
+      allow delete: if signedIn() &&
+        (isAdmin() ||
+         resource.data.get('hostUid', '') == uid() ||
+         resource.data.get('locationId', '') == uid() ||
+         uid() in resource.data.get('joinedUids', []));
+    }
+
+    // ---------- Notificări ----------
+    match /notifications/{notificationId} {
+      allow read: if signedIn() && (resource.data.get('toUid', '') == uid() || isAdmin());
+      allow create: if signedIn();
+      allow update, delete: if signedIn() && (resource.data.get('toUid', '') == uid() || isAdmin());
+    }
+
+    // ---------- Prieteni ----------
+    match /friend_requests/{requestId} {
+      allow read: if signedIn() &&
+        (resource.data.get('fromUid', '') == uid() || resource.data.get('toUid', '') == uid() || isAdmin());
+      allow create: if signedIn() && request.resource.data.get('fromUid', '') == uid();
+      allow update: if signedIn() && resource.data.get('toUid', '') == uid();
+      allow delete: if signedIn() &&
+        (resource.data.get('fromUid', '') == uid() || resource.data.get('toUid', '') == uid());
+    }
+
+    match /friendships/{friendshipId} {
+      // resource == null: aplicația citește documentul pentru a verifica dacă există.
+      allow get: if signedIn() && (resource == null || uid() in resource.data.get('uids', []));
+      allow list: if signedIn() && uid() in resource.data.get('uids', []);
+      allow create: if signedIn() && uid() in request.resource.data.get('uids', []);
+      allow update: if signedIn() && uid() in resource.data.get('uids', []);
+      allow delete: if signedIn() && uid() in resource.data.get('uids', []);
+    }
+
+    // ---------- Chat ----------
+    match /chats/{chatId} {
+      allow get: if signedIn() &&
+        (isTournamentChat(chatId) || resource == null || uid() in resource.data.get('uids', []));
+      allow list: if signedIn() &&
+        (isTournamentChat(chatId) || uid() in resource.data.get('uids', []));
+      allow create: if signedIn() &&
+        (isTournamentChat(chatId) || uid() in request.resource.data.get('uids', []));
+      allow update: if signedIn() &&
+        (isTournamentChat(chatId) || uid() in resource.data.get('uids', []));
+      allow delete: if isAdmin();
+
+      match /messages/{messageId} {
+        allow read: if signedIn() &&
+          (isTournamentChat(chatId) ||
+           uid() in get(/databases/$(database)/documents/chats/$(chatId)).data.get('uids', []));
+        // getAfter: la primul mesaj, chat-ul se creează în același batch.
+        allow create: if signedIn() &&
+          request.resource.data.get('senderUid', '') == uid() &&
+          (isTournamentChat(chatId) ||
+           uid() in getAfter(/databases/$(database)/documents/chats/$(chatId)).data.get('uids', []));
+        allow update, delete: if isAdmin();
+      }
+    }
+
+    // ---------- Feed ----------
+    match /posts/{postId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.get('authorUid', '') == uid();
+      allow update: if signedIn() &&
+        (resource.data.get('authorUid', '') == uid() ||
+         isAdmin() ||
+         changed().hasOnly(['likedBy', 'likesCount', 'commentsCount']));
+      allow delete: if signedIn() && (resource.data.get('authorUid', '') == uid() || isAdmin());
+
+      match /comments/{commentId} {
+        allow read: if signedIn();
+        allow create: if signedIn() && request.resource.data.get('authorUid', '') == uid();
+        allow update, delete: if signedIn() &&
+          (resource.data.get('authorUid', '') == uid() || isAdmin());
+      }
+    }
+
+    // ---------- Turnee ----------
+    match /tournaments/{tournamentId} {
+      allow read: if signedIn();
+      allow create: if signedIn();
+      allow update: if signedIn() && (
+        isAdmin() ||
+        resource.data.get('venueId', '') == uid() ||
+        resource.data.get('proposerUid', '') == uid() ||
+        changed().hasOnly(['joinedPlayers', 'joinedUids'])
+      );
+      allow delete: if signedIn() &&
+        (isAdmin() || resource.data.get('venueId', '') == uid() || resource.data.get('proposerUid', '') == uid());
+    }
+
+    // ---------- Antrenori ----------
+    match /reservations/{reservationId} {
+      allow read: if signedIn() &&
+        (resource.data.get('trainerId', '') == uid() || resource.data.get('creatorId', '') == uid() || isAdmin());
+      allow create: if signedIn() && request.resource.data.get('creatorId', '') == uid();
+      allow update: if signedIn() &&
+        (resource.data.get('trainerId', '') == uid() || resource.data.get('creatorId', '') == uid());
+      allow delete: if isAdmin();
+    }
+
+    // ---------- Orice altceva: doar adminul ----------
+    // (scripturile de seed și ecranele de admin au nevoie de acces larg)
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if isAdmin();
     }
   }
 }

@@ -438,7 +438,6 @@ class _CreateTournamentFormState extends State<CreateTournamentForm> {
 
   Future<void> _loadVenues() async {
     try {
-      final snap = await FirebaseFirestore.instance.collection('users').get();
       // We actually need to query 'venues' collection if it exists. But previously we checked users and venues.
       // The venues are those where isVerified is true (wait, earlier it was 'users' or 'venues').
       // Let's query 'venues' collection.
@@ -1646,13 +1645,10 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> with 
 
         final data = tourDoc.data() as Map<String, dynamic>;
         final String title = data['title'] ?? 'Turneu';
-        final String status = data['status'] ?? 'open';
         final List<dynamic> joinedUids = data['joinedUids'] ?? [];
         final List<dynamic> joinedPlayers = data['joinedPlayers'] ?? [];
         final int maxPlayers = data['maxPlayers'] ?? 8;
         final String venueId = data['venueId'] ?? '';
-        final String date = data['date'] ?? '';
-        final String time = data['time'] ?? '';
 
         final user = FirebaseAuth.instance.currentUser;
         final bool isJoined = user != null && joinedUids.contains(user.uid);

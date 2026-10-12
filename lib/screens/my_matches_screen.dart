@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/hour_utils.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../utils/level_utils.dart';
@@ -113,8 +114,8 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
   bool _isPast(Map<String, dynamic> data) {
     try {
       final dateStr = data['date'] as String;
-      final endHour = data['endHour'] as int;
-      final matchEnd = DateTime.parse('$dateStr ${endHour.toString().padLeft(2, '0')}:00:00');
+      final endHour = hourValue(data['endHour']);
+      final matchEnd = dateAtHour(dateStr, endHour);
       return DateTime.now().isAfter(matchEnd);
     } catch (e) {
       return false;
@@ -424,7 +425,7 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
               ),
               const SizedBox(height: 20),
               Text('${data['locationName'] ?? 'Sală'} - ${data['date'] ?? ''}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-              Text('${data['startHour'] ?? '?'}:00 - ${data['endHour'] ?? '?'}:00', style: const TextStyle(color: Colors.grey)),
+              Text('${formatHour(data['startHour'])} - ${formatHour(data['endHour'])}', style: const TextStyle(color: Colors.grey)),
             ],
           ),
           actions: [
@@ -441,11 +442,11 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
   void _addToCalendar(Map<String, dynamic> data) async {
     try {
       final dateStr = data['date'] as String? ?? '2026-01-01'; // fallback
-      final startHour = data['startHour'] as int? ?? 10;
-      final endHour = data['endHour'] as int? ?? 11;
+      final startHour = hourValue(data['startHour'], 10);
+      final endHour = hourValue(data['endHour'], 11);
 
-      final startDate = DateTime.parse('$dateStr ${startHour.toString().padLeft(2, '0')}:00:00');
-      final endDate = DateTime.parse('$dateStr ${endHour.toString().padLeft(2, '0')}:00:00');
+      final startDate = dateAtHour(dateStr, startHour);
+      final endDate = dateAtHour(dateStr, endHour);
 
       final Event event = Event(
         title: 'Meci Playhub',
@@ -479,8 +480,8 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
     bool canCancel = false;
     try {
       final dateStr = data['date'] as String;
-      final startHour = data['startHour'] as int;
-      final matchStart = DateTime.parse('$dateStr ${startHour.toString().padLeft(2, '0')}:00:00');
+      final startHour = hourValue(data['startHour']);
+      final matchStart = dateAtHour(dateStr, startHour);
       if (matchStart.difference(DateTime.now()).inHours >= 24) {
         canCancel = true;
       }
@@ -510,7 +511,7 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
               ],
             ),
             const SizedBox(height: 8),
-            Text('${data['date']} | ${data['startHour']}:00 - ${data['endHour']}:00', style: const TextStyle(color: Colors.grey)),
+            Text('${data['date']} | ${formatHour(data['startHour'])} - ${formatHour(data['endHour'])}', style: const TextStyle(color: Colors.grey)),
             const SizedBox(height: 16),
             const Text('Jucători la masă:', style: TextStyle(color: Colors.grey)),
             const SizedBox(height: 8),

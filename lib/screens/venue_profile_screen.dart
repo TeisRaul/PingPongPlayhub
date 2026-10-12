@@ -386,13 +386,14 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
       );
 
       String accountId = existingAccountId ?? '';
+      final idToken = await user.getIdToken();
 
       // 1. Create account if doesn't exist
       if (accountId.isEmpty) {
         final res = await http.post(
           Uri.parse('https://us-central1-pingpongplayhub1.cloudfunctions.net/createStripeConnectAccount'),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({'email': user.email}),
+          headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $idToken'},
+          body: jsonEncode({}),
         );
         if (res.statusCode == 200) {
           accountId = jsonDecode(res.body)['accountId'];
@@ -408,7 +409,7 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
       // 2. Create account link
       final linkRes = await http.post(
         Uri.parse('https://us-central1-pingpongplayhub1.cloudfunctions.net/createStripeAccountLink'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $idToken'},
         body: jsonEncode({'accountId': accountId}),
       );
 

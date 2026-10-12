@@ -81,10 +81,8 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
     if (!targetDoc.exists || !currentUserDoc.exists) return;
 
     final targetData = targetDoc.data()!;
-    final currentUserData = currentUserDoc.data()!;
 
     final List<dynamic> targetFollowers = targetData['followers'] ?? [];
-    final List<dynamic> myFollowing = currentUserData['following'] ?? [];
 
     final isFollowing = targetFollowers.contains(currentUserUid);
     final isPrivate = targetData['isPrivate'] ?? false;

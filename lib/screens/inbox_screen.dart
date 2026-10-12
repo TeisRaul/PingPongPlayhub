@@ -132,7 +132,6 @@ class _InboxScreenState extends State<InboxScreen> {
                 int otherIndex = uids.indexOf(user.uid) == 0 ? 1 : 0;
                 if (uids.length < 2) return const SizedBox(); // safety check
 
-                final String otherUid = uids[otherIndex];
                 final String otherUsername = usernames.length > otherIndex ? usernames[otherIndex] : 'Utilizator';
                 final String? otherAvatarUrl = avatars.length > otherIndex ? avatars[otherIndex] : null;
 

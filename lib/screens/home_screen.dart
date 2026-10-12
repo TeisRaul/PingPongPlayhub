@@ -1,27 +1,19 @@
 import 'dart:convert';
+import '../utils/hour_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'dart:async';
 import '../utils/level_utils.dart';
-import '../services/stripe_service.dart';
 import 'qr_scanner_screen.dart';
-import 'create_post_screen.dart';
-import 'login_screen.dart';
 import 'admin/admin_dashboard.dart';
-import 'my_profile_screen.dart';
 import 'find_match_screen.dart';
-import 'my_matches_screen.dart';
-import 'friends_screen.dart';
 import 'notifications_screen.dart';
 import 'inbox_screen.dart';
 import 'tournaments_screen.dart';
-import 'venue_profile_screen.dart';
 import 'venue_booking_history_screen.dart';
 import 'venue_tables_layout_screen.dart';
-import 'qr_scanner_screen.dart';
-import 'create_post_screen.dart';
 import '../widgets/player_drawer.dart';
 
 class ParallelogramClipper extends CustomClipper<Path> {
@@ -190,16 +182,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _logout() async {
-    await FirebaseAuth.instance.signOut();
-    if (mounted) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
-      );
-    }
-  }
-
   ImageProvider? _getAvatarProvider(String? url) {
     if (url == null) return null;
     if (url.startsWith('data:image')) {
@@ -295,7 +277,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final String venueName = userData!['venueName'] ?? 'Sală';
     final String date = matchData['date'] ?? '';
-    final int startHour = matchData['startHour'] ?? 0;
+    final double startHour = hourValue(matchData['startHour']);
     final List<dynamic> joinedUids = matchData['joinedUids'] ?? [];
 
     if (mounted) {
@@ -315,7 +297,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
           content: Text(
-            'Sigur dorești să anulezi acest meci programat în data de $date la ora $startHour:00?\n\nToți jucătorii înscriși vor fi notificați automat.',
+            'Sigur dorești să anulezi acest meci programat în data de $date la ora ${formatHour(startHour)}?\n\nToți jucătorii înscriși vor fi notificați automat.',
             style: const TextStyle(color: Colors.white70),
           ),
           actions: [
@@ -353,7 +335,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         'fromUid': user.uid,
                         'fromUsername': venueName,
                         'title': 'Meci Anulat de Club',
-                        'body': 'Meciul tău din $date de la ora $startHour:00 de la $venueName a fost anulat din motive administrative.',
+                        'body': 'Meciul tău din $date de la ora ${formatHour(startHour)} de la $venueName a fost anulat din motive administrative.',
                         'type': 'match_cancel',
                         'status': 'pending',
                         'timestamp': FieldValue.serverTimestamp(),
@@ -391,13 +373,7 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    final rating = isVenue ? 0 : (userData?['rating'] ?? 0);
-    final username = isVenue ? (userData?['venueName'] ?? 'Sală') : (userData?['username'] ?? 'Jucător');
     final avatarUrl = isVenue ? null : userData?['avatarUrl'];
-
-    final levelDetails = LevelUtils.getLevelDetails(rating);
-    final String levelName = levelDetails['levelName'];
-    final double progress = levelDetails['progress'];
 
     return Scaffold(
       appBar: AppBar(
@@ -533,17 +509,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
             // Filter out past matches
             final String dateStr = data['date'] ?? '';
-            final int endHour = data['endHour'] ?? 0;
+            final double endHour = hourValue(data['endHour']);
             if (dateStr.isNotEmpty) {
               try {
                 final parts = dateStr.split('-');
                 if (parts.length == 3) {
-                  final matchEnd = DateTime(
-                    int.parse(parts[0]),
-                    int.parse(parts[1]),
-                    int.parse(parts[2]),
-                    endHour,
-                  );
+                  final matchEnd = dateAtHour(dateStr, endHour);
                   if (matchEnd.isBefore(now)) return false;
                 }
               } catch (_) {}
@@ -787,13 +758,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   itemCount: activeMatches.length,
                   separatorBuilder: (context, index) => const SizedBox(height: 12),
                   itemBuilder: (context, index) {
-                    final docId = activeMatches[index].id;
                     final matchData = activeMatches[index].data() as Map<String, dynamic>;
                     
                     final String hostName = matchData['hostUsername'] ?? 'Jucător';
                     final String date = matchData['date'] ?? '';
-                    final int startHour = matchData['startHour'] ?? 0;
-                    final int endHour = matchData['endHour'] ?? 0;
+                    final double startHour = hourValue(matchData['startHour']);
+                    final double endHour = hourValue(matchData['endHour']);
                     final String location = matchData['locationName'] ?? 'Sală';
                     final int tableId = matchData['tableId'] ?? 1;
                     final bool isFriendly = matchData['isFriendly'] ?? false;
@@ -875,7 +845,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               children: [
                                 const Icon(Icons.calendar_month, color: Colors.grey, size: 18),
                                 const SizedBox(width: 8),
-                                Text('$date  |  $startHour:00 - $endHour:00', style: const TextStyle(color: Colors.white70)),
+                                Text('$date  |  ${formatHour(startHour)} - ${formatHour(endHour)}', style: const TextStyle(color: Colors.white70)),
                               ],
                             ),
                             const SizedBox(height: 8),
@@ -1434,8 +1404,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 if (status == 'completed' || status == 'cancelled') return false;
                 try {
                   final dateStr = data['date'] as String;
-                  final endHour = data['endHour'] as int;
-                  final matchEnd = DateTime.parse('$dateStr ${endHour.toString().padLeft(2, '0')}:00:00');
+                  final endHour = hourValue(data['endHour']);
+                  final matchEnd = dateAtHour(dateStr, endHour);
                   return DateTime.now().isBefore(matchEnd);
                 } catch (_) {
                   return true;
@@ -1448,8 +1418,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 final bData = b.data() as Map<String, dynamic>;
                 final String aDate = aData['date'] ?? '';
                 final String bDate = bData['date'] ?? '';
-                final int aHour = aData['startHour'] ?? 0;
-                final int bHour = bData['startHour'] ?? 0;
+                final double aHour = hourValue(aData['startHour']);
+                final double bHour = hourValue(bData['startHour']);
 
                 int dateComp = aDate.compareTo(bDate);
                 if (dateComp != 0) return dateComp;
@@ -1479,9 +1449,9 @@ class _HomeScreenState extends State<HomeScreen> {
               final List<String> todayIntervals = todayMatches
                   .map((doc) {
                     final data = doc.data() as Map<String, dynamic>;
-                    final int start = data['startHour'] ?? 0;
-                    final int end = data['endHour'] ?? 0;
-                    return '$start:00 - $end:00';
+                    final double start = hourValue(data['startHour']);
+                    final double end = hourValue(data['endHour']);
+                    return '${formatHour(start)} - ${formatHour(end)}';
                   })
                   .toSet()
                   .toList()
@@ -1707,8 +1677,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         final data = docs[index].data() as Map<String, dynamic>;
                         final String hostName = data['hostUsername'] ?? 'Host';
                         final String date = data['date'] ?? '';
-                        final int startHour = data['startHour'] ?? 0;
-                        final int endHour = data['endHour'] ?? 0;
+                        final double startHour = hourValue(data['startHour']);
+                        final double endHour = hourValue(data['endHour']);
                         final int tableId = data['tableId'] ?? 1;
                         final bool isFriendly = data['isFriendly'] ?? false;
                         final String status = data['status'] ?? 'open';
@@ -1802,7 +1772,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   children: [
                                     const Icon(Icons.calendar_month, color: Colors.grey, size: 18),
                                     const SizedBox(width: 8),
-                                    Text('$date  |  $startHour:00 - $endHour:00', style: const TextStyle(color: Colors.white70)),
+                                    Text('$date  |  ${formatHour(startHour)} - ${formatHour(endHour)}', style: const TextStyle(color: Colors.white70)),
                                   ],
                                 ),
                                 const SizedBox(height: 12),
@@ -1974,168 +1944,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildDrawer(String username, String levelName, double progress, String? avatarUrl) {
-    return Drawer(
-      backgroundColor: const Color(0xFF0A0E17),
-      child: Column(
-        children: [
-          DrawerHeader(
-            decoration: const BoxDecoration(
-              color: Color(0xFF131A2A),
-            ),
-            child: Row(
-              children: [
-                Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    SizedBox(
-                      width: 65,
-                      height: 65,
-                      child: CircularProgressIndicator(
-                        value: isVenue ? 1.0 : progress,
-                        backgroundColor: Colors.grey[800],
-                        color: const Color(0xFF00E5FF),
-                        strokeWidth: 4,
-                      ),
-                    ),
-                    CircleAvatar(
-                      radius: 28,
-                      backgroundColor: Colors.grey[700],
-                      backgroundImage: avatarUrl != null ? _getAvatarProvider(avatarUrl) : null,
-                      child: avatarUrl == null
-                          ? Icon(isVenue ? Icons.storefront : Icons.person, color: Colors.white, size: 30)
-                          : null,
-                    ),
-                  ],
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        username,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        isVenue ? 'Partener Club' : levelName,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: Color(0xFF00E5FF),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: LinearProgressIndicator(
-                          value: isVenue ? 1.0 : progress,
-                          backgroundColor: Colors.grey[800],
-                          color: const Color(0xFF00E5FF),
-                          minHeight: 6,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: ListView(
-              padding: EdgeInsets.zero,
-              children: isVenue
-                ? [
-                    _buildDrawerItem(Icons.storefront_outlined, 'Dashboard Sală', onTap: () {
-                      Navigator.pop(context);
-                    }),
-                    _buildDrawerItem(Icons.business_outlined, 'Profilul Sălii', onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const VenueProfileScreen()),
-                      ).then((_) => _loadUserData());
-                    }),
-                    _buildDrawerItem(Icons.emoji_events_outlined, 'Turneele Noastre', onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const TournamentsScreen()),
-                      );
-                    }),
-                  ]
-                : [
-                    _buildDrawerItem(Icons.person_outline, 'My Profile', onTap: () {
-                      Navigator.pop(context); // Close Drawer
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const MyProfileScreen()),
-                      ).then((_) => _loadUserData()); // Refresh on return
-                    }),
-                    _buildDrawerItem(Icons.sports_tennis, 'Find a Match', onTap: () {
-                      Navigator.pop(context); // Close Drawer
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const FindMatchScreen()),
-                      );
-                    }),
-                    _buildDrawerItem(Icons.history, 'My Matches', onTap: () {
-                      Navigator.pop(context); // Close Drawer
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const MyMatchesScreen()),
-                      ).then((_) => _loadUserData()); // Refresh on return
-                    }),
-                    _buildDrawerItem(Icons.group_add_outlined, 'Play with a Friend', onTap: () {
-                      Navigator.pop(context); // Close Drawer
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const FriendsScreen()),
-                      );
-                    }),
-                    _buildDrawerItem(Icons.emoji_events_outlined, 'Tournaments', onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const TournamentsScreen()),
-                      );
-                    }),
-                  ],
-            ),
-          ),
-          const Divider(color: Colors.grey),
-          ListTile(
-            leading: const Icon(Icons.logout, color: Colors.redAccent),
-            title: const Text('Deconectare', style: TextStyle(color: Colors.redAccent)),
-            onTap: () {
-              Navigator.pop(context);
-              _logout();
-            },
-          ),
-          const SizedBox(height: 20),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDrawerItem(IconData icon, String title, {required VoidCallback onTap}) {
-    return ListTile(
-      leading: Icon(icon, color: Colors.white),
-      title: Text(
-        title,
-        style: const TextStyle(color: Colors.white, fontSize: 16),
-      ),
-      onTap: onTap,
     );
   }
 
