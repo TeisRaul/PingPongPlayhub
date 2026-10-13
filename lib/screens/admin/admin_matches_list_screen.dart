@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../utils/hour_utils.dart';
+import '../check_in_flow.dart';
+import '../match_detail_screen.dart';
 
 class AdminMatchesListScreen extends StatefulWidget {
   final String? initialSearchQuery;
@@ -196,6 +198,7 @@ class _AdminMatchesListScreenState extends State<AdminMatchesListScreen> {
               Text('Sală: ${data['locationName'] ?? 'N/A'}', style: const TextStyle(color: Colors.grey, fontSize: 16)),
               Text('Dată: ${data['date'] ?? 'N/A'}, ${formatHour(data['startHour'])}-${formatHour(data['endHour'])}', style: const TextStyle(color: Colors.grey, fontSize: 16)),
               Text('Sport: ${data['sport'] ?? 'N/A'}', style: const TextStyle(color: Colors.grey, fontSize: 16)),
+              Text('Check-in: ${data['checkedIn'] == true ? 'efectuat' : 'neefectuat'}', style: const TextStyle(color: Colors.grey, fontSize: 16)),
               Text('Creat de: ${data['hostUsername'] ?? data['hostUid'] ?? 'N/A'}', style: const TextStyle(color: Colors.grey, fontSize: 14)),
               const Divider(color: Colors.grey, height: 30),
               const Text('Jucători:', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
@@ -207,6 +210,49 @@ class _AdminMatchesListScreenState extends State<AdminMatchesListScreen> {
               
               const SizedBox(height: 32),
               
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      this.context,
+                      MaterialPageRoute(
+                        builder: (_) => MatchDetailScreen(matchId: matchId, mode: MatchDetailMode.admin),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.open_in_new, size: 18),
+                  label: const Text('Deschide pagina meciului'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF00E5FF),
+                    side: const BorderSide(color: Color(0xFF00E5FF)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              if (data['status'] != 'cancelled' && data['status'] != 'completed' && data['checkedIn'] != true) ...[
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      CheckInFlow.processCode(this.context, matchId, isAdmin: true);
+                    },
+                    icon: const Icon(Icons.how_to_reg, size: 18),
+                    label: const Text('Check-in (Admin)'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF00FF66),
+                      foregroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+
               if (data['status'] != 'cancelled')
                 SizedBox(
                   width: double.infinity,

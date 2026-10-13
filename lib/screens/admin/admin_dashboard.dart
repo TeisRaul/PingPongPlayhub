@@ -6,6 +6,7 @@ import 'admin_users_list_screen.dart';
 import 'admin_matches_list_screen.dart';
 import 'admin_trainers_list_screen.dart';
 import '../venue_signup_screen.dart';
+import '../check_in_flow.dart';
 import '../../services/seed_data_service.dart';
 
 class AdminDashboard extends StatefulWidget {
@@ -127,6 +128,20 @@ class _AdminDashboardState extends State<AdminDashboard> {
           ),
           const SizedBox(height: 16),
           
+          // Check-in (scanare QR) - adminul poate face check-in la orice sală
+          ElevatedButton.icon(
+            onPressed: () => CheckInFlow.scan(context, isAdmin: true),
+            icon: const Icon(Icons.qr_code_scanner, size: 22),
+            label: const Text('Check-in (scanează bilet)', style: TextStyle(fontWeight: FontWeight.bold)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF00E5FF),
+              foregroundColor: Colors.black,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+          const SizedBox(height: 16),
+
           // Add Public Location Button
           ElevatedButton.icon(
             onPressed: () {

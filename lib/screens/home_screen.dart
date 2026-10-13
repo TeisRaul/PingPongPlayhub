@@ -7,7 +7,8 @@ import 'package:intl/intl.dart';
 import 'dart:async';
 import '../utils/level_utils.dart';
 import '../utils/match_stats.dart';
-import 'qr_scanner_screen.dart';
+import 'check_in_flow.dart';
+import 'match_detail_screen.dart';
 import 'admin/admin_dashboard.dart';
 import 'find_match_screen.dart';
 import 'notifications_screen.dart';
@@ -158,10 +159,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _scanCheckInQR() async {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const QrScannerScreen()),
-    );
+    await CheckInFlow.scan(context, venueId: FirebaseAuth.instance.currentUser?.uid);
   }
 
   Future<void> _markNoShow(String docId, String hostUid) async {
@@ -789,7 +787,15 @@ class _HomeScreenState extends State<HomeScreen> {
                       statusColor = const Color(0xFF00FF66);
                     }
 
-                    return Card(
+                    return GestureDetector(
+  behavior: HitTestBehavior.opaque,
+  onTap: () => Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => MatchDetailScreen(matchId: activeMatches[index].id, mode: MatchDetailMode.player),
+    ),
+  ),
+  child: Card(
                       color: const Color(0xFF131A2A),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
@@ -944,7 +950,8 @@ class _HomeScreenState extends State<HomeScreen> {
                           ],
                         ),
                       ),
-                    );
+                    ),
+);
                   },
                 ),
             ],
@@ -1637,30 +1644,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: 12),
 
-                  // Bookings List Header
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Expanded(
-                        child: Text(
-                          'Programări active / Rezervări mese',
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
-                        ),
-                      ),
-                      ElevatedButton.icon(
-                        onPressed: () => _scanCheckInQR(),
-                        icon: const Icon(Icons.qr_code_scanner, color: Colors.black, size: 18),
-                        label: const Text('SCAN QR', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF00E5FF),
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-
                   if (docs.isEmpty)
                     Card(
                       color: const Color(0xFF131A2A),
@@ -1714,7 +1697,15 @@ class _HomeScreenState extends State<HomeScreen> {
                           statusColor = Colors.greenAccent;
                         }
 
-                        return Card(
+                        return GestureDetector(
+  behavior: HitTestBehavior.opaque,
+  onTap: () => Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => MatchDetailScreen(matchId: docId, mode: MatchDetailMode.venue),
+    ),
+  ),
+  child: Card(
                           color: const Color(0xFF131A2A),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16),
@@ -1876,6 +1867,24 @@ class _HomeScreenState extends State<HomeScreen> {
                                         ),
                                       if (!isCancelled && !(data['checkedIn'] == true))
                                         ElevatedButton.icon(
+                                          onPressed: () => CheckInFlow.processCode(
+                                            context,
+                                            docId,
+                                            venueId: FirebaseAuth.instance.currentUser?.uid,
+                                          ),
+                                          icon: const Icon(Icons.how_to_reg, size: 16),
+                                          label: Text(
+                                            data['waiting'] == true ? 'CHECK-IN (AȘTEAPTĂ)' : 'CHECK-IN',
+                                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                                          ),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: const Color(0xFF00E5FF),
+                                            foregroundColor: Colors.black,
+                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                          ),
+                                        ),
+                                      if (!isCancelled && !(data['checkedIn'] == true))
+                                        ElevatedButton.icon(
                                           onPressed: () => _markNoShow(docId, data['hostUid'] ?? ''),
                                           icon: const Icon(Icons.person_off, size: 16),
                                           label: const Text('NO-SHOW', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
@@ -1900,7 +1909,8 @@ class _HomeScreenState extends State<HomeScreen> {
                               ],
                             ),
                           ),
-                        );
+                        ),
+);
                       },
                     ),
                 ],

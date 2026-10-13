@@ -12,6 +12,42 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
   final MobileScannerController cameraController = MobileScannerController();
   bool _isScanned = false;
 
+  Future<void> _enterCodeManually() async {
+    final controller = TextEditingController();
+    final code = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF131A2A),
+        title: const Text('Cod bilet', style: TextStyle(color: Colors.white)),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          style: const TextStyle(color: Colors.white),
+          decoration: const InputDecoration(
+            hintText: 'Cod bilet (ex. AV5-T7D)',
+            hintStyle: TextStyle(color: Colors.grey),
+          ),
+          onSubmitted: (v) => Navigator.pop(ctx, v),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Anulează', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, controller.text),
+            child: const Text('Continuă'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (code != null && code.trim().isNotEmpty && mounted && !_isScanned) {
+      setState(() => _isScanned = true);
+      Navigator.pop(context, code.trim());
+    }
+  }
+
   @override
   void dispose() {
     cameraController.dispose();
@@ -26,6 +62,13 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
         backgroundColor: const Color(0xFF131A2A),
         title: const Text('Scanează QR Check-in', style: TextStyle(color: Colors.white)),
         iconTheme: const IconThemeData(color: Colors.white),
+        actions: [
+          IconButton(
+            tooltip: 'Introdu codul manual',
+            icon: const Icon(Icons.keyboard),
+            onPressed: _enterCodeManually,
+          ),
+        ],
       ),
       body: Column(
         children: <Widget>[
@@ -46,12 +89,25 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
             ),
           ),
           Expanded(
-            flex: 1,
+            flex: 2,
             child: Container(
               alignment: Alignment.center,
-              child: const Text(
-                'Aliniază codul QR în cadru pentru a scana',
-                style: TextStyle(color: Colors.white70, fontSize: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text(
+                    'Aliniază codul QR în cadru pentru a scana.',
+                    style: TextStyle(color: Colors.white70, fontSize: 16),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 12),
+                  ElevatedButton.icon(
+                    onPressed: _enterCodeManually,
+                    icon: const Icon(Icons.keyboard),
+                    label: const Text('Nu merge camera? Introdu codul biletului'),
+                  ),
+                ],
               ),
             ),
           )

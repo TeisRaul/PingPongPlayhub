@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../utils/hour_utils.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/booking_service.dart';
+import '../services/checkin_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../utils/level_utils.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -408,13 +409,30 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
-                child: QrImageView(
-                  data: matchId,
-                  version: QrVersions.auto,
-                  size: 200.0,
+                // SizedBox fix: QrImageView folosește LayoutBuilder, care nu poate fi măsurat
+                // de AlertDialog (IntrinsicWidth) fără dimensiune fixă.
+                child: SizedBox(
+                  width: 200,
+                  height: 200,
+                  child: QrImageView(
+                    data: matchId,
+                    version: QrVersions.auto,
+                    size: 200.0,
+                  ),
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 14),
+              const Text('Cod bilet', style: TextStyle(color: Colors.grey, fontSize: 12)),
+              SelectableText(
+                CheckInService.formatShortCode(CheckInService.shortCode(matchId)),
+                style: const TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.bold, letterSpacing: 4),
+              ),
+              const Text(
+                'Nu merge scanarea? Spune acest cod sălii.',
+                style: TextStyle(color: Colors.grey, fontSize: 12),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 14),
               Text('${data['locationName'] ?? 'Sală'} - ${data['date'] ?? ''}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
               Text('${formatHour(data['startHour'])} - ${formatHour(data['endHour'])}', style: const TextStyle(color: Colors.grey)),
             ],
@@ -689,7 +707,9 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
               Row(
                 children: [
                   Expanded(
-                    child: ElevatedButton.icon(
+                    child: (data['checkedIn'] == true || data['waiting'] == true)
+                        ? _CheckInStatusBadge(waiting: data['checkedIn'] != true)
+                        : ElevatedButton.icon(
                       onPressed: () => _showTicketDialog(docId, data),
                       icon: const Icon(Icons.qr_code, color: Colors.black),
                       label: const Text('Check-in', style: TextStyle(color: Colors.black)),
@@ -1281,6 +1301,35 @@ class _VenueReviewDialogState extends State<_VenueReviewDialog> {
               : const Text('TRIMITE', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
         ),
       ],
+    );
+  }
+}
+
+class _CheckInStatusBadge extends StatelessWidget {
+  final bool waiting;
+  const _CheckInStatusBadge({required this.waiting});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = waiting ? Colors.orange : Colors.green;
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(waiting ? Icons.hourglass_top : Icons.check_circle, color: color, size: 18),
+          const SizedBox(width: 8),
+          Text(
+            waiting ? 'Sala te-a pus la așteptarea mesei' : 'Check-in efectuat',
+            style: TextStyle(color: color, fontWeight: FontWeight.bold),
+          ),
+        ],
+      ),
     );
   }
 }
