@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'dart:async';
 import '../utils/level_utils.dart';
+import '../utils/match_stats.dart';
 import 'qr_scanner_screen.dart';
 import 'admin/admin_dashboard.dart';
 import 'find_match_screen.dart';
@@ -499,8 +500,18 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (context, snapshot) {
         int scheduledMatchesCount = 0;
         List<QueryDocumentSnapshot> activeMatches = [];
+        int completedCount = 0;
+        int winsCount = 0;
 
         if (snapshot.hasData) {
+          final myUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+          for (final doc in snapshot.data!.docs) {
+            final m = doc.data() as Map<String, dynamic>;
+            if (m['status'] == 'completed') {
+              completedCount++;
+              if (didUserWinMatch(m, myUid)) winsCount++;
+            }
+          }
           final now = DateTime.now();
           activeMatches = snapshot.data!.docs.where((doc) {
             final data = doc.data() as Map<String, dynamic>;
@@ -672,14 +683,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(width: 12),
                   _buildDashboardStatCard(
                     'Victorii',
-                    '${userData?['wins'] ?? 8}',
+                    '${completedCount > 0 ? winsCount : (userData?['wins'] ?? 0)}',
                     Icons.emoji_events_outlined,
                     const Color(0xFFFF0055),
                   ),
                   const SizedBox(width: 12),
                   _buildDashboardStatCard(
                     'Win Rate',
-                    '${userData?['winRate'] ?? "60%"}',
+                    completedCount > 0 ? formatWinRate(winsCount, completedCount) : '${userData?['winRate'] ?? "0%"}',
                     Icons.trending_up,
                     const Color(0xFF00FF66),
                   ),

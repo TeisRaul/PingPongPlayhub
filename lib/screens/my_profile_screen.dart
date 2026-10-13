@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../utils/level_utils.dart';
+import '../utils/match_stats.dart';
 import 'avatar_screen.dart';
 import '../widgets/player_drawer.dart';
 
@@ -47,16 +48,14 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
 
       int w = 0;
       
-      // We assume there's a winnerUid field or we just read from user profile
       for (var match in matchesQuery.docs) {
-        final data = match.data();
-        if (data['winnerUid'] == user.uid) {
+        if (didUserWinMatch(match.data(), user.uid)) {
           w++;
         }
       }
       
       final tMatches = matchesQuery.docs.length;
-      final rate = tMatches > 0 ? ((w / tMatches) * 100).toStringAsFixed(1) + "%" : "0%";
+      final rate = formatWinRate(w, tMatches);
 
       if (doc.exists) {
         setState(() {

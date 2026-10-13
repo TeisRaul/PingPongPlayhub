@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../utils/hour_utils.dart';
 
 class AdminMatchesListScreen extends StatefulWidget {
   final String? initialSearchQuery;
@@ -87,14 +88,15 @@ class _AdminMatchesListScreenState extends State<AdminMatchesListScreen> {
                 final filteredMatches = allMatches.where((doc) {
                   if (_searchQuery.isEmpty) return true;
                   final data = doc.data() as Map<String, dynamic>;
-                  final venueName = (data['venueName'] ?? '').toString().toLowerCase();
+                  final venueName = (data['locationName'] ?? '').toString().toLowerCase();
                   final date = (data['date'] ?? '').toString().toLowerCase();
-                  
+                  final host = (data['hostUsername'] ?? '').toString().toLowerCase();
+
                   // Extract player names
-                  final List players = data['players'] ?? [];
+                  final List players = (data['joinedPlayers'] as List?) ?? [];
                   bool matchPlayer = false;
                   for (var p in players) {
-                    final pName = (p['name'] ?? '').toString().toLowerCase();
+                    final pName = (p is Map ? (p['username'] ?? '') : p).toString().toLowerCase();
                     if (pName.contains(_searchQuery)) {
                       matchPlayer = true;
                       break;
@@ -102,6 +104,7 @@ class _AdminMatchesListScreenState extends State<AdminMatchesListScreen> {
                   }
 
                   return venueName.contains(_searchQuery) ||
+                         host.contains(_searchQuery) ||
                          date.contains(_searchQuery) ||
                          matchPlayer;
                 }).toList();
@@ -119,11 +122,11 @@ class _AdminMatchesListScreenState extends State<AdminMatchesListScreen> {
                     final data = filteredMatches[index].data() as Map<String, dynamic>;
                     
                     final date = data['date'] ?? 'N/A';
-                    final time = data['time'] ?? 'N/A';
-                    final venueName = data['venueName'] ?? 'Sală Necunoscută';
+                    final time = '${formatHour(data['startHour'])}-${formatHour(data['endHour'])}';
+                    final venueName = data['locationName'] ?? 'Sală Necunoscută';
                     final status = data['status'] ?? 'pending';
                     
-                    final players = (data['players'] as List?) ?? [];
+                    final players = (data['joinedPlayers'] as List?) ?? [];
                     final pCount = players.length;
                     final maxPlayers = data['maxPlayers'] ?? 2;
 
@@ -190,15 +193,16 @@ class _AdminMatchesListScreenState extends State<AdminMatchesListScreen> {
             children: [
               const Text('Detalii Meci', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
               const SizedBox(height: 16),
-              Text('Sală: ${data['venueName'] ?? 'N/A'}', style: const TextStyle(color: Colors.grey, fontSize: 16)),
-              Text('Dată: ${data['date'] ?? 'N/A'} la ${data['time'] ?? 'N/A'}', style: const TextStyle(color: Colors.grey, fontSize: 16)),
+              Text('Sală: ${data['locationName'] ?? 'N/A'}', style: const TextStyle(color: Colors.grey, fontSize: 16)),
+              Text('Dată: ${data['date'] ?? 'N/A'}, ${formatHour(data['startHour'])}-${formatHour(data['endHour'])}', style: const TextStyle(color: Colors.grey, fontSize: 16)),
               Text('Sport: ${data['sport'] ?? 'N/A'}', style: const TextStyle(color: Colors.grey, fontSize: 16)),
-              Text('Creat de (ID): ${data['createdBy'] ?? 'N/A'}', style: const TextStyle(color: Colors.grey, fontSize: 14)),
+              Text('Creat de: ${data['hostUsername'] ?? data['hostUid'] ?? 'N/A'}', style: const TextStyle(color: Colors.grey, fontSize: 14)),
               const Divider(color: Colors.grey, height: 30),
               const Text('Jucători:', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
-              ...(data['players'] as List? ?? []).map((p) {
-                return Text('- ${p['name']} (Nivel: ${p['level']})', style: const TextStyle(color: Colors.grey));
+              ...(data['joinedPlayers'] as List? ?? []).map((p) {
+                final m = p is Map ? p : const {};
+                return Text('- ${m['username'] ?? p} (Nivel: ${m['level'] ?? '-'})', style: const TextStyle(color: Colors.grey));
               }),
               
               const SizedBox(height: 32),

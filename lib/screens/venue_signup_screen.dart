@@ -485,12 +485,13 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
         },
         'cui': _cuiController.text.trim(),
         'iban': _ibanController.text.trim(),
-        'isVerified': true,
         if (_verifiedLocation != null) 'latitude': _verifiedLocation!.latitude,
         if (_verifiedLocation != null) 'longitude': _verifiedLocation!.longitude,
       };
 
       if (!widget.isEditMode) {
+        // Sala nouă așteaptă aprobarea adminului; doar adminul o poate crea deja verificată.
+        venueData['isVerified'] = widget.isAdminCreating;
         venueData['blockedDates'] = [];
         venueData['createdAt'] = FieldValue.serverTimestamp();
         await FirebaseFirestore.instance.collection('venues').doc(uid).set(venueData);

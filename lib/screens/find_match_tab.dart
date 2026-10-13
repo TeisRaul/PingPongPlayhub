@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../utils/hour_utils.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../services/booking_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../data/mock_locations.dart';
 import '../utils/level_utils.dart';
@@ -19,7 +20,7 @@ class _FindMatchTabState extends State<FindMatchTab> {
   String _filterLocationId = 'Toate';
   List<String> _selectedSports = [];
 
-  List<PingPongLocation> _allLocations = List.from(mockLocations);
+  List<PingPongLocation> _allLocations = [];
 
   @override
   void initState() {
@@ -37,6 +38,7 @@ class _FindMatchTabState extends State<FindMatchTab> {
       final List<PingPongLocation> fetched = [];
       for (var doc in snapshot.docs) {
         final data = doc.data();
+        if (data['isVerified'] == false) continue; // sală în așteptarea aprobării
         final String id = doc.id;
         final String name = data['venueName'] ?? '';
         final String city = data['city'] ?? '';
@@ -64,7 +66,7 @@ class _FindMatchTabState extends State<FindMatchTab> {
         ));
       }
 
-      final List<PingPongLocation> merged = List.from(mockLocations);
+      final List<PingPongLocation> merged = [];
       for (var loc in fetched) {
         final exists = merged.any((m) =>
             m.id == loc.id || m.name.toLowerCase() == loc.name.toLowerCase());
@@ -134,20 +136,15 @@ class _FindMatchTabState extends State<FindMatchTab> {
         'role': 'guest'
       };
 
-      List<dynamic> joinedPlayers = List.from(data['joinedPlayers'] ?? []);
-      List<dynamic> joinedUids = List.from(data['joinedUids'] ?? []);
-      int maxPlayers = data['maxPlayers'] ?? 2;
-
-      joinedPlayers.add(newPlayer);
-      joinedUids.add(user.uid);
-
-      String newStatus = (joinedPlayers.length >= maxPlayers) ? 'matched' : 'open';
-
-      await FirebaseFirestore.instance.collection('matches').doc(matchId).update({
-        'status': newStatus,
-        'joinedPlayers': joinedPlayers,
-        'joinedUids': joinedUids,
-      });
+      final result = await BookingService.joinMatch(matchId, newPlayer);
+      if (result != JoinResult.joined) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(BookingService.joinMessage(result)), backgroundColor: Colors.orangeAccent),
+          );
+        }
+        return;
+      }
 
       // Send join notification to host
       final hostUid = data['hostUid'];

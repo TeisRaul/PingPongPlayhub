@@ -81,12 +81,3 @@ const List<String> romanianCities = [
   'Vaslui',
   'Zalău'
 ];
-
-const List<PingPongLocation> mockLocations = [
-  PingPongLocation(id: 'loc1', city: 'București', name: 'PingPong Arena', openHour: 10, closeHour: 23, numTables: 4, indoorTables: 3, outdoorTables: 1),
-  PingPongLocation(id: 'loc2', city: 'București', name: 'Smash Club Vitan', openHour: 12, closeHour: 24, numTables: 8, indoorTables: 6, outdoorTables: 2),
-  PingPongLocation(id: 'loc3', city: 'Cluj-Napoca', name: 'Transylvania TT', openHour: 9, closeHour: 21, numTables: 3, indoorTables: 3, outdoorTables: 0),
-  PingPongLocation(id: 'loc4', city: 'Timișoara', name: 'Banat PingPong', openHour: 10, closeHour: 22, numTables: 5, indoorTables: 3, outdoorTables: 2),
-  PingPongLocation(id: 'loc5', city: 'Brașov', name: 'Mountain Spin', openHour: 11, closeHour: 20, numTables: 2, indoorTables: 1, outdoorTables: 1),
-];
-

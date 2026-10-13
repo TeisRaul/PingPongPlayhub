@@ -65,6 +65,12 @@ class _AdminVenuesListScreenState extends State<AdminVenuesListScreen> {
             final city = (data['city'] ?? '').toString().toLowerCase();
             return _searchQuery.isEmpty || city.contains(_searchQuery);
           }).toList();
+          // Sălile care așteaptă aprobarea apar primele.
+          venues.sort((a, b) {
+            final aPending = (a.data() as Map<String, dynamic>)['isVerified'] == false ? 0 : 1;
+            final bPending = (b.data() as Map<String, dynamic>)['isVerified'] == false ? 0 : 1;
+            return aPending.compareTo(bPending);
+          });
 
           if (venues.isEmpty) {
             return const Center(
@@ -82,6 +88,7 @@ class _AdminVenuesListScreenState extends State<AdminVenuesListScreen> {
               final venueName = data['venueName'] ?? 'Sală necunoscută';
               final city = data['city'] ?? 'Oraș necunoscut';
               final isPublic = data['isPublic'] ?? false;
+              final isPending = data['isVerified'] == false;
 
               return Card(
                 color: const Color(0xFF131A2A),
@@ -96,7 +103,23 @@ class _AdminVenuesListScreenState extends State<AdminVenuesListScreen> {
                   ),
                   title: Text(venueName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                   subtitle: Text('$city${isPublic ? " (Public)" : ""}', style: const TextStyle(color: Colors.grey, fontSize: 12)),
-                  trailing: const Icon(Icons.arrow_forward_ios, color: Colors.grey, size: 16),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (isPending)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.orangeAccent.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.orangeAccent),
+                          ),
+                          child: const Text('În așteptare', style: TextStyle(color: Colors.orangeAccent, fontSize: 11, fontWeight: FontWeight.bold)),
+                        ),
+                      if (isPending) const SizedBox(width: 8),
+                      const Icon(Icons.arrow_forward_ios, color: Colors.grey, size: 16),
+                    ],
+                  ),
                   onTap: () {
                     Navigator.push(
                       context,

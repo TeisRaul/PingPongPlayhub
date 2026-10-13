@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../utils/hour_utils.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../services/booking_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../utils/level_utils.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -206,17 +207,24 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
 
       final batch = FirebaseFirestore.instance.batch();
 
-      if (!isFriendly) {
+      // Câștigătorul se salvează și la meciurile amicale (doar punctele nu se modifică).
+      String? matchWinnerUid;
+      final List<String> matchWinnerUids = [];
+
+      {
         if (reportType == '1v1') {
           final myWins = matchData['myWins'] ?? 0;
           final myLosses = matchData['myLosses'] ?? 0;
           
           final opponentUid = joinedUids.firstWhere((uid) => uid != reporterUid, orElse: () => '');
 
-          if (opponentUid.isNotEmpty && reporterUid.isNotEmpty) {
+          // La egalitate nu există câștigător și punctele rămân neschimbate.
+          if (opponentUid.isNotEmpty && reporterUid.isNotEmpty && myWins != myLosses) {
             String winnerUid = myWins > myLosses ? reporterUid : opponentUid;
             String loserUid = myWins > myLosses ? opponentUid : reporterUid;
+            matchWinnerUid = winnerUid;
 
+            if (!isFriendly) {
             // Fetch ratings
             final winnerDoc = await FirebaseFirestore.instance.collection('users').doc(winnerUid).get();
             final loserDoc = await FirebaseFirestore.instance.collection('users').doc(loserUid).get();
@@ -234,6 +242,7 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
             batch.update(FirebaseFirestore.instance.collection('users').doc(loserUid), {
               'rating': (loserRating - losePoints < 0) ? 0 : loserRating - losePoints,
             });
+            }
           }
         } else {
           // 2v2 multiple matches reporting
@@ -280,6 +289,9 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
             final wins = winsCount[uidStr] ?? 0;
             final losses = lossesCount[uidStr] ?? 0;
 
+            if (wins > losses) matchWinnerUids.add(uidStr);
+            if (isFriendly) continue;
+
             if (wins > losses) {
               // Player won more than they lost overall
               final userDoc = await FirebaseFirestore.instance.collection('users').doc(uidStr).get();
@@ -303,6 +315,8 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
 
       batch.update(FirebaseFirestore.instance.collection('matches').doc(matchId), {
         'status': 'completed',
+        if (matchWinnerUid != null) 'winnerUid': matchWinnerUid,
+        if (matchWinnerUids.isNotEmpty) 'winnerUids': matchWinnerUids,
       });
 
       await batch.commit();
@@ -354,47 +368,24 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
     );
   }
 
-  Future<void> _withdraw(String matchId, Map<String, dynamic> data, bool isHost) async {
+  Future<void> _withdraw(String matchId) async {
     final userUid = FirebaseAuth.instance.currentUser!.uid;
-    List<dynamic> joinedPlayers = List.from(data['joinedPlayers'] ?? []);
-    List<dynamic> joinedUids = List.from(data['joinedUids'] ?? []);
-
-    joinedPlayers.removeWhere((p) => p['uid'] == userUid);
-    joinedUids.remove(userUid);
-
-    Map<String, dynamic> updates = {
-      'joinedPlayers': joinedPlayers,
-      'joinedUids': joinedUids,
-      'status': 'open',
-    };
-
-    if (isHost) {
-      if (joinedPlayers.isNotEmpty) {
-        // Promote first guest to host
-        final newHost = joinedPlayers.first;
-        updates['hostUid'] = newHost['uid'];
-        updates['hostUsername'] = newHost['username'];
-        updates['hostAvatarUrl'] = newHost['avatarUrl'];
-        updates['hostRating'] = newHost['rating'];
-        updates['hostLevel'] = newHost['level'];
-        
-        int newHostIndex = joinedPlayers.indexWhere((p) => p['uid'] == newHost['uid']);
-        if (newHostIndex != -1) {
-           joinedPlayers[newHostIndex]['role'] = 'host';
-           updates['joinedPlayers'] = joinedPlayers;
-        }
-      } else {
-        // Everyone left, delete match
-        await _cancelMatch(matchId);
-        return;
-      }
-    }
-
     try {
-      await FirebaseFirestore.instance.collection('matches').doc(matchId).update(updates);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Te-ai retras de la masă.'), backgroundColor: Colors.orange));
+      final result = await BookingService.withdrawFromMatch(matchId, userUid);
+      if (!mounted) return;
+      final String message;
+      switch (result) {
+        case WithdrawResult.matchDeleted:
+          message = 'Meci anulat cu succes!';
+          break;
+        case WithdrawResult.notFound:
+          message = 'Acest meci nu mai există.';
+          break;
+        case WithdrawResult.withdrawn:
+          message = 'Te-ai retras de la masă.';
+          break;
       }
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message), backgroundColor: Colors.orange));
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Eroare: $e'), backgroundColor: Colors.red));
@@ -737,7 +728,7 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
                     Expanded(
                       child: OutlinedButton(
                         style: OutlinedButton.styleFrom(foregroundColor: Colors.orange, side: const BorderSide(color: Colors.orange)),
-                        onPressed: () => _withdraw(docId, data, isHost),
+                        onPressed: () => _withdraw(docId),
                         child: const Text('Retrage-te (Leave)'),
                       ),
                     ),

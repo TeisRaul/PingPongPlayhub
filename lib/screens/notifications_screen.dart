@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../services/booking_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import '../utils/level_utils.dart';
@@ -82,18 +83,24 @@ class _NotificationsDialogState extends State<NotificationsDialog> {
           'role': 'guest'
         };
 
-        joinedPlayers.add(newPlayer);
-        joinedUids.add(user.uid);
+        final joinResult = await BookingService.joinMatch(matchId, newPlayer);
+        if (joinResult != JoinResult.joined) {
+          final String notifStatus = joinResult == JoinResult.alreadyJoined
+              ? 'accepted'
+              : joinResult == JoinResult.full
+                  ? 'full'
+                  : 'invalid';
+          await FirebaseFirestore.instance.collection('notifications').doc(notificationId).update({'status': notifStatus});
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(BookingService.joinMessage(joinResult)), backgroundColor: Colors.redAccent),
+            );
+          }
+          return;
+        }
 
-        String newStatus = (joinedPlayers.length >= maxPlayers) ? 'matched' : 'open';
-
-        // Update match and notification in a batch
+        // Notificarea și răspunsul către gazdă
         final batch = FirebaseFirestore.instance.batch();
-        batch.update(FirebaseFirestore.instance.collection('matches').doc(matchId), {
-          'status': newStatus,
-          'joinedPlayers': joinedPlayers,
-          'joinedUids': joinedUids,
-        });
 
         batch.update(FirebaseFirestore.instance.collection('notifications').doc(notificationId), {
           'status': 'accepted',

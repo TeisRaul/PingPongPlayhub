@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../services/booking_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import '../services/invoice_service.dart';
 import '../data/mock_locations.dart';
+import '../utils/hour_utils.dart';
 import 'payment_screen.dart';
 import '../utils/level_utils.dart';
 import '../widgets/city_selector.dart';
@@ -91,7 +93,7 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
   final _invoiceAddressController = TextEditingController();
   final _invoiceEmailController = TextEditingController();
 
-  List<PingPongLocation> _allLocations = List.from(mockLocations);
+  List<PingPongLocation> _allLocations = [];
 
   @override
   void dispose() {
@@ -122,6 +124,7 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
       final List<PingPongLocation> fetched = [];
       for (var doc in snapshot.docs) {
         final data = doc.data();
+        if (data['isVerified'] == false) continue; // sală în așteptarea aprobării
         final String id = doc.id;
         final String name = data['venueName'] ?? '';
         final String city = data['city'] ?? '';
@@ -173,7 +176,7 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
         ));
       }
 
-      final List<PingPongLocation> merged = List.from(mockLocations);
+      final List<PingPongLocation> merged = [];
       for (var loc in fetched) {
         final exists = merged.any((m) =>
             m.id == loc.id || m.name.toLowerCase() == loc.name.toLowerCase());
@@ -346,9 +349,10 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
       List<int> reserved = [];
       for (var doc in query.docs) {
         final data = doc.data();
-        final int matchStart = data['startHour'] ?? 0;
-        final int matchEnd = data['endHour'] ?? 0;
-        final int tableId = data['tableId'] ?? 0;
+        if (data['status'] == 'cancelled') continue;
+        final double matchStart = hourValue(data['startHour']);
+        final double matchEnd = hourValue(data['endHour']);
+        final int tableId = (data['tableId'] as num?)?.toInt() ?? 0;
 
         // Verifica suprapunere: [start, end)
         if (_startHour! < matchEnd && matchStart < _endHour!) {
@@ -544,12 +548,24 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
         };
       }
 
-      final docRef = await FirebaseFirestore.instance.collection('matches').add(matchData);
+      final newMatchId = await BookingService.createMatchChecked(matchData);
+      if (newMatchId == null) {
+        if (mounted) {
+          setState(() => _selectedTable = null);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Masa a fost rezervată între timp. Alege altă masă sau alt interval.'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
 
       if (_wantsInvoice && mounted) {
         try {
           await InvoiceService.generateAndShareInvoice(
-            matchId: docRef.id,
+            matchId: newMatchId,
             amount: totalAmount,
             venueName: _selectedLocation!.name,
             date: DateFormat('yyyy-MM-dd').format(_selectedDate),

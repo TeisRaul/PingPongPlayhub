@@ -25,10 +25,12 @@ class _AdminVenueDetailScreenState extends State<AdminVenueDetailScreen> {
   late TextEditingController _nameController;
   late TextEditingController _cityController;
   bool _isLoading = false;
+  late bool _isVerified;
 
   @override
   void initState() {
     super.initState();
+    _isVerified = widget.venueData['isVerified'] != false;
     _nameController = TextEditingController(text: widget.venueData['venueName'] ?? '');
     _cityController = TextEditingController(text: widget.venueData['city'] ?? '');
   }
@@ -38,6 +40,32 @@ class _AdminVenueDetailScreenState extends State<AdminVenueDetailScreen> {
     _nameController.dispose();
     _cityController.dispose();
     super.dispose();
+  }
+
+  Future<void> _setVerified(bool value) async {
+    setState(() => _isLoading = true);
+    try {
+      await FirebaseFirestore.instance.collection('venues').doc(widget.venueId).update({
+        'isVerified': value,
+      });
+      if (mounted) {
+        setState(() => _isVerified = value);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(value ? 'Sala a fost aprobată.' : 'Verificarea sălii a fost retrasă.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Eroare: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   Future<void> _updateVenueDetails() async {
@@ -161,6 +189,55 @@ class _AdminVenueDetailScreenState extends State<AdminVenueDetailScreen> {
               ),
             ),
             const SizedBox(height: 16),
+            if (widget.venueData['isPublic'] != true) ...[
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: (_isVerified ? const Color(0xFF00E5FF) : Colors.orangeAccent).withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: _isVerified ? const Color(0xFF00E5FF) : Colors.orangeAccent),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          _isVerified ? Icons.verified : Icons.hourglass_empty,
+                          color: _isVerified ? const Color(0xFF00E5FF) : Colors.orangeAccent,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          _isVerified ? 'Sală verificată' : 'În așteptarea aprobării',
+                          style: TextStyle(
+                            color: _isVerified ? const Color(0xFF00E5FF) : Colors.orangeAccent,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _isVerified
+                          ? 'Sala apare jucătorilor și poate organiza turnee.'
+                          : 'Sala nu apare jucătorilor până nu o aprobi.',
+                      style: const TextStyle(color: Colors.grey, fontSize: 13),
+                    ),
+                    const SizedBox(height: 12),
+                    ElevatedButton.icon(
+                      onPressed: _isLoading ? null : () => _setVerified(!_isVerified),
+                      icon: Icon(_isVerified ? Icons.block : Icons.check_circle, size: 18),
+                      label: Text(_isVerified ? 'Retrage verificarea' : 'Aprobă sala'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _isVerified ? Colors.redAccent : const Color(0xFF00FF66),
+                        foregroundColor: Colors.black,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(

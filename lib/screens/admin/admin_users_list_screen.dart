@@ -4,6 +4,20 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'admin_matches_list_screen.dart';
 import '../signup_screen.dart';
 
+/// Numele afișat: fullName, altfel prenume + nume, altfel username.
+String _displayName(Map<String, dynamic> data, {String fallback = 'Fără nume'}) {
+  String clean(dynamic v) => (v ?? '').toString().trim();
+  final full = clean(data['fullName']);
+  if (full.isNotEmpty) return full;
+  final both = '${clean(data['firstName'])} ${clean(data['lastName'])}'.trim();
+  if (both.isNotEmpty) return both;
+  final user = clean(data['username']);
+  if (user.isNotEmpty) return user;
+  final legacy = clean(data['name']);
+  if (legacy.isNotEmpty) return legacy;
+  return fallback;
+}
+
 class AdminUsersListScreen extends StatefulWidget {
   const AdminUsersListScreen({super.key});
 
@@ -60,7 +74,7 @@ class _AdminUsersListScreenState extends State<AdminUsersListScreen> {
           final users = snapshot.data!.docs.where((doc) {
             if (_searchQuery.isEmpty) return true;
             final data = doc.data() as Map<String, dynamic>;
-            final name = (data['fullName'] ?? '').toString().toLowerCase();
+            final name = _displayName(data, fallback: '').toLowerCase();
             final email = (data['email'] ?? '').toString().toLowerCase();
             final q = _searchQuery.toLowerCase();
             return name.contains(q) || email.contains(q);
@@ -73,7 +87,7 @@ class _AdminUsersListScreenState extends State<AdminUsersListScreen> {
             itemBuilder: (context, index) {
               final doc = users[index];
               final data = doc.data() as Map<String, dynamic>;
-              final name = data['fullName'] ?? 'Fără nume';
+              final name = _displayName(data);
               final email = data['email'] ?? 'Fără email';
               final phone = data['phone'] ?? 'Fără telefon';
 
@@ -248,7 +262,7 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  freshData['fullName'] ?? freshData['name'] ?? 'Fără Nume',
+                  _displayName(freshData),
                   style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
                   textAlign: TextAlign.center,
                 ),
@@ -269,7 +283,7 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
                         context,
                         MaterialPageRoute(
                           builder: (_) => AdminMatchesListScreen(
-                            initialSearchQuery: freshData['fullName'] ?? '',
+                            initialSearchQuery: _displayName(freshData, fallback: ''),
                           ),
                         ),
                       );

@@ -77,7 +77,9 @@ service cloud.firestore {
     match /venues/{venueId} {
       allow read: if signedIn();
 
-      allow create: if isAdmin() || isOwner(venueId);
+      // Sala nouă nu se poate auto-verifica; doar adminul o poate crea verificată.
+      allow create: if isAdmin() ||
+        (isOwner(venueId) && request.resource.data.get('isVerified', false) == false);
 
       allow update: if isAdmin() ||
         // Sala își editează profilul, dar nu își poate (re)seta verificarea sau rating-ul.
