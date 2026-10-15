@@ -5,6 +5,9 @@ import 'chat_screen.dart';
 import 'create_match_for_friends_screen.dart';
 import '../utils/level_utils.dart';
 import '../widgets/player_drawer.dart';
+import '../l10n/strings.dart';
+import '../services/notification_service.dart';
+import '../theme/app_theme.dart';
 
 class FriendsScreen extends StatefulWidget {
   const FriendsScreen({super.key});
@@ -20,6 +23,8 @@ class _FriendsScreenState extends State<FriendsScreen> {
   bool _isSearching = false;
   List<Map<String, dynamic>> _searchResults = [];
   String? _searchError;
+  // uid -> 'friend' | 'sent' | 'received' (relația cu rezultatele căutării)
+  Map<String, String> _relations = {};
 
   @override
   void dispose() {
@@ -63,14 +68,35 @@ class _FriendsScreenState extends State<FriendsScreen> {
         }
       }
 
+      final db = FirebaseFirestore.instance;
+      final Map<String, String> relations = {};
+      for (final r in results) {
+        final String tu = r['uid'];
+        final String fid = user.uid.compareTo(tu) < 0 ? '${user.uid}_$tu' : '${tu}_${user.uid}';
+        if ((await db.collection('friendships').doc(fid).get()).exists) {
+          relations[tu] = 'friend';
+          continue;
+        }
+        final sent = await db.collection('friend_requests')
+            .where('fromUid', isEqualTo: user.uid).where('toUid', isEqualTo: tu).where('status', isEqualTo: 'pending').get();
+        if (sent.docs.isNotEmpty) {
+          relations[tu] = 'sent';
+          continue;
+        }
+        final recv = await db.collection('friend_requests')
+            .where('fromUid', isEqualTo: tu).where('toUid', isEqualTo: user.uid).where('status', isEqualTo: 'pending').get();
+        if (recv.docs.isNotEmpty) relations[tu] = 'received';
+      }
+
       setState(() {
         _searchResults = results;
+        _relations = relations;
         if (results.isEmpty) {
-          _searchError = 'Nu am găsit niciun utilizator cu aceste date.';
+          _searchError = tr('friends.not_found');
         }
       });
     } catch (e) {
-      setState(() => _searchError = 'Eroare la căutare: $e');
+      setState(() => _searchError = tr('friends.search_error', {'error': '$e'}));
     } finally {
       setState(() => _isSearching = false);
     }
@@ -81,7 +107,7 @@ class _FriendsScreenState extends State<FriendsScreen> {
     if (user == null) return;
 
     final targetUid = targetUser['uid'];
-    final targetUsername = targetUser['username'] ?? 'Utilizator';
+    final targetUsername = targetUser['username'] ?? tr('friends.user');
     final targetAvatarUrl = targetUser['avatarUrl'] ?? '';
 
     try {
@@ -92,7 +118,7 @@ class _FriendsScreenState extends State<FriendsScreen> {
 
       final friendshipDoc = await FirebaseFirestore.instance.collection('friendships').doc(friendshipId).get();
       if (friendshipDoc.exists) {
-        _showDialogMessage('Sunteți deja prieteni!', 'Acest utilizator face deja parte din lista ta de prieteni.');
+        _showDialogMessage(tr('friends.already_title'), tr('friends.already_body'));
         return;
       }
 
@@ -105,7 +131,7 @@ class _FriendsScreenState extends State<FriendsScreen> {
           .get();
 
       if (sentRequestQuery.docs.isNotEmpty) {
-        _showDialogMessage('Cerere deja trimisă!', 'Ai trimis deja o cerere de prietenie către acest utilizator. Cererea este în așteptare.');
+        _showDialogMessage(tr('friends.sent_title'), tr('friends.sent_body'));
         return;
       }
 
@@ -118,7 +144,7 @@ class _FriendsScreenState extends State<FriendsScreen> {
           .get();
 
       if (receivedRequestQuery.docs.isNotEmpty) {
-        _showDialogMessage('Cerere în așteptare!', 'Acest utilizator ți-a trimis deja o cerere de prietenie! Verifică secțiunea "Cereri Primite" pentru a o accepta.');
+        _showDialogMessage(tr('friends.pending_title'), tr('friends.pending_body'));
         return;
       }
 
@@ -140,15 +166,24 @@ class _FriendsScreenState extends State<FriendsScreen> {
         'timestamp': FieldValue.serverTimestamp(),
       });
 
+      await NotificationService.send(
+        toUid: targetUid,
+        type: 'friend_request',
+        titleKey: 'n.friend_req_title',
+        bodyKey: 'n.friend_req_body',
+        args: {'player': '$myUsername'},
+      );
+
       if (mounted) {
+        setState(() => _relations[targetUid] = 'sent');
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Cerere de prietenie trimisă către $targetUsername!'), backgroundColor: Colors.green),
+          SnackBar(content: Text(tr('friends.sent_snack', {'name': '$targetUsername'})), backgroundColor: Colors.green),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Eroare la trimiterea cererii: $e'), backgroundColor: Colors.redAccent),
+          SnackBar(content: Text(tr('friends.send_error', {'error': '$e'})), backgroundColor: Colors.redAccent),
         );
       }
     }
@@ -158,13 +193,13 @@ class _FriendsScreenState extends State<FriendsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF131A2A),
-        title: Text(title, style: const TextStyle(color: Colors.white)),
-        content: Text(message, style: const TextStyle(color: Colors.grey)),
+        backgroundColor: AppColors.card,
+        title: Text(title, style: TextStyle(color: AppColors.text)),
+        content: Text(message, style: TextStyle(color: AppColors.muted)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('OK', style: TextStyle(color: Color(0xFF00E5FF))),
+            child: Text('OK', style: TextStyle(color: AppColors.accent)),
           ),
         ],
       ),
@@ -178,13 +213,13 @@ class _FriendsScreenState extends State<FriendsScreen> {
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          backgroundColor: const Color(0xFF131A2A),
+          backgroundColor: AppColors.card,
           title: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Cereri Primite', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+              Text(tr('friends.requests'), style: TextStyle(color: AppColors.text, fontSize: 20, fontWeight: FontWeight.bold)),
               IconButton(
-                icon: const Icon(Icons.close, color: Colors.grey),
+                icon: Icon(Icons.close, color: AppColors.muted),
                 onPressed: () => Navigator.pop(dialogContext),
               ),
             ],
@@ -200,17 +235,17 @@ class _FriendsScreenState extends State<FriendsScreen> {
                   .snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
-                  return Center(child: Text('Eroare: ${snapshot.error}', style: const TextStyle(color: Colors.redAccent)));
+                  return Center(child: Text(tr('friends.error', {'error': '${snapshot.error}'}), style: const TextStyle(color: Colors.redAccent)));
                 }
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)));
+                  return Center(child: CircularProgressIndicator(color: AppColors.accent));
                 }
 
                 final requests = snapshot.data?.docs ?? [];
 
                 if (requests.isEmpty) {
-                  return const Center(
-                    child: Text('Nu ai nicio cerere de prietenie primită.', style: TextStyle(color: Colors.grey), textAlign: TextAlign.center),
+                  return Center(
+                    child: Text(tr('friends.no_requests'), style: TextStyle(color: AppColors.muted), textAlign: TextAlign.center),
                   );
                 }
 
@@ -224,7 +259,7 @@ class _FriendsScreenState extends State<FriendsScreen> {
                     final fromAvatar = reqData['fromAvatarUrl'] ?? '';
 
                     return Card(
-                      color: const Color(0xFF1E293B),
+                      color: AppColors.card2,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
@@ -232,15 +267,15 @@ class _FriendsScreenState extends State<FriendsScreen> {
                           children: [
                             CircleAvatar(
                               radius: 20,
-                              backgroundColor: const Color(0xFF131A2A),
+                              backgroundColor: AppColors.card,
                               backgroundImage: fromAvatar.isNotEmpty ? NetworkImage(fromAvatar) : null,
                               child: fromAvatar.isEmpty
-                                  ? Text(fromUsername.substring(0, 1).toUpperCase(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))
+                                  ? Text(fromUsername.substring(0, 1).toUpperCase(), style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold))
                                   : null,
                             ),
                             const SizedBox(width: 12),
                             Expanded(
-                              child: Text(fromUsername, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white), overflow: TextOverflow.ellipsis),
+                              child: Text(fromUsername, style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.text), overflow: TextOverflow.ellipsis),
                             ),
                             IconButton(
                               icon: const Icon(Icons.check_circle, color: Colors.green),
@@ -312,13 +347,13 @@ class _FriendsScreenState extends State<FriendsScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Acum ești prieten cu $fromUsername!'), backgroundColor: Colors.green),
+          SnackBar(content: Text(tr('friends.now_friends', {'name': '$fromUsername'})), backgroundColor: Colors.green),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Eroare la acceptare: $e'), backgroundColor: Colors.redAccent),
+          SnackBar(content: Text(tr('friends.accept_error', {'error': '$e'})), backgroundColor: Colors.redAccent),
         );
       }
     }
@@ -329,13 +364,13 @@ class _FriendsScreenState extends State<FriendsScreen> {
       await FirebaseFirestore.instance.collection('friend_requests').doc(requestId).delete();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Cerere de prietenie refuzată.'), backgroundColor: Colors.orangeAccent),
+          SnackBar(content: Text(tr('friends.declined')), backgroundColor: Colors.orangeAccent),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Eroare: $e'), backgroundColor: Colors.redAccent),
+          SnackBar(content: Text(tr('friends.error', {'error': '$e'})), backgroundColor: Colors.redAccent),
         );
       }
     }
@@ -346,8 +381,8 @@ class _FriendsScreenState extends State<FriendsScreen> {
     final user = _currentUser;
     if (user == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Play with a Friend')),
-        body: const Center(child: Text('Trebuie să fii autentificat!')),
+        appBar: AppBar(title: Text(tr('friends.title'))),
+        body: Center(child: Text(tr('friends.not_logged'))),
       );
     }
 
@@ -358,22 +393,22 @@ class _FriendsScreenState extends State<FriendsScreen> {
         appBar: AppBar(
           leading: Builder(
             builder: (context) => IconButton(
-              icon: const Icon(Icons.menu, color: Color(0xFF00E5FF)),
+              icon: Icon(Icons.menu, color: AppColors.accent),
               onPressed: () {
                 Scaffold.of(context).openDrawer();
               },
             ),
           ),
-          title: const Text('Play with a Friend'),
-          backgroundColor: const Color(0xFF131A2A),
+          title: Text(tr('friends.title')),
+          backgroundColor: AppColors.card,
           elevation: 0,
-          bottom: const TabBar(
-            indicatorColor: Color(0xFF00E5FF),
-            labelColor: Color(0xFF00E5FF),
-            unselectedLabelColor: Colors.grey,
+          bottom: TabBar(
+            indicatorColor: AppColors.accent,
+            labelColor: AppColors.accent,
+            unselectedLabelColor: AppColors.muted,
             tabs: [
-              Tab(text: 'PRIETENII MEI'),
-              Tab(text: 'CAUTĂ PRIETENI'),
+              Tab(text: tr('friends.tab_mine')),
+              Tab(text: tr('friends.tab_search')),
             ],
           ),
         ),
@@ -397,11 +432,11 @@ class _FriendsScreenState extends State<FriendsScreen> {
         // Cereri Primite Bar
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          color: const Color(0xFF131A2A),
+          color: AppColors.card,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Gestionare prietenii', style: TextStyle(color: Colors.grey, fontSize: 14)),
+              Text(tr('friends.manage'), style: TextStyle(color: AppColors.muted, fontSize: 14)),
               StreamBuilder<QuerySnapshot>(
                 stream: FirebaseFirestore.instance
                     .collection('friend_requests')
@@ -412,13 +447,13 @@ class _FriendsScreenState extends State<FriendsScreen> {
                   int count = snapshot.hasData ? snapshot.data!.docs.length : 0;
                   return ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: count > 0 ? Colors.redAccent : const Color(0xFF1E293B),
+                      backgroundColor: count > 0 ? Colors.redAccent : AppColors.card2,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                     ),
                     icon: Icon(count > 0 ? Icons.notification_important : Icons.people_outline, size: 18),
-                    label: Text(count > 0 ? 'Cereri Primite ($count)' : 'Cereri Primite'),
+                    label: Text(count > 0 ? tr('friends.requests_n', {'count': '$count'}) : tr('friends.requests')),
                     onPressed: _showReceivedRequestsDialog,
                   );
                 },
@@ -445,26 +480,26 @@ class _FriendsScreenState extends State<FriendsScreen> {
                     .snapshots(),
                 builder: (context, snapshot) {
                   if (snapshot.hasError) {
-                    return Center(child: Text('Eroare la încărcare: ${snapshot.error}', style: const TextStyle(color: Colors.redAccent)));
+                    return Center(child: Text(tr('friends.load_error', {'error': '${snapshot.error}'}), style: const TextStyle(color: Colors.redAccent)));
                   }
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)));
+                return Center(child: CircularProgressIndicator(color: AppColors.accent));
               }
 
               final docs = snapshot.data?.docs ?? [];
 
               if (docs.isEmpty) {
-                return const Center(
+                return Center(
                   child: Padding(
                     padding: EdgeInsets.all(24.0),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.people_outline, size: 64, color: Colors.grey),
+                        Icon(Icons.people_outline, size: 64, color: AppColors.muted),
                         SizedBox(height: 16),
-                        Text('Nu ai niciun prieten adăugat încă.', style: TextStyle(color: Colors.grey, fontSize: 16, fontWeight: FontWeight.bold)),
+                        Text(tr('friends.none'), style: TextStyle(color: AppColors.muted, fontSize: 16, fontWeight: FontWeight.bold)),
                         SizedBox(height: 8),
-                        Text('Folosește tabul "CAUTĂ PRIETENI" de mai sus pentru a le trimite cereri!', style: TextStyle(color: Colors.grey, fontSize: 12), textAlign: TextAlign.center),
+                        Text(tr('friends.none_hint'), style: TextStyle(color: AppColors.muted, fontSize: 12), textAlign: TextAlign.center),
                       ],
                     ),
                   ),
@@ -486,38 +521,38 @@ class _FriendsScreenState extends State<FriendsScreen> {
                   if (uids.length < 2) return const SizedBox();
 
                   final String otherUid = uids[otherIdx];
-                  final String otherUsername = (usernames.length > otherIdx) ? usernames[otherIdx] : 'Utilizator';
+                  final String otherUsername = (usernames.length > otherIdx) ? usernames[otherIdx] : tr('friends.user');
                   final String? otherAvatar = (avatars.length > otherIdx) ? avatars[otherIdx] : null;
 
                   final bool isCloseFriend = closeFriends.contains(otherUid);
 
                   return Card(
-                    color: const Color(0xFF131A2A),
+                    color: AppColors.card,
                     margin: const EdgeInsets.only(bottom: 12),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
-                      side: BorderSide(color: const Color(0xFF00E5FF).withValues(alpha: 0.3)),
+                      side: BorderSide(color: AppColors.accent.withValues(alpha: 0.3)),
                     ),
                     child: ListTile(
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       leading: CircleAvatar(
-                        backgroundColor: const Color(0xFF1E293B),
+                        backgroundColor: AppColors.card2,
                         backgroundImage: otherAvatar != null && otherAvatar.isNotEmpty ? NetworkImage(otherAvatar) : null,
                         child: otherAvatar == null || otherAvatar.isEmpty
-                            ? Text(otherUsername.substring(0, 1).toUpperCase(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))
+                            ? Text(otherUsername.substring(0, 1).toUpperCase(), style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold))
                             : null,
                       ),
                       title: Text(otherUsername, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                      subtitle: Text(isCloseFriend ? 'Close Friend' : 'Prieten Mutual', style: TextStyle(color: isCloseFriend ? Colors.amber : Colors.grey, fontSize: 12)),
+                      subtitle: Text(isCloseFriend ? tr('friends.close') : tr('friends.mutual'), style: TextStyle(color: isCloseFriend ? Colors.amber : AppColors.muted, fontSize: 12)),
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           IconButton(
-                            icon: Icon(isCloseFriend ? Icons.star : Icons.star_border, color: isCloseFriend ? Colors.amber : Colors.grey),
+                            icon: Icon(isCloseFriend ? Icons.star : Icons.star_border, color: isCloseFriend ? Colors.amber : AppColors.muted),
                             onPressed: () => _toggleCloseFriend(otherUid, isCloseFriend),
                           ),
                           IconButton(
-                            icon: const Icon(Icons.chat_bubble_outline, color: Color(0xFF00E5FF)),
+                            icon: Icon(Icons.chat_bubble_outline, color: AppColors.accent),
                             onPressed: () {
                               Navigator.push(
                                 context,
@@ -547,9 +582,9 @@ class _FriendsScreenState extends State<FriendsScreen> {
         // Action Button: Create Match
         Container(
           padding: const EdgeInsets.all(16),
-          decoration: const BoxDecoration(
-            color: Color(0xFF131A2A),
-            border: Border(top: BorderSide(color: Color(0xFF1E293B), width: 1)),
+          decoration: BoxDecoration(
+            color: AppColors.card,
+            border: Border(top: BorderSide(color: AppColors.card2, width: 1)),
           ),
           child: SizedBox(
             width: double.infinity,
@@ -560,7 +595,7 @@ class _FriendsScreenState extends State<FriendsScreen> {
                   MaterialPageRoute(builder: (_) => const CreateMatchForFriendsScreen()),
                 );
               },
-              child: const Text('CREEAZĂ MECI & INVITĂ PRIETENI'),
+              child: Text(tr('friends.create_match')),
             ),
           ),
         ),
@@ -585,7 +620,7 @@ class _FriendsScreenState extends State<FriendsScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Eroare: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tr('friends.error', {'error': '$e'}))));
       }
     }
   }
@@ -596,15 +631,15 @@ class _FriendsScreenState extends State<FriendsScreen> {
         // Search Input Bar
         Container(
           padding: const EdgeInsets.all(16),
-          color: const Color(0xFF131A2A),
+          color: AppColors.card,
           child: Row(
             children: [
               Expanded(
                 child: TextField(
                   controller: _searchController,
-                  decoration: const InputDecoration(
-                    hintText: 'Căutare după nume, email sau telefon...',
-                    prefixIcon: Icon(Icons.search, color: Colors.grey),
+                  decoration: InputDecoration(
+                    hintText: tr('friends.search_hint'),
+                    prefixIcon: Icon(Icons.search, color: AppColors.muted),
                   ),
                   onSubmitted: (_) => _searchUsers(),
                 ),
@@ -625,28 +660,27 @@ class _FriendsScreenState extends State<FriendsScreen> {
         // Results or Loading
         Expanded(
           child: _isSearching
-              ? const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)))
+              ? Center(child: CircularProgressIndicator(color: AppColors.accent))
               : _searchError != null
-                  ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(_searchError!, style: const TextStyle(color: Colors.grey), textAlign: TextAlign.center)))
+                  ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(_searchError!, style: TextStyle(color: AppColors.muted), textAlign: TextAlign.center)))
                   : _searchResults.isEmpty
-                      ? const Center(child: Text('Introdu datele de căutare pentru a găsi jucători.', style: TextStyle(color: Colors.grey)))
+                      ? Center(child: Text(tr('friends.search_prompt'), style: TextStyle(color: AppColors.muted)))
                       : ListView.builder(
                           padding: const EdgeInsets.all(16),
                           itemCount: _searchResults.length,
                           itemBuilder: (context, index) {
                             final user = _searchResults[index];
-                            final username = user['username'] ?? 'Utilizator';
-                            final email = user['email'] ?? '';
-                            final phone = user['phone'] ?? '';
+                            final username = user['username'] ?? tr('friends.user');
+                            final String relation = _relations[user['uid']] ?? '';
                             final avatarUrl = user['avatarUrl'] ?? '';
                             final rating = user['rating'] ?? 0;
                             final levelName = LevelUtils.getLevelDetails(rating)['levelName'];
 
                             return Card(
-                              color: const Color(0xFF131A2A),
+                              color: AppColors.card,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
-                                side: BorderSide(color: const Color(0xFF00E5FF).withValues(alpha: 0.2)),
+                                side: BorderSide(color: AppColors.accent.withValues(alpha: 0.2)),
                               ),
                               margin: const EdgeInsets.only(bottom: 12),
                               child: Padding(
@@ -655,10 +689,10 @@ class _FriendsScreenState extends State<FriendsScreen> {
                                   children: [
                                     CircleAvatar(
                                       radius: 26,
-                                      backgroundColor: const Color(0xFF1E293B),
+                                      backgroundColor: AppColors.card2,
                                       backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
                                       child: avatarUrl.isEmpty
-                                          ? Text(username.substring(0, 1).toUpperCase(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18))
+                                          ? Text(username.substring(0, 1).toUpperCase(), style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold, fontSize: 18))
                                           : null,
                                     ),
                                     const SizedBox(width: 16),
@@ -666,11 +700,8 @@ class _FriendsScreenState extends State<FriendsScreen> {
                                       child: Column(
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
-                                          Text(username, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
-                                          Text('Nivel: $levelName ($rating puncte)', style: const TextStyle(color: Color(0xFF00E5FF), fontSize: 12)),
-                                          const SizedBox(height: 4),
-                                          if (email.isNotEmpty) Text(email, style: const TextStyle(color: Colors.grey, fontSize: 12)),
-                                          if (phone.isNotEmpty) Text(phone, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                                          Text(username, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.text)),
+                                          Text(tr('friends.level', {'level': '$levelName', 'points': '$rating'}), style: TextStyle(color: AppColors.accent, fontSize: 12)),
                                         ],
                                       ),
                                     ),
@@ -679,8 +710,14 @@ class _FriendsScreenState extends State<FriendsScreen> {
                                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                                       ),
-                                      onPressed: () => _sendFriendRequest(user),
-                                      child: const Text('ADAUGĂ'),
+                                      onPressed: relation.isEmpty ? () => _sendFriendRequest(user) : null,
+                                      child: Text(relation == 'friend'
+                                          ? tr('friends.btn_friend')
+                                          : relation == 'sent'
+                                              ? tr('friends.btn_sent')
+                                              : relation == 'received'
+                                                  ? tr('friends.btn_received')
+                                                  : tr('friends.btn_add')),
                                     ),
                                   ],
                                 ),

@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -16,7 +17,10 @@ class InvoiceService {
     required String address,
     required String email,
   }) async {
-    final pdf = pw.Document();
+    // Fontul implicit al pachetului pdf (Helvetica) nu are ă â î ș ț — folosim un font TTF cu Unicode complet.
+    final regular = pw.Font.ttf(await rootBundle.load('assets/fonts/LiberationSans-Regular.ttf'));
+    final bold = pw.Font.ttf(await rootBundle.load('assets/fonts/LiberationSans-Bold.ttf'));
+    final pdf = pw.Document(theme: pw.ThemeData.withFont(base: regular, bold: bold));
     
     // Add page
     pdf.addPage(
@@ -82,13 +86,21 @@ class InvoiceService {
                 pw.TableHelper.fromTextArray(
                   headers: ['Nr.', 'Descriere Serviciu', 'U.M.', 'Cantitate', 'Preț Unitar (RON)', 'Valoare (RON)'],
                   data: [
-                    ['1', 'Rezervare masă tenis - $venueName ($date, $time)', 'Buc', '1', amount.toStringAsFixed(2), amount.toStringAsFixed(2)],
+                    ['1', 'Rezervare sală sportivă - $venueName ($date, $time)', 'Buc', '1', amount.toStringAsFixed(2), amount.toStringAsFixed(2)],
                     ['2', 'Taxă Platformă PingPong Playhub', 'Buc', '1', '5.00', '5.00'],
                   ],
                   border: pw.TableBorder.all(color: PdfColors.grey400),
                   headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white),
                   headerDecoration: const pw.BoxDecoration(color: PdfColors.blueGrey800),
                   cellHeight: 30,
+                  columnWidths: {
+                    0: const pw.FixedColumnWidth(30),
+                    1: const pw.FlexColumnWidth(4),
+                    2: const pw.FixedColumnWidth(40),
+                    3: const pw.FixedColumnWidth(58),
+                    4: const pw.FlexColumnWidth(1.7),
+                    5: const pw.FlexColumnWidth(1.7),
+                  },
                   cellAlignments: {
                     0: pw.Alignment.center,
                     1: pw.Alignment.centerLeft,

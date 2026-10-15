@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../l10n/strings.dart';
+import '../theme/app_theme.dart';
 
 class TrainerScheduleScreen extends StatefulWidget {
   const TrainerScheduleScreen({super.key});
@@ -22,6 +24,12 @@ class _TrainerScheduleScreenState extends State<TrainerScheduleScreen> {
     'Sâmbătă': 'Liber',
     'Duminică': 'Liber',
   };
+
+  static const Map<String, String> _dayKeys = {
+    'Luni': 'day.mon', 'Marți': 'day.tue', 'Miercuri': 'day.wed', 'Joi': 'day.thu',
+    'Vineri': 'day.fri', 'Sâmbătă': 'day.sat', 'Duminică': 'day.sun',
+  };
+  String _dayLabel(String day) => _dayKeys[day] != null ? tr(_dayKeys[day]!) : day;
 
   @override
   void initState() {
@@ -56,13 +64,13 @@ class _TrainerScheduleScreenState extends State<TrainerScheduleScreen> {
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Program actualizat!'), backgroundColor: Colors.green),
+          SnackBar(content: Text(tr('tr.sched_updated')), backgroundColor: Colors.green),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Eroare: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text(tr('tr.error', {'error': '$e'})), backgroundColor: Colors.red),
         );
       }
     }
@@ -75,19 +83,19 @@ class _TrainerScheduleScreenState extends State<TrainerScheduleScreen> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          backgroundColor: const Color(0xFF131A2A),
-          title: Text('Program $day', style: const TextStyle(color: Colors.white)),
+          backgroundColor: AppColors.card,
+          title: Text(tr('tr.sched_day', {'day': _dayLabel(day)}), style: TextStyle(color: AppColors.text)),
           content: TextField(
             controller: controller,
-            style: const TextStyle(color: Colors.white),
-            decoration: const InputDecoration(
-              labelText: 'Interval orar (ex: 10:00 - 18:00 sau Liber)',
+            style: TextStyle(color: AppColors.text),
+            decoration: InputDecoration(
+              labelText: tr('tr.sched_hint'),
             ),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Anulează', style: TextStyle(color: Colors.redAccent)),
+              child: Text(tr('common.cancel'), style: const TextStyle(color: Colors.redAccent)),
             ),
             ElevatedButton(
               onPressed: () {
@@ -96,7 +104,7 @@ class _TrainerScheduleScreenState extends State<TrainerScheduleScreen> {
                 });
                 Navigator.pop(context);
               },
-              child: const Text('Salvează'),
+              child: Text(tr('common.save')),
             ),
           ],
         );
@@ -108,9 +116,9 @@ class _TrainerScheduleScreenState extends State<TrainerScheduleScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Program Antrenor', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        backgroundColor: const Color(0xFF131A2A),
-        iconTheme: const IconThemeData(color: Color(0xFF00E5FF)),
+        title: Text(tr('tr.sched_title'), style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold)),
+        backgroundColor: AppColors.card,
+        iconTheme: IconThemeData(color: AppColors.accent),
         actions: [
           IconButton(
             icon: const Icon(Icons.save),
@@ -119,17 +127,17 @@ class _TrainerScheduleScreenState extends State<TrainerScheduleScreen> {
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)))
+          ? Center(child: CircularProgressIndicator(color: AppColors.accent))
           : ListView(
               padding: const EdgeInsets.all(16),
               children: _schedule.keys.map((day) {
                 return Card(
-                  color: const Color(0xFF1E293B),
+                  color: AppColors.card2,
                   margin: const EdgeInsets.only(bottom: 12),
                   child: ListTile(
-                    title: Text(day, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                    subtitle: Text(_schedule[day]!, style: const TextStyle(color: Color(0xFF00E5FF))),
-                    trailing: const Icon(Icons.edit, color: Colors.grey),
+                    title: Text(_dayLabel(day), style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold)),
+                    subtitle: Text(_schedule[day] == 'Liber' ? tr('tr.day_off') : _schedule[day]!, style: TextStyle(color: AppColors.accent)),
+                    trailing: Icon(Icons.edit, color: AppColors.muted),
                     onTap: () => _editDaySchedule(day),
                   ),
                 );

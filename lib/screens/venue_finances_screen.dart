@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../theme/app_theme.dart';
 
 class VenueFinancesScreen extends StatefulWidget {
   final String venueId;
@@ -83,72 +84,72 @@ class _VenueFinancesScreenState extends State<VenueFinancesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0E17),
+      backgroundColor: AppColors.bg,
       appBar: AppBar(
         title: const Text('Panou Financiar', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-        backgroundColor: const Color(0xFF131A2A),
+        backgroundColor: AppColors.card,
         elevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh, color: Color(0xFF00E5FF)),
+            icon: Icon(Icons.refresh, color: AppColors.accent),
             onPressed: _loadFinances,
           ),
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)))
+          ? Center(child: CircularProgressIndicator(color: AppColors.accent))
           : RefreshIndicator(
               onRefresh: _loadFinances,
-              color: const Color(0xFF00E5FF),
+              color: AppColors.accent,
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'Statistici Încasări',
-                      style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                      style: TextStyle(color: AppColors.text, fontSize: 20, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 16),
                     _buildFinanceCard(
                       title: 'Total Cash Încasat',
                       amount: _totalCash,
                       icon: Icons.money,
-                      color: const Color(0xFF00FF66),
+                      color: AppColors.good,
                     ),
                     const SizedBox(height: 12),
                     _buildFinanceCard(
                       title: 'Total Card Încasat',
                       amount: _totalCard,
                       icon: Icons.credit_card,
-                      color: const Color(0xFF00E5FF),
+                      color: AppColors.accent,
                     ),
                     const SizedBox(height: 12),
                     _buildFinanceCard(
                       title: 'Total Returnat (Refund)',
                       amount: _totalRefunded,
                       icon: Icons.assignment_return,
-                      color: const Color(0xFFFF0055),
+                      color: AppColors.bad,
                     ),
                     const SizedBox(height: 24),
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF1E293B).withValues(alpha: 0.5),
+                        color: AppColors.card2.withValues(alpha: 0.5),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.white12),
+                        border: Border.all(color: AppColors.text12),
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text(
+                          Text(
                             'Număr Total Rezervări',
-                            style: TextStyle(color: Colors.white70, fontSize: 16),
+                            style: TextStyle(color: AppColors.text70, fontSize: 16),
                           ),
                           Text(
                             '$_totalBookings',
-                            style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                            style: TextStyle(color: AppColors.text, fontSize: 18, fontWeight: FontWeight.bold),
                           ),
                         ],
                       ),
@@ -164,7 +165,7 @@ class _VenueFinancesScreenState extends State<VenueFinancesScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFF131A2A),
+        color: AppColors.card,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: color.withValues(alpha: 0.3), width: 1.5),
         boxShadow: [
@@ -192,7 +193,7 @@ class _VenueFinancesScreenState extends State<VenueFinancesScreen> {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(color: Colors.white70, fontSize: 14),
+                  style: TextStyle(color: AppColors.text70, fontSize: 14),
                 ),
                 const SizedBox(height: 4),
                 Text(

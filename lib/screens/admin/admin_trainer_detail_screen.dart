@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../signup_screen.dart';
+import '../../theme/app_theme.dart';
 
 class AdminTrainerDetailScreen extends StatefulWidget {
   final String trainerId;
@@ -64,29 +65,29 @@ class _AdminTrainerDetailScreenState extends State<AdminTrainerDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0E17),
+      backgroundColor: AppColors.bg,
       appBar: AppBar(
-        title: const Text('Detalii Antrenor', style: TextStyle(color: Colors.white, fontSize: 18)),
-        backgroundColor: const Color(0xFF131A2A),
-        iconTheme: const IconThemeData(color: Color(0xFF00E5FF)),
+        title: Text('Detalii Antrenor', style: TextStyle(color: AppColors.text, fontSize: 18)),
+        backgroundColor: AppColors.card,
+        iconTheme: IconThemeData(color: AppColors.accent),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text(
+            Text(
               'Editează profilul de antrenor',
-              style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+              style: TextStyle(color: AppColors.text, fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 20),
             
             // Is Trainer Toggle
             SwitchListTile(
-              title: const Text('Status Antrenor Activ', style: TextStyle(color: Colors.white)),
-              subtitle: const Text('Dacă dezactivezi, acest utilizator nu va mai apărea ca antrenor', style: TextStyle(color: Colors.grey)),
+              title: Text('Status Antrenor Activ', style: TextStyle(color: AppColors.text)),
+              subtitle: Text('Dacă dezactivezi, acest utilizator nu va mai apărea ca antrenor', style: TextStyle(color: AppColors.muted)),
               value: _isTrainer,
-              activeColor: const Color(0xFFFFD700),
+              activeColor: AppColors.gold,
               onChanged: (val) {
                 setState(() {
                   _isTrainer = val;
@@ -101,12 +102,12 @@ class _AdminTrainerDetailScreenState extends State<AdminTrainerDetailScreen> {
                   child: TextField(
                     controller: _pricePerMonthController,
                     keyboardType: TextInputType.number,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: const InputDecoration(
+                    style: TextStyle(color: AppColors.text),
+                    decoration: InputDecoration(
                       labelText: 'Preț / lună (RON)',
-                      labelStyle: TextStyle(color: Colors.grey),
-                      enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.grey)),
-                      focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFFFFD700))),
+                      labelStyle: TextStyle(color: AppColors.muted),
+                      enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.muted)),
+                      focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.gold)),
                     ),
                   ),
                 ),
@@ -115,12 +116,12 @@ class _AdminTrainerDetailScreenState extends State<AdminTrainerDetailScreen> {
                   child: TextField(
                     controller: _pricePerSessionController,
                     keyboardType: TextInputType.number,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: const InputDecoration(
+                    style: TextStyle(color: AppColors.text),
+                    decoration: InputDecoration(
                       labelText: 'Preț / ședință',
-                      labelStyle: TextStyle(color: Colors.grey),
-                      enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.grey)),
-                      focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFFFFD700))),
+                      labelStyle: TextStyle(color: AppColors.muted),
+                      enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.muted)),
+                      focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.gold)),
                     ),
                   ),
                 ),
@@ -131,12 +132,12 @@ class _AdminTrainerDetailScreenState extends State<AdminTrainerDetailScreen> {
             // Trainer IBAN
             TextField(
               controller: _ibanController,
-              style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(
+              style: TextStyle(color: AppColors.text),
+              decoration: InputDecoration(
                 labelText: 'Cont IBAN (opțional)',
-                labelStyle: TextStyle(color: Colors.grey),
-                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.grey)),
-                focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFFFFD700))),
+                labelStyle: TextStyle(color: AppColors.muted),
+                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.muted)),
+                focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.gold)),
               ),
             ),
             const SizedBox(height: 16),
@@ -157,7 +158,7 @@ class _AdminTrainerDetailScreenState extends State<AdminTrainerDetailScreen> {
               icon: const Icon(Icons.edit_document),
               label: const Text('Editează Profil Antrenor Complet (Formular)'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF131A2A),
+                backgroundColor: AppColors.card,
                 foregroundColor: Colors.amberAccent,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 side: const BorderSide(color: Colors.amberAccent),
@@ -169,7 +170,7 @@ class _AdminTrainerDetailScreenState extends State<AdminTrainerDetailScreen> {
             ElevatedButton(
               onPressed: _isSaving ? null : _saveChanges,
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFFFD700),
+                backgroundColor: AppColors.gold,
                 foregroundColor: Colors.black,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),

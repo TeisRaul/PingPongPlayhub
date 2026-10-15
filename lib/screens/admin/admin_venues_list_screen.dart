@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'admin_venue_detail_screen.dart';
+import '../../theme/app_theme.dart';
 
 class AdminVenuesListScreen extends StatefulWidget {
   const AdminVenuesListScreen({super.key});
@@ -15,24 +16,24 @@ class _AdminVenuesListScreenState extends State<AdminVenuesListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0E17),
+      backgroundColor: AppColors.bg,
       appBar: AppBar(
-        title: const Text('Gestiune Săli', style: TextStyle(color: Colors.white, fontSize: 18)),
-        backgroundColor: const Color(0xFF131A2A),
-        iconTheme: const IconThemeData(color: Color(0xFF00E5FF)),
+        title: Text('Gestiune Săli', style: TextStyle(color: AppColors.text, fontSize: 18)),
+        backgroundColor: AppColors.card,
+        iconTheme: IconThemeData(color: AppColors.accent),
       ),
       body: Column(
         children: [
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: TextField(
-              style: const TextStyle(color: Colors.white),
+              style: TextStyle(color: AppColors.text),
               decoration: InputDecoration(
                 hintText: 'Caută după oraș...',
-                hintStyle: const TextStyle(color: Colors.grey),
-                prefixIcon: const Icon(Icons.location_city, color: Colors.grey),
+                hintStyle: TextStyle(color: AppColors.muted),
+                prefixIcon: Icon(Icons.location_city, color: AppColors.muted),
                 filled: true,
-                fillColor: const Color(0xFF131A2A),
+                fillColor: AppColors.card,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide.none,
@@ -50,12 +51,12 @@ class _AdminVenuesListScreenState extends State<AdminVenuesListScreen> {
               stream: FirebaseFirestore.instance.collection('venues').snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)));
+                  return Center(child: CircularProgressIndicator(color: AppColors.accent));
                 }
 
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return const Center(
-                    child: Text('Nicio sală găsită.', style: TextStyle(color: Colors.grey)),
+                  return Center(
+                    child: Text('Nicio sală găsită.', style: TextStyle(color: AppColors.muted)),
                   );
                 }
 
@@ -73,8 +74,8 @@ class _AdminVenuesListScreenState extends State<AdminVenuesListScreen> {
           });
 
           if (venues.isEmpty) {
-            return const Center(
-              child: Text('Nicio sală găsită pentru acest oraș.', style: TextStyle(color: Colors.grey)),
+            return Center(
+              child: Text('Nicio sală găsită pentru acest oraș.', style: TextStyle(color: AppColors.muted)),
             );
           }
 
@@ -91,18 +92,18 @@ class _AdminVenuesListScreenState extends State<AdminVenuesListScreen> {
               final isPending = data['isVerified'] == false;
 
               return Card(
-                color: const Color(0xFF131A2A),
+                color: AppColors.card,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
-                  side: BorderSide(color: isPublic ? const Color(0xFF00FF66) : const Color(0xFF00E5FF).withValues(alpha: 0.3)),
+                  side: BorderSide(color: isPublic ? AppColors.good : AppColors.accent.withValues(alpha: 0.3)),
                 ),
                 child: ListTile(
                   leading: Icon(
                     isPublic ? Icons.park : Icons.storefront,
-                    color: isPublic ? const Color(0xFF00FF66) : const Color(0xFF00E5FF),
+                    color: isPublic ? AppColors.good : AppColors.accent,
                   ),
-                  title: Text(venueName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                  subtitle: Text('$city${isPublic ? " (Public)" : ""}', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                  title: Text(venueName, style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold)),
+                  subtitle: Text('$city${isPublic ? " (Public)" : ""}', style: TextStyle(color: AppColors.muted, fontSize: 12)),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -117,7 +118,7 @@ class _AdminVenuesListScreenState extends State<AdminVenuesListScreen> {
                           child: const Text('În așteptare', style: TextStyle(color: Colors.orangeAccent, fontSize: 11, fontWeight: FontWeight.bold)),
                         ),
                       if (isPending) const SizedBox(width: 8),
-                      const Icon(Icons.arrow_forward_ios, color: Colors.grey, size: 16),
+                      Icon(Icons.arrow_forward_ios, color: AppColors.muted, size: 16),
                     ],
                   ),
                   onTap: () {

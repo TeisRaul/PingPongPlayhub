@@ -1,4 +1,9 @@
 import 'package:flutter/material.dart';
+import '../l10n/app_locales.dart';
+import '../l10n/strings.dart';
+import '../widgets/language_picker.dart';
+import '../widgets/theme_picker.dart';
+import '../services/account_lookup.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -9,6 +14,7 @@ import 'venue_signup_screen.dart';
 import 'google_login_stub.dart' if (dart.library.io) 'google_login_mobile.dart';
 import 'home_screen.dart';
 import 'forgot_password_screen.dart';
+import '../theme/app_theme.dart';
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -22,8 +28,19 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscurePassword = true;
   bool _isLoading = false;
 
+  void _onLangChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    AppLocales.current.addListener(_onLangChanged);
+  }
+
   @override
   void dispose() {
+    AppLocales.current.removeListener(_onLangChanged);
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -88,7 +105,7 @@ class _LoginScreenState extends State<LoginScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Eroare la logarea cu Google: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text(tr('auth.err_google', {'error': '$e'})), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -166,7 +183,7 @@ class _LoginScreenState extends State<LoginScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Eroare la logarea cu Facebook: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text(tr('auth.err_facebook', {'error': '$e'})), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -187,7 +204,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     if (input.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Te rugăm să completezi ambele câmpuri'), backgroundColor: Colors.red),
+        SnackBar(content: Text(tr('auth.fill_both')), backgroundColor: Colors.red),
       );
       return;
     }
@@ -201,15 +218,12 @@ class _LoginScreenState extends State<LoginScreen> {
 
       // Dacă nu conține '@', presupunem că e username și căutăm emailul
       if (!input.contains('@')) {
-        final querySnapshot = await FirebaseFirestore.instance
-            .collection('users')
-            .where('username', isEqualTo: input)
-            .get();
+        final foundEmail = await AccountLookup.emailForUsername(input);
 
-        if (querySnapshot.docs.isNotEmpty) {
-          emailToLogin = querySnapshot.docs.first.data()['email'] as String;
+        if (foundEmail != null) {
+          emailToLogin = foundEmail;
         } else {
-          throw FirebaseAuthException(code: 'user-not-found', message: 'Nume de utilizator inexistent.');
+          throw FirebaseAuthException(code: 'user-not-found', message: 'unknown-username');
         }
       }
 
@@ -217,6 +231,8 @@ class _LoginScreenState extends State<LoginScreen> {
         email: emailToLogin,
         password: password,
       );
+      // Conturile mai vechi primesc acum înregistrarea pentru autentificarea cu nume de utilizator.
+      await AccountLookup.ensureForCurrentUser();
 
       if (mounted) {
         Navigator.pushReplacement(
@@ -225,15 +241,15 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       }
     } on FirebaseAuthException catch (e) {
-      String errorMessage = 'Autentificare eșuată.';
-      if (e.code == 'user-not-found' || e.message == 'Nume de utilizator inexistent.') {
-        errorMessage = 'Utilizatorul nu a fost găsit.';
+      String errorMessage = tr('auth.failed');
+      if (e.code == 'user-not-found' || e.message == 'unknown-username') {
+        errorMessage = tr('auth.user_not_found');
       } else if (e.code == 'wrong-password') {
-        errorMessage = 'Parola este incorectă.';
+        errorMessage = tr('auth.wrong_password');
       } else if (e.code == 'invalid-email') {
-        errorMessage = 'Format invalid.';
+        errorMessage = tr('auth.invalid_format');
       } else if (e.code == 'invalid-credential') {
-        errorMessage = 'Date de autentificare incorecte.';
+        errorMessage = tr('auth.invalid_credential');
       }
 
       if (mounted) {
@@ -244,7 +260,7 @@ class _LoginScreenState extends State<LoginScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Eroare: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text(tr('auth.err', {'error': '$e'})), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -265,36 +281,40 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: 60),
+              const Align(
+                alignment: Alignment.centerRight,
+                child: Row(mainAxisSize: MainAxisSize.min, children: [ThemePickerButton(), LanguagePickerButton()]),
+              ),
+              const SizedBox(height: 24),
               // App Logo / Title
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
-                children: const [
-                  Icon(Icons.sports_soccer, size: 45, color: Color(0xFF00E5FF)),
+                children: [
+                  Icon(Icons.sports_soccer, size: 45, color: AppColors.accent),
                   SizedBox(width: 12),
-                  Icon(Icons.sports_tennis, size: 65, color: Color(0xFF00E5FF)),
+                  Icon(Icons.sports_tennis, size: 65, color: AppColors.accent),
                   SizedBox(width: 12),
-                  Icon(Icons.sports_basketball, size: 45, color: Color(0xFF00E5FF)),
+                  Icon(Icons.sports_basketball, size: 45, color: AppColors.accent),
                 ],
               ),
               const SizedBox(height: 16),
-              const Text(
+              Text(
                 'Playhub',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.bold,
-                  color: Colors.white,
+                  color: AppColors.text,
                   letterSpacing: 1.5,
                 ),
               ),
               const SizedBox(height: 8),
-              const Text(
-                'Bun venit! Autentifică-te pentru a juca.',
+              Text(
+                tr('auth.welcome'),
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 16,
-                  color: Colors.grey,
+                  color: AppColors.muted,
                 ),
               ),
               const SizedBox(height: 48),
@@ -305,8 +325,8 @@ class _LoginScreenState extends State<LoginScreen> {
                 keyboardType: TextInputType.emailAddress,
                 textInputAction: TextInputAction.next,
                 onSubmitted: (_) => FocusScope.of(context).nextFocus(),
-                decoration: const InputDecoration(
-                  labelText: 'Email sau Nume de utilizator',
+                decoration: InputDecoration(
+                  labelText: tr('auth.email_or_user'),
                   prefixIcon: Icon(Icons.person_outline),
                 ),
               ),
@@ -319,12 +339,12 @@ class _LoginScreenState extends State<LoginScreen> {
                 textInputAction: TextInputAction.done,
                 onSubmitted: (_) => _isLoading ? null : _handleEmailLogin(),
                 decoration: InputDecoration(
-                  labelText: 'Parolă',
+                  labelText: tr('auth.password'),
                   prefixIcon: const Icon(Icons.lock_outline),
                   suffixIcon: IconButton(
                     icon: Icon(
                       _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                      color: Colors.grey,
+                      color: AppColors.muted,
                     ),
                     onPressed: () {
                       setState(() {
@@ -340,7 +360,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   onPressed: () {
                     Navigator.push(context, MaterialPageRoute(builder: (_) => const ForgotPasswordScreen()));
                   },
-                  child: const Text('Ai uitat parola?', style: TextStyle(color: Color(0xFF00E5FF))),
+                  child: Text(tr('auth.forgot'), style: TextStyle(color: AppColors.accent)),
                 ),
               ),
               const SizedBox(height: 16),
@@ -352,23 +372,23 @@ class _LoginScreenState extends State<LoginScreen> {
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
                 child: _isLoading 
-                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white)) 
-                    : const Text('LOG IN'),
+                    ? SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: AppColors.text)) 
+                    : Text(tr('auth.login')),
               ),
               const SizedBox(height: 24),
 
               // Divider
               Row(
                 children: [
-                  Expanded(child: Divider(color: Colors.grey[800])),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 16.0),
+                  Expanded(child: Divider(color: AppColors.border)),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
                     child: Text(
-                      'SAU',
-                      style: TextStyle(color: Colors.grey),
+                      tr('auth.or'),
+                      style: TextStyle(color: AppColors.muted),
                     ),
                   ),
-                  Expanded(child: Divider(color: Colors.grey[800])),
+                  Expanded(child: Divider(color: AppColors.border)),
                 ],
               ),
               const SizedBox(height: 24),
@@ -376,12 +396,12 @@ class _LoginScreenState extends State<LoginScreen> {
               // Social Login Buttons
               OutlinedButton.icon(
                 onPressed: _isLoading ? null : _signInWithGoogle,
-                icon: const FaIcon(FontAwesomeIcons.google, color: Colors.white),
-                label: const Text('Logează-te cu Google'),
+                icon: FaIcon(FontAwesomeIcons.google, color: AppColors.text),
+                label: Text(tr('auth.google')),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 16),
-                  side: const BorderSide(color: Colors.grey),
+                  side: BorderSide(color: AppColors.muted),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -391,11 +411,11 @@ class _LoginScreenState extends State<LoginScreen> {
               OutlinedButton.icon(
                 onPressed: _isLoading ? null : _signInWithFacebook,
                 icon: const FaIcon(FontAwesomeIcons.facebook, color: Color(0xFF1877F2)),
-                label: const Text('Logează-te cu Facebook'),
+                label: Text(tr('auth.facebook')),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 16),
-                  side: const BorderSide(color: Colors.grey),
+                  side: BorderSide(color: AppColors.muted),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -407,9 +427,9 @@ class _LoginScreenState extends State<LoginScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Text(
-                    'Nu ai un cont? ',
-                    style: TextStyle(color: Colors.grey),
+                  Text(
+                    tr('auth.no_account'),
+                    style: TextStyle(color: AppColors.muted),
                   ),
                   TextButton(
                     onPressed: () {
@@ -421,9 +441,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       );
                     },
                     style: TextButton.styleFrom(
-                      foregroundColor: const Color(0xFF00E5FF),
+                      foregroundColor: AppColors.accent,
                     ),
-                    child: const Text('Creează cont nou'),
+                    child: Text(tr('auth.create_account')),
                   ),
                 ],
               ),
@@ -432,9 +452,9 @@ class _LoginScreenState extends State<LoginScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Text(
-                    'Ești proprietar de sală? ',
-                    style: TextStyle(color: Colors.grey),
+                  Text(
+                    tr('auth.venue_owner'),
+                    style: TextStyle(color: AppColors.muted),
                   ),
                   TextButton(
                     onPressed: () {
@@ -446,9 +466,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       );
                     },
                     style: TextButton.styleFrom(
-                      foregroundColor: const Color(0xFFFF0055), // Vibrant neon pink/magenta
+                      foregroundColor: AppColors.bad, // Vibrant neon pink/magenta
                     ),
-                    child: const Text('Înregistrează-te'),
+                    child: Text(tr('auth.venue_register')),
                   ),
                 ],
               ),

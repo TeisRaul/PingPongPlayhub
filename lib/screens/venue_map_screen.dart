@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import '../l10n/strings.dart';
+import '../data/sports.dart';
+import '../services/billing_service.dart';
+import '../widgets/sport_specs_card.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -6,56 +10,12 @@ import 'package:latlong2/latlong.dart';
 // dart:html is web-only and breaks Android/iOS builds
 import 'package:url_launcher/url_launcher.dart';
 import 'create_match_screen.dart';
+import '../theme/app_theme.dart';
+import '../widgets/rating_badge.dart';
+import '../data/city_coords.dart';
+import '../services/location_service.dart';
 
-// ── Coordonate pentru marile oraşe din România ──────────────────────────────
-const Map<String, LatLng> _cityCoords = {
-  'alba iulia':          LatLng(46.0667,  23.5833),
-  'alexandria':          LatLng(43.9764,  25.3358),
-  'arad':                LatLng(46.1833,  21.3167),
-  'bacău':               LatLng(46.5675,  26.9133),
-  'baia mare':           LatLng(47.6567,  23.5683),
-  'bistrița':            LatLng(47.1353,  24.4992),
-  'botoșani':            LatLng(47.7444,  26.6578),
-  'brașov':              LatLng(45.6427,  25.5887),
-  'brăila':              LatLng(45.2692,  27.9575),
-  'bucurești':           LatLng(44.4268,  26.1025),
-  'buzău':               LatLng(45.1500,  26.8167),
-  'călărași':            LatLng(44.2019,  27.3328),
-  'cluj-napoca':         LatLng(46.7712,  23.6236),
-  'constanța':           LatLng(44.1598,  28.6348),
-  'craiova':             LatLng(44.3302,  23.7949),
-  'deva':                LatLng(45.8869,  22.9008),
-  'drobeta-turnu severin': LatLng(44.6261, 22.6567),
-  'focșani':             LatLng(45.6989,  27.1872),
-  'galați':              LatLng(45.4353,  28.0078),
-  'giurgiu':             LatLng(43.9022,  25.9697),
-  'iași':                LatLng(47.1585,  27.6014),
-  'miercurea ciuc':      LatLng(46.3569,  25.8028),
-  'oradea':              LatLng(47.0722,  21.9217),
-  'piatra neamț':        LatLng(46.9228,  26.3683),
-  'pitești':             LatLng(44.8565,  24.8692),
-  'ploiești':            LatLng(44.9356,  26.0225),
-  'râmnicu vâlcea':      LatLng(45.0997,  24.3694),
-  'reșița':              LatLng(45.2983,  21.8889),
-  'satu mare':           LatLng(47.7908,  22.8872),
-  'sfântu gheorghe':     LatLng(45.8672,  25.7883),
-  'sibiu':               LatLng(45.7983,  24.1256),
-  'slatina':             LatLng(44.4308,  24.3647),
-  'slobozia':            LatLng(44.5628,  27.3672),
-  'suceava':             LatLng(47.6514,  26.2556),
-  'târgoviște':          LatLng(44.9275,  25.4575),
-  'târgu jiu':           LatLng(45.0333,  23.2833),
-  'târgu mureș':         LatLng(46.5500,  24.5667),
-  'timișoara':           LatLng(45.7489,  21.2087),
-  'tulcea':              LatLng(45.1667,  28.8000),
-  'vaslui':              LatLng(46.6333,  27.7333),
-  'zalău':               LatLng(47.1833,  23.0500),
-};
-
-LatLng? _coordsForCity(String? city) {
-  if (city == null || city.isEmpty) return null;
-  return _cityCoords[city.toLowerCase().trim()];
-}
+LatLng? _coordsForCity(String? city) => coordsForCity(city);
 
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -68,6 +28,10 @@ class _VenueMarker {
   final LatLng coords;
   final bool isPublic;
   final List<String> supportedSports;
+  final Map<String, dynamic> sportSpecs;
+  final String venueRules;
+  final double? rating;
+  final int ratingCount;
 
   const _VenueMarker({
     required this.id,
@@ -78,6 +42,10 @@ class _VenueMarker {
     required this.coords,
     this.isPublic = false,
     this.supportedSports = const ['ping_pong'],
+    this.sportSpecs = const {},
+    this.venueRules = '',
+    this.rating,
+    this.ratingCount = 0,
   });
 }
 
@@ -108,18 +76,24 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
     _getUserLocation();
   }
 
-  void _getUserLocation() {
-    // For mobile platforms, we need a package like 'geolocator' instead of dart:html
-    // For now, it stays a no-op so the app compiles on Android.
+  Future<void> _getUserLocation({bool forceRefresh = false}) async {
+    final p = await LocationService.current(forceRefresh: forceRefresh);
+    if (mounted && p != null) setState(() => _userLocation = p);
   }
+
+  double _kmTo(_VenueMarker m) => const Distance().distance(_userLocation!, m.coords) / 1000;
+
+  String _kmLabel(double km) => km < 1 ? '${(km * 1000).round()} m' : '${km < 10 ? km.toStringAsFixed(1) : km.toStringAsFixed(0)} km';
 
   Future<void> _loadVenues() async {
     try {
       final snap = await FirebaseFirestore.instance.collection('venues').get();
       final result = <_VenueMarker>[];
+      final bool subscriptionRequired = await BillingService.subscriptionRequired();
 
       for (final doc in snap.docs) {
         final data = doc.data();
+        if (!BillingService.venueVisible(data, subscriptionRequired)) continue; // fără abonament activ
         final city    = (data['city']    as String?)?.trim() ?? '';
         final address = (data['address'] as String?)?.trim() ?? '';
         final name    = (data['venueName'] as String?)?.trim() ?? 'Sală necunoscută';
@@ -127,6 +101,13 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
 
         final isPublic = data['isPublic'] as bool? ?? false;
         final supportedSports = List<String>.from(data['supportedSports'] ?? ['ping_pong']);
+        final Map<String, dynamic> sportSpecs = {};
+        final rawSpecs = data['sportSpecs'];
+        if (rawSpecs is Map) {
+          rawSpecs.forEach((k, v) {
+            if (v is Map) sportSpecs[k.toString()] = Map<String, dynamic>.from(v);
+          });
+        }
 
         LatLng finalCoords;
         if (data.containsKey('latitude') && data.containsKey('longitude')) {
@@ -154,6 +135,10 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
           priceText: price,
           isPublic: isPublic,
           supportedSports: supportedSports,
+          sportSpecs: sportSpecs,
+          venueRules: (data['venueRules'] ?? '').toString(),
+          rating: (data['rating'] as num?)?.toDouble(),
+          ratingCount: (data['ratingCount'] as num?)?.toInt() ?? 0,
           coords: finalCoords,
         ));
       }
@@ -212,7 +197,10 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
       }
     }
 
-    return result.toList();
+    final list = result.toList();
+    // Cu locația cunoscută, cele mai apropiate săli apar primele.
+    if (_userLocation != null) list.sort((a, b) => _kmTo(a).compareTo(_kmTo(b)));
+    return list;
   }
 
   void _moveTo(_VenueMarker m) {
@@ -224,20 +212,20 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       key: _scaffoldKey,
-      backgroundColor: const Color(0xFF0A0E17),
+      backgroundColor: AppColors.bg,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF131A2A),
+        backgroundColor: AppColors.card,
         elevation: 0,
-        title: const Text(
-          'Harta Sălilor de Ping-Pong',
+        title: Text(
+          tr('map.title'),
           style: TextStyle(
-            color: Colors.white,
+            color: AppColors.text,
             fontWeight: FontWeight.bold,
             fontSize: 18,
           ),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF00E5FF)),
+          icon: Icon(Icons.arrow_back, color: AppColors.accent),
           onPressed: () => Navigator.pop(context),
         ),
         bottom: PreferredSize(
@@ -247,24 +235,24 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
             child: Column(
               children: [
                 TextField(
-                  style: const TextStyle(color: Colors.white),
+                  style: TextStyle(color: AppColors.text),
                   decoration: InputDecoration(
                     hintText: 'Filtrează după oraș...',
-                    hintStyle: const TextStyle(color: Colors.white38),
-                    prefixIcon: const Icon(Icons.search, color: Color(0xFF00E5FF)),
+                    hintStyle: TextStyle(color: AppColors.text38),
+                    prefixIcon: Icon(Icons.search, color: AppColors.accent),
                     filled: true,
-                    fillColor: const Color(0xFF0A0E17),
+                    fillColor: AppColors.bg,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Color(0xFF00E5FF), width: 1),
+                      borderSide: BorderSide(color: AppColors.accent, width: 1),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Color(0xFF1A2A3A), width: 1),
+                      borderSide: BorderSide(color: AppColors.card3, width: 1),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Color(0xFF00E5FF), width: 1.5),
+                      borderSide: BorderSide(color: AppColors.accent, width: 1.5),
                     ),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   ),
@@ -277,23 +265,16 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
-                    children: [
-                      {'id': 'ping_pong', 'label': 'Ping Pong'},
-                      {'id': 'padel', 'label': 'Padel'},
-                      {'id': 'tenis', 'label': 'Tenis'},
-                      {'id': 'fotbal', 'label': 'Fotbal'},
-                      {'id': 'handbal', 'label': 'Handbal'},
-                      {'id': 'baschet', 'label': 'Baschet'},
-                    ].map((sport) {
+                    children: sportOptions().map((sport) {
                       final bool isSelected = _selectedSports.contains(sport['id']);
                       return Padding(
                         padding: const EdgeInsets.only(right: 8.0),
                         child: FilterChip(
                           label: Text(sport['label']!),
                           selected: isSelected,
-                          selectedColor: const Color(0xFF00E5FF),
-                          labelStyle: TextStyle(color: isSelected ? Colors.black : Colors.white, fontSize: 12),
-                          backgroundColor: const Color(0xFF1E293B),
+                          selectedColor: AppColors.accent,
+                          labelStyle: TextStyle(color: isSelected ? AppColors.onAccent : AppColors.text, fontSize: 12),
+                          backgroundColor: AppColors.card2,
                           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
                           onSelected: (val) {
                             setState(() {
@@ -316,7 +297,7 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
         ),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)))
+          ? Center(child: CircularProgressIndicator(color: AppColors.accent))
           : Stack(
               children: [
                 // ── OpenStreetMap ──────────────────────────────────────────
@@ -376,14 +357,14 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF131A2A).withValues(alpha: 0.92),
+                      color: AppColors.card.withValues(alpha: 0.92),
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: const Color(0xFF00E5FF), width: 1),
+                      border: Border.all(color: AppColors.accent, width: 1),
                     ),
                     child: Text(
                       '${_filteredMarkers.length} sali găsite',
-                      style: const TextStyle(
-                        color: Color(0xFF00E5FF),
+                      style: TextStyle(
+                        color: AppColors.accent,
                         fontWeight: FontWeight.bold,
                         fontSize: 12,
                       ),
@@ -397,12 +378,12 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
                   right: 12,
                   child: Container(
                     decoration: BoxDecoration(
-                      color: const Color(0xFF131A2A).withValues(alpha: 0.92),
+                      color: AppColors.card.withValues(alpha: 0.92),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.4), width: 1),
+                      border: Border.all(color: AppColors.accent.withValues(alpha: 0.4), width: 1),
                     ),
                     child: IconButton(
-                      icon: const Icon(Icons.zoom_out_map, color: Color(0xFF00E5FF), size: 20),
+                      icon: Icon(Icons.zoom_out_map, color: AppColors.accent, size: 20),
                       tooltip: 'Centrare România',
                       onPressed: () {
                         _mapController.move(const LatLng(45.9432, 24.9668), 6.5);
@@ -419,19 +400,19 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
                       padding: const EdgeInsets.all(24),
                       margin: const EdgeInsets.all(32),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF131A2A),
+                        color: AppColors.card,
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.3)),
+                        border: Border.all(color: AppColors.accent.withValues(alpha: 0.3)),
                       ),
-                      child: const Column(
+                      child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.location_off, color: Color(0xFF00E5FF), size: 48),
+                          Icon(Icons.location_off, color: AppColors.accent, size: 48),
                           SizedBox(height: 16),
                           Text(
                             'Nicio sală înregistrată\ncu locație validă.',
                             textAlign: TextAlign.center,
-                            style: TextStyle(color: Colors.white70, fontSize: 16),
+                            style: TextStyle(color: AppColors.text70, fontSize: 16),
                           ),
                         ],
                       ),
@@ -445,22 +426,27 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
       floatingActionButton: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (_userLocation != null)
-            FloatingActionButton(
-              heroTag: 'myLocationBtn',
-              mini: true,
-              backgroundColor: const Color(0xFF131A2A),
-              foregroundColor: Colors.blue,
-              onPressed: () {
-                _mapController.move(_userLocation!, 13.0);
-                setState(() => _selected = null);
-              },
-              child: const Icon(Icons.my_location),
-            ),
+          FloatingActionButton(
+            heroTag: 'myLocationBtn',
+            mini: true,
+            backgroundColor: AppColors.card,
+            foregroundColor: Colors.blue,
+            onPressed: () async {
+              if (_userLocation == null) await _getUserLocation(forceRefresh: true);
+              if (!mounted) return;
+              if (_userLocation == null) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tr('vf.loc_denied')), backgroundColor: Colors.orange));
+                return;
+              }
+              _mapController.move(_userLocation!, 13.0);
+              setState(() => _selected = null);
+            },
+            child: const Icon(Icons.my_location),
+          ),
           const SizedBox(height: 8),
           FloatingActionButton.extended(
             heroTag: 'listBtn',
-            backgroundColor: const Color(0xFF00E5FF),
+            backgroundColor: AppColors.accent,
             foregroundColor: Colors.black,
             icon: const Icon(Icons.list),
             label: const Text('Listă Săli', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -473,7 +459,7 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
 
   Marker _buildMarker(_VenueMarker m) {
     final isSelected = _selected == m;
-    final markerColor = m.isPublic ? const Color(0xFF00FF66) : const Color(0xFF00E5FF);
+    final markerColor = m.isPublic ? AppColors.good : AppColors.accent;
     final markerIcon = m.isPublic ? Icons.park : Icons.sports_tennis;
 
     return Marker(
@@ -485,10 +471,10 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           decoration: BoxDecoration(
-            color: isSelected ? markerColor : const Color(0xFF131A2A),
+            color: isSelected ? markerColor : AppColors.card,
             shape: BoxShape.circle,
             border: Border.all(
-              color: isSelected ? Colors.white : markerColor,
+              color: isSelected ? AppColors.text : markerColor,
               width: isSelected ? 3 : 2,
             ),
             boxShadow: [
@@ -501,7 +487,7 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
           ),
           child: Icon(
             markerIcon,
-            color: isSelected ? Colors.black : markerColor,
+            color: isSelected ? AppColors.onAccent : markerColor,
             size: isSelected ? 24 : 18,
           ),
         ),
@@ -513,12 +499,12 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF131A2A),
+        color: AppColors.card,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF00E5FF), width: 1.5),
+        border: Border.all(color: AppColors.accent, width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF00E5FF).withValues(alpha: 0.2),
+            color: AppColors.accent.withValues(alpha: 0.2),
             blurRadius: 16,
             spreadRadius: 2,
           ),
@@ -533,10 +519,10 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF00E5FF).withValues(alpha: 0.15),
+                  color: AppColors.accent.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.sports_tennis, color: Color(0xFF00E5FF), size: 22),
+                child: Icon(Icons.sports_tennis, color: AppColors.accent, size: 22),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -545,22 +531,31 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
                   children: [
                     Text(
                       m.name,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: AppColors.text,
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
-                    Text(
-                      m.city,
-                      style: const TextStyle(color: Color(0xFF00E5FF), fontSize: 13),
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            m.city,
+                            style: TextStyle(color: AppColors.accent, fontSize: 13),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        RatingBadge(rating: m.rating, count: m.ratingCount),
+                      ],
                     ),
                   ],
                 ),
               ),
               IconButton(
-                icon: const Icon(Icons.close, color: Colors.white54, size: 20),
+                icon: Icon(Icons.close, color: AppColors.text54, size: 20),
                 onPressed: () => setState(() => _selected = null),
               ),
             ],
@@ -569,7 +564,7 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
             const SizedBox(height: 8),
             Row(
               children: [
-                const Icon(Icons.location_on, color: Colors.white38, size: 15),
+                Icon(Icons.location_on, color: AppColors.text38, size: 15),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
@@ -585,16 +580,16 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: const Color(0xFF00FF66).withValues(alpha: 0.2),
+                color: AppColors.good.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(4),
               ),
-              child: const Text('Locație Publică - Gratuit', style: TextStyle(color: Color(0xFF00FF66), fontSize: 12, fontWeight: FontWeight.bold)),
+              child: Text('Locație Publică - Gratuit', style: TextStyle(color: AppColors.good, fontSize: 12, fontWeight: FontWeight.bold)),
             ),
           ] else if (m.priceText != null && m.priceText!.isNotEmpty) ...[
             const SizedBox(height: 6),
             Row(
               children: [
-                const Icon(Icons.attach_money, color: Colors.white38, size: 15),
+                Icon(Icons.attach_money, color: AppColors.text38, size: 15),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
@@ -614,18 +609,36 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
                 return Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF1E293B),
+                    color: AppColors.card2,
                     borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: Colors.grey[800]!),
+                    border: Border.all(color: AppColors.border),
                   ),
                   child: Text(
                     sport.toUpperCase(),
-                    style: const TextStyle(color: Colors.grey, fontSize: 10),
+                    style: TextStyle(color: AppColors.muted, fontSize: 10),
                   ),
                 );
               }).toList(),
             ),
           ],
+          if (m.sportSpecs.isNotEmpty || m.venueRules.trim().isNotEmpty)
+            Theme(
+              data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+              child: ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                childrenPadding: EdgeInsets.zero,
+                iconColor: AppColors.accent,
+                collapsedIconColor: AppColors.text54,
+                title: Text(tr('spec.details'), style: TextStyle(color: AppColors.accent, fontWeight: FontWeight.bold, fontSize: 14)),
+                children: [
+                  for (final sport in m.supportedSports)
+                    if (m.sportSpecs[sport] != null)
+                      SportSpecsCard(sport: sport, specs: m.sportSpecs[sport] as Map<String, dynamic>?),
+                  if (m.venueRules.trim().isNotEmpty)
+                    SportSpecsCard(sport: 'ping_pong', specs: null, venueRules: m.venueRules, rulesOnly: true),
+                ],
+              ),
+            ),
           const SizedBox(height: 12),
           if (!m.isPublic) ...[
             SizedBox(
@@ -645,7 +658,7 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
                 icon: const Icon(Icons.sports_tennis, size: 18),
                 label: const Text('Rezervă aici', style: TextStyle(fontWeight: FontWeight.bold)),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF00E5FF),
+                  backgroundColor: AppColors.accent,
                   foregroundColor: Colors.black,
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -666,10 +679,10 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
               icon: const Icon(Icons.directions, size: 18),
               label: const Text('Obține Direcții', style: TextStyle(fontWeight: FontWeight.bold)),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF131A2A),
-                foregroundColor: m.isPublic ? const Color(0xFF00FF66) : const Color(0xFF00E5FF),
+                backgroundColor: AppColors.card,
+                foregroundColor: m.isPublic ? AppColors.good : AppColors.accent,
                 padding: const EdgeInsets.symmetric(vertical: 12),
-                side: BorderSide(color: m.isPublic ? const Color(0xFF00FF66) : const Color(0xFF00E5FF)),
+                side: BorderSide(color: m.isPublic ? AppColors.good : AppColors.accent),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
             ),
@@ -682,25 +695,25 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
   Widget _buildVenueList() {
     final list = _drawerFilteredMarkers;
     return Drawer(
-      backgroundColor: const Color(0xFF0A0E17),
+      backgroundColor: AppColors.bg,
       child: Column(
         children: [
           // Drawer Header
           Container(
             padding: const EdgeInsets.fromLTRB(16, 48, 16, 16),
-            decoration: const BoxDecoration(
-              color: Color(0xFF131A2A),
-              border: Border(bottom: BorderSide(color: Color(0xFF00E5FF), width: 1)),
+            decoration: BoxDecoration(
+              color: AppColors.card,
+              border: Border(bottom: BorderSide(color: AppColors.accent, width: 1)),
             ),
             child: Row(
               children: [
-                const Icon(Icons.sports_tennis, color: Color(0xFF00E5FF)),
+                Icon(Icons.sports_tennis, color: AppColors.accent),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    '${list.length} Săli de Ping-Pong',
-                    style: const TextStyle(
-                      color: Colors.white,
+                    tr('map.count', {'n': '${list.length}'}),
+                    style: TextStyle(
+                      color: AppColors.text,
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
                     ),
@@ -713,26 +726,26 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
           // Drawer Search
           Container(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-            color: const Color(0xFF131A2A),
+            color: AppColors.card,
             child: TextField(
-              style: const TextStyle(color: Colors.white, fontSize: 13),
+              style: TextStyle(color: AppColors.text, fontSize: 13),
               decoration: InputDecoration(
                 hintText: 'Caută după nume sau oraș...',
-                hintStyle: const TextStyle(color: Colors.white38, fontSize: 12),
-                prefixIcon: const Icon(Icons.search, color: Color(0xFF00E5FF), size: 16),
+                hintStyle: TextStyle(color: AppColors.text38, fontSize: 12),
+                prefixIcon: Icon(Icons.search, color: AppColors.accent, size: 16),
                 filled: true,
-                fillColor: const Color(0xFF0A0E17),
+                fillColor: AppColors.bg,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: Color(0xFF00E5FF), width: 1),
+                  borderSide: BorderSide(color: AppColors.accent, width: 1),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: Color(0xFF1A2A3A), width: 1),
+                  borderSide: BorderSide(color: AppColors.card3, width: 1),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: Color(0xFF00E5FF), width: 1.2),
+                  borderSide: BorderSide(color: AppColors.accent, width: 1.2),
                 ),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               ),
@@ -745,17 +758,17 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
           // Drawer Bounds Filter Toggle
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            color: const Color(0xFF131A2A),
+            color: AppColors.card,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Row(
+                Row(
                   children: [
-                    Icon(Icons.zoom_in, color: Colors.white54, size: 14),
+                    Icon(Icons.zoom_in, color: AppColors.text54, size: 14),
                     SizedBox(width: 8),
                     Text(
                       'Doar cele vizibile pe hartă',
-                      style: TextStyle(color: Colors.white70, fontSize: 11),
+                      style: TextStyle(color: AppColors.text70, fontSize: 11),
                     ),
                   ],
                 ),
@@ -763,10 +776,10 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
                   scale: 0.8,
                   child: Switch(
                     value: _onlyVisibleInBounds,
-                    activeThumbColor: const Color(0xFF00E5FF),
-                    activeTrackColor: const Color(0xFF00E5FF).withValues(alpha: 0.3),
-                    inactiveThumbColor: Colors.grey,
-                    inactiveTrackColor: Colors.white10,
+                    activeThumbColor: AppColors.accent,
+                    activeTrackColor: AppColors.accent.withValues(alpha: 0.3),
+                    inactiveThumbColor: AppColors.muted,
+                    inactiveTrackColor: AppColors.text10,
                     onChanged: (val) => setState(() {
                       _onlyVisibleInBounds = val;
                     }),
@@ -779,26 +792,26 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
           // Divider below options
           Container(
             height: 1,
-            color: const Color(0xFF00E5FF).withValues(alpha: 0.3),
+            color: AppColors.accent.withValues(alpha: 0.3),
           ),
 
           Expanded(
             child: list.isEmpty
-                ? const Center(
+                ? Center(
                     child: Padding(
                       padding: EdgeInsets.all(24.0),
                       child: Text(
                         'Nicio sală găsită.\n(Încearcă să dezactivezi filtrul de hartă sau să cauți alt oraș)',
                         textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.white54, fontSize: 12),
+                        style: TextStyle(color: AppColors.text54, fontSize: 12),
                       ),
                     ),
                   )
                 : ListView.separated(
                     itemCount: list.length,
                     padding: const EdgeInsets.symmetric(vertical: 8),
-                    separatorBuilder: (_, __) => const Divider(
-                      color: Color(0xFF1A2A3A),
+                    separatorBuilder: (_, __) => Divider(
+                      color: AppColors.card3,
                       height: 1,
                       indent: 16,
                       endIndent: 16,
@@ -813,19 +826,19 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
                           height: 40,
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? (m.isPublic ? const Color(0xFF00FF66) : const Color(0xFF00E5FF)).withValues(alpha: 0.15)
-                                : const Color(0xFF131A2A),
+                                ? (m.isPublic ? AppColors.good : AppColors.accent).withValues(alpha: 0.15)
+                                : AppColors.card,
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(
                               color: isSelected
-                                  ? (m.isPublic ? const Color(0xFF00FF66) : const Color(0xFF00E5FF))
-                                  : const Color(0xFF1A2A3A),
+                                  ? (m.isPublic ? AppColors.good : AppColors.accent)
+                                  : AppColors.card3,
                               width: 1,
                             ),
                           ),
                           child: Icon(
                             m.isPublic ? Icons.park : Icons.sports_tennis,
-                            color: isSelected ? (m.isPublic ? const Color(0xFF00FF66) : const Color(0xFF00E5FF)) : Colors.white38,
+                            color: isSelected ? (m.isPublic ? AppColors.good : AppColors.accent) : AppColors.text38,
                             size: 20,
                           ),
                         ),
@@ -835,7 +848,7 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
                               child: Text(
                                 m.name,
                                 style: TextStyle(
-                                  color: isSelected ? (m.isPublic ? const Color(0xFF00FF66) : const Color(0xFF00E5FF)) : Colors.white,
+                                  color: isSelected ? (m.isPublic ? AppColors.good : AppColors.accent) : AppColors.text,
                                   fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                                   fontSize: 14,
                                 ),
@@ -846,16 +859,16 @@ class _VenueMapScreenState extends State<VenueMapScreen> {
                                 margin: const EdgeInsets.only(left: 8),
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF00FF66).withValues(alpha: 0.2),
+                                  color: AppColors.good.withValues(alpha: 0.2),
                                   borderRadius: BorderRadius.circular(4),
                                 ),
-                                child: const Text('PUBLIC', style: TextStyle(color: Color(0xFF00FF66), fontSize: 9, fontWeight: FontWeight.bold)),
+                                child: Text('PUBLIC', style: TextStyle(color: AppColors.good, fontSize: 9, fontWeight: FontWeight.bold)),
                               ),
                           ],
                         ),
                         subtitle: Text(
-                          m.city + (m.address.isNotEmpty ? ' · ${m.address}' : ''),
-                          style: const TextStyle(color: Colors.white38, fontSize: 12),
+                          (_userLocation != null ? '${_kmLabel(_kmTo(m))} · ' : '') + m.city + (m.address.isNotEmpty ? ' · ${m.address}' : ''),
+                          style: TextStyle(color: AppColors.text38, fontSize: 12),
                           overflow: TextOverflow.ellipsis,
                         ),
                         onTap: () {

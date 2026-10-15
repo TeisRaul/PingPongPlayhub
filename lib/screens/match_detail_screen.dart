@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../l10n/strings.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -8,6 +9,7 @@ import '../services/checkin_service.dart';
 import '../utils/hour_utils.dart';
 import 'change_table_dialog.dart';
 import 'check_in_flow.dart';
+import '../theme/app_theme.dart';
 
 enum MatchDetailMode { player, venue, admin }
 
@@ -20,19 +22,19 @@ class MatchDetailScreen extends StatelessWidget {
 
   const MatchDetailScreen({super.key, required this.matchId, required this.mode});
 
-  static const _cyan = Color(0xFF00E5FF);
-  static const _card = Color(0xFF131A2A);
+  static Color get _cyan => AppColors.accent;
+  static Color get _card => AppColors.card;
 
   bool get _isStaff => mode != MatchDetailMode.player;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0E17),
+      backgroundColor: AppColors.bg,
       appBar: AppBar(
         backgroundColor: _card,
-        iconTheme: const IconThemeData(color: _cyan),
-        title: const Text('Detalii meci', style: TextStyle(color: Colors.white, fontSize: 18)),
+        iconTheme: IconThemeData(color: _cyan),
+        title: Text('Detalii meci', style: TextStyle(color: AppColors.text, fontSize: 18)),
       ),
       body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
         stream: FirebaseFirestore.instance.collection('matches').doc(matchId).snapshots(),
@@ -43,12 +45,12 @@ class MatchDetailScreen extends StatelessWidget {
             );
           }
           if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator(color: _cyan));
+            return Center(child: CircularProgressIndicator(color: _cyan));
           }
           final doc = snapshot.data!;
           if (!doc.exists) {
-            return const Center(
-              child: Text('Acest meci nu mai există.', style: TextStyle(color: Colors.grey)),
+            return Center(
+              child: Text('Acest meci nu mai există.', style: TextStyle(color: AppColors.muted)),
             );
           }
           return _buildBody(context, doc.data() ?? <String, dynamic>{});
@@ -76,7 +78,7 @@ class MatchDetailScreen extends StatelessWidget {
         _section([
           Text(
             (data['locationName'] ?? 'Sală').toString(),
-            style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+            style: TextStyle(color: AppColors.text, fontSize: 20, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
           _row(Icons.calendar_month, '${data['date'] ?? ''}  |  ${formatHour(data['startHour'])} - ${formatHour(data['endHour'])}'),
@@ -86,15 +88,15 @@ class MatchDetailScreen extends StatelessWidget {
         ]),
         const SizedBox(height: 12),
         _section([
-          const Text('Jucători', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          Text('Jucători', style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold)),
           const SizedBox(height: 6),
-          if (players.isEmpty) const Text('-', style: TextStyle(color: Colors.grey)),
+          if (players.isEmpty) Text('-', style: TextStyle(color: AppColors.muted)),
           for (final p in players)
             Padding(
               padding: const EdgeInsets.only(top: 2),
               child: Text(
                 '• ${p is Map ? (p['username'] ?? 'Jucător') : p}${p is Map && p['level'] != null ? '  (${p['level']})' : ''}',
-                style: const TextStyle(color: Colors.white70),
+                style: TextStyle(color: AppColors.text70),
               ),
             ),
         ]),
@@ -120,7 +122,7 @@ class MatchDetailScreen extends StatelessWidget {
     Color color;
     IconData icon;
     if (cancelled) {
-      text = 'Meci anulat';
+      text = tr('mm.cancelled');
       color = Colors.redAccent;
       icon = Icons.cancel;
     } else if (checkedIn) {
@@ -136,7 +138,7 @@ class MatchDetailScreen extends StatelessWidget {
       icon = Icons.hourglass_top;
     } else {
       text = 'Check-in nefăcut';
-      color = Colors.grey;
+      color = AppColors.muted;
       icon = Icons.radio_button_unchecked;
     }
     return Container(
@@ -160,16 +162,16 @@ class MatchDetailScreen extends StatelessWidget {
     if (checkedIn) return const [];
     return [
       _section([
-        const Text('Bilet check-in',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+        Text('Bilet check-in',
+            style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
         const SizedBox(height: 4),
-        const Text('Arată acest cod la recepția sălii.',
-            style: TextStyle(color: Colors.grey, fontSize: 13), textAlign: TextAlign.center),
+        Text('Arată acest cod la recepția sălii.',
+            style: TextStyle(color: AppColors.muted, fontSize: 13), textAlign: TextAlign.center),
         const SizedBox(height: 14),
         Center(
           child: Container(
             padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+            decoration: BoxDecoration(color: AppColors.text, borderRadius: BorderRadius.circular(12)),
             child: SizedBox(
               width: 200,
               height: 200,
@@ -178,16 +180,16 @@ class MatchDetailScreen extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 14),
-        const Text('Cod bilet',
-            style: TextStyle(color: Colors.grey, fontSize: 12), textAlign: TextAlign.center),
+        Text('Cod bilet',
+            style: TextStyle(color: AppColors.muted, fontSize: 12), textAlign: TextAlign.center),
         Center(
           child: SelectableText(
             CheckInService.formatShortCode(CheckInService.shortCode(matchId)),
-            style: const TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.bold, letterSpacing: 4),
+            style: TextStyle(color: AppColors.text, fontSize: 30, fontWeight: FontWeight.bold, letterSpacing: 4),
           ),
         ),
-        const Text('Nu merge scanarea? Spune acest cod sălii.',
-            style: TextStyle(color: Colors.grey, fontSize: 12), textAlign: TextAlign.center),
+        Text('Nu merge scanarea? Spune acest cod sălii.',
+            style: TextStyle(color: AppColors.muted, fontSize: 12), textAlign: TextAlign.center),
       ]),
     ];
   }
@@ -215,7 +217,7 @@ class MatchDetailScreen extends StatelessWidget {
           label: const Text('Schimbă masa'),
           style: OutlinedButton.styleFrom(
             foregroundColor: _cyan,
-            side: const BorderSide(color: _cyan),
+            side: BorderSide(color: _cyan),
             padding: const EdgeInsets.symmetric(vertical: 14),
           ),
         ),
@@ -227,7 +229,7 @@ class MatchDetailScreen extends StatelessWidget {
           icon: const Icon(Icons.payments),
           label: const Text('Confirmă plata cash'),
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF00FF66),
+            backgroundColor: AppColors.good,
             foregroundColor: Colors.black,
             padding: const EdgeInsets.symmetric(vertical: 14),
           ),
@@ -265,15 +267,15 @@ class MatchDetailScreen extends StatelessWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: _card,
-        title: const Text('Marchezi No-Show?', style: TextStyle(color: Colors.white)),
-        content: const Text(
+        title: Text('Marchezi No-Show?', style: TextStyle(color: AppColors.text)),
+        content: Text(
           'Rezervarea se anulează, masa se eliberează, iar gazda pierde 5 puncte de încredere.',
-          style: TextStyle(color: Colors.white70),
+          style: TextStyle(color: AppColors.text70),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Renunță', style: TextStyle(color: Colors.grey)),
+            child: Text('Renunță', style: TextStyle(color: AppColors.muted)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
@@ -298,23 +300,23 @@ class MatchDetailScreen extends StatelessWidget {
       decoration: BoxDecoration(
         color: _card,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade800),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: children),
     );
   }
 
-  Widget _row(IconData icon, String text, {Color color = Colors.white70, bool bold = false}) {
+  Widget _row(IconData icon, String text, {Color? color, bool bold = false}) {
     return Padding(
       padding: const EdgeInsets.only(top: 6),
       child: Row(
         children: [
-          Icon(icon, size: 18, color: Colors.grey),
+          Icon(icon, size: 18, color: AppColors.muted),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               text,
-              style: TextStyle(color: color, fontWeight: bold ? FontWeight.bold : FontWeight.normal, fontSize: bold ? 18 : 14),
+              style: TextStyle(color: color ?? AppColors.text70, fontWeight: bold ? FontWeight.bold : FontWeight.normal, fontSize: bold ? 18 : 14),
             ),
           ),
         ],

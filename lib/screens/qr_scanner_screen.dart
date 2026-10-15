@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import '../theme/app_theme.dart';
 
 class QrScannerScreen extends StatefulWidget {
   const QrScannerScreen({super.key});
@@ -17,22 +18,22 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
     final code = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF131A2A),
-        title: const Text('Cod bilet', style: TextStyle(color: Colors.white)),
+        backgroundColor: AppColors.card,
+        title: Text('Cod bilet', style: TextStyle(color: AppColors.text)),
         content: TextField(
           controller: controller,
           autofocus: true,
-          style: const TextStyle(color: Colors.white),
-          decoration: const InputDecoration(
+          style: TextStyle(color: AppColors.text),
+          decoration: InputDecoration(
             hintText: 'Cod bilet (ex. AV5-T7D)',
-            hintStyle: TextStyle(color: Colors.grey),
+            hintStyle: TextStyle(color: AppColors.muted),
           ),
           onSubmitted: (v) => Navigator.pop(ctx, v),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Anulează', style: TextStyle(color: Colors.grey)),
+            child: Text('Anulează', style: TextStyle(color: AppColors.muted)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, controller.text),
@@ -57,11 +58,11 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0D1424),
+      backgroundColor: AppColors.bgDeep,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF131A2A),
-        title: const Text('Scanează QR Check-in', style: TextStyle(color: Colors.white)),
-        iconTheme: const IconThemeData(color: Colors.white),
+        backgroundColor: AppColors.card,
+        title: Text('Scanează QR Check-in', style: TextStyle(color: AppColors.text)),
+        iconTheme: IconThemeData(color: AppColors.text),
         actions: [
           IconButton(
             tooltip: 'Introdu codul manual',
@@ -96,9 +97,9 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Text(
+                  Text(
                     'Aliniază codul QR în cadru pentru a scana.',
-                    style: TextStyle(color: Colors.white70, fontSize: 16),
+                    style: TextStyle(color: AppColors.text70, fontSize: 16),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 12),

@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../utils/level_utils.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../l10n/strings.dart';
 import '../widgets/player_drawer.dart';
+import '../theme/app_theme.dart';
 
 class LeaderboardScreen extends StatefulWidget {
   const LeaderboardScreen({super.key});
@@ -11,13 +14,38 @@ class LeaderboardScreen extends StatefulWidget {
 }
 
 class _LeaderboardScreenState extends State<LeaderboardScreen> {
-  String _selectedFilter = 'Global'; // 'Global' sau 'Orașul Meu' (sau un oraș anume)
+  String _selectedFilter = 'global'; // 'global' sau 'city' (orașul contului curent)
+  String _myCity = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMyCity();
+  }
+
+  Future<void> _loadMyCity() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    try {
+      final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      final city = (doc.data()?['city'] ?? '').toString();
+      if (mounted) setState(() => _myCity = city);
+    } catch (_) {}
+  }
+
+  /// Conturile de test (seed) nu apar în clasament: au id `fake_*`, flag `isSeed`
+  /// sau nu au deloc câmpurile completate la înregistrare (uid / prenume / dată naștere).
+  bool _isRealPlayer(String docId, Map<String, dynamic> data) {
+    if (docId.startsWith('fake_') || data['isSeed'] == true) return false;
+    if ((data['username'] ?? '').toString().trim().isEmpty) return false;
+    return data['uid'] != null || data['firstName'] != null || data['dob'] != null;
+  }
 
   Widget _buildTop3Card(Map<String, dynamic> data, int rank) {
     Color rankColor;
     double avatarRadius;
     if (rank == 1) {
-      rankColor = const Color(0xFFFFD700); // Gold
+      rankColor = AppColors.gold; // Gold
       avatarRadius = 35;
     } else if (rank == 2) {
       rankColor = const Color(0xFFC0C0C0); // Silver
@@ -45,13 +73,13 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
               ),
               child: CircleAvatar(
                 radius: avatarRadius,
-                backgroundColor: const Color(0xFF1E293B),
+                backgroundColor: AppColors.card2,
                 backgroundImage: data['avatarUrl'] != null && data['avatarUrl'].toString().isNotEmpty
                     ? NetworkImage(data['avatarUrl'])
                     : null,
                 child: data['avatarUrl'] == null || data['avatarUrl'].toString().isEmpty
                     ? Text((data['username'] ?? 'J').toString()[0].toUpperCase(),
-                        style: TextStyle(color: Colors.white, fontSize: avatarRadius, fontWeight: FontWeight.bold))
+                        style: TextStyle(color: AppColors.text, fontSize: avatarRadius, fontWeight: FontWeight.bold))
                     : null,
               ),
             ),
@@ -60,7 +88,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
               decoration: BoxDecoration(
                 color: rankColor,
                 shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFF0A0E17), width: 2),
+                border: Border.all(color: AppColors.bg, width: 2),
               ),
               child: Text(
                 '$rank',
@@ -71,8 +99,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
         ),
         const SizedBox(height: 8),
         Text(
-          data['username'] ?? 'Jucător',
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+          data['username'] ?? tr('lb.player'),
+          style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold, fontSize: 14),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
@@ -81,8 +109,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
           style: TextStyle(color: rankColor, fontSize: 11, fontWeight: FontWeight.w600),
         ),
         Text(
-          '$rating PTS',
-          style: const TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold),
+          tr('lb.pts', {'points': '$rating'}),
+          style: TextStyle(color: AppColors.muted, fontSize: 12, fontWeight: FontWeight.bold),
         ),
       ],
     );
@@ -92,23 +120,27 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Top Jucători (Live)'),
+        title: Text(tr('lb.title')),
         centerTitle: true,
-        backgroundColor: const Color(0xFF131A2A),
+        backgroundColor: AppColors.card,
         actions: [
           PopupMenuButton<String>(
-            icon: const Icon(Icons.filter_list, color: Color(0xFF00E5FF)),
+            icon: Icon(Icons.filter_list, color: AppColors.accent),
             onSelected: (value) {
               setState(() {
                 _selectedFilter = value;
               });
             },
             itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'Global',
-                child: Text('Global (Toată Țara)'),
+              PopupMenuItem(
+                value: 'global',
+                child: Text(tr('lb.global')),
               ),
-              // We could add dynamic cities here if we have a user city
+              if (_myCity.isNotEmpty)
+                PopupMenuItem(
+                  value: 'city',
+                  child: Text(tr('lb.my_city', {'city': _myCity})),
+                ),
             ],
           ),
           const SizedBox(width: 8),
@@ -116,7 +148,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
       ),
       drawer: const PlayerDrawer(activePage: 'leaderboard'),
       body: Container(
-        color: const Color(0xFF0A0E17),
+        color: AppColors.bg,
         child: StreamBuilder<QuerySnapshot>(
           stream: FirebaseFirestore.instance
               .collection('users')
@@ -126,16 +158,26 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
               .snapshots(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)));
+              return Center(child: CircularProgressIndicator(color: AppColors.accent));
             }
 
             if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-              return const Center(
-                child: Text('Nu există jucători în clasament momentan.', style: TextStyle(color: Colors.white)),
+              return Center(
+                child: Text(tr('lb.empty'), style: TextStyle(color: AppColors.text)),
               );
             }
 
-            final players = snapshot.data!.docs.map((d) => d.data() as Map<String, dynamic>).toList();
+            final players = snapshot.data!.docs
+                .where((d) => _isRealPlayer(d.id, d.data() as Map<String, dynamic>))
+                .map((d) => d.data() as Map<String, dynamic>)
+                .where((p) => _selectedFilter != 'city' || (p['city'] ?? '').toString() == _myCity)
+                .toList();
+
+            if (players.isEmpty) {
+              return Center(
+                child: Text(tr('lb.empty'), style: TextStyle(color: AppColors.text)),
+              );
+            }
 
             return CustomScrollView(
               slivers: [
@@ -143,9 +185,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                   SliverToBoxAdapter(
                     child: Container(
                       padding: const EdgeInsets.only(top: 30, bottom: 20, left: 16, right: 16),
-                      decoration: const BoxDecoration(
+                      decoration: BoxDecoration(
                         gradient: LinearGradient(
-                          colors: [Color(0xFF131A2A), Color(0xFF0A0E17)],
+                          colors: [AppColors.card, AppColors.bg],
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
                         ),
@@ -178,7 +220,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                       return Container(
                         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF131A2A),
+                          color: AppColors.card,
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
                         ),
@@ -190,41 +232,41 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                                 width: 30,
                                 child: Text(
                                   '${index + 1}',
-                                  style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold, fontSize: 16),
+                                  style: TextStyle(color: AppColors.muted, fontWeight: FontWeight.bold, fontSize: 16),
                                   textAlign: TextAlign.center,
                                 ),
                               ),
                               const SizedBox(width: 8),
                               CircleAvatar(
                                 radius: 20,
-                                backgroundColor: const Color(0xFF1E293B),
+                                backgroundColor: AppColors.card2,
                                 backgroundImage: data['avatarUrl'] != null && data['avatarUrl'].toString().isNotEmpty
                                     ? NetworkImage(data['avatarUrl'])
                                     : null,
                                 child: data['avatarUrl'] == null || data['avatarUrl'].toString().isEmpty
                                     ? Text((data['username'] ?? 'J').toString()[0].toUpperCase(),
-                                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))
+                                        style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold))
                                     : null,
                               ),
                             ],
                           ),
                           title: Text(
-                            data['username'] ?? 'Jucător',
-                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                            data['username'] ?? tr('lb.player'),
+                            style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold),
                           ),
                           subtitle: Text(
                             levelName,
-                            style: const TextStyle(color: Color(0xFF00E5FF), fontSize: 12),
+                            style: TextStyle(color: AppColors.accent, fontSize: 12),
                           ),
                           trailing: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF00E5FF).withValues(alpha: 0.1),
+                              color: AppColors.accent.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(
-                              '$rating PTS',
-                              style: const TextStyle(color: Color(0xFF00E5FF), fontWeight: FontWeight.bold),
+                              tr('lb.pts', {'points': '$rating'}),
+                              style: TextStyle(color: AppColors.accent, fontWeight: FontWeight.bold),
                             ),
                           ),
                         ),

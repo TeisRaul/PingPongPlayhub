@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import '../widgets/player_drawer.dart';
 import '../utils/level_utils.dart';
+import '../theme/app_theme.dart';
 
 
 class VenueTablesLayoutScreen extends StatefulWidget {
@@ -256,27 +257,27 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
       builder: (context) {
         return StatefulBuilder(builder: (context, setDialogState) {
           return AlertDialog(
-            backgroundColor: const Color(0xFF131A2A),
-            title: Text('Adaugă $entityNameNew', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            backgroundColor: AppColors.card,
+            title: Text('Adaugă $entityNameNew', style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold)),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextField(
                   controller: nameController,
-                  style: const TextStyle(color: Colors.white),
+                  style: TextStyle(color: AppColors.text),
                   decoration: InputDecoration(
                     labelText: 'Denumire / Număr $entityNameDiacritics',
-                    labelStyle: const TextStyle(color: Colors.white54),
+                    labelStyle: TextStyle(color: AppColors.text54),
                   ),
                 ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
                   initialValue: tableType,
-                  dropdownColor: const Color(0xFF131A2A),
-                  style: const TextStyle(color: Colors.white),
+                  dropdownColor: AppColors.card,
+                  style: TextStyle(color: AppColors.text),
                   decoration: InputDecoration(
                     labelText: 'Tip $entityNameDiacritics',
-                    labelStyle: const TextStyle(color: Colors.white54),
+                    labelStyle: TextStyle(color: AppColors.text54),
                   ),
                   items: const [
                     DropdownMenuItem(value: 'indoor', child: Text('Indoor')),
@@ -290,7 +291,7 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text('Anulează', style: TextStyle(color: Colors.white54)),
+                child: Text('Anulează', style: TextStyle(color: AppColors.text54)),
               ),
               ElevatedButton(
                 onPressed: () {
@@ -311,7 +312,7 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
                   });
                   Navigator.pop(context);
                 },
-                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00E5FF), foregroundColor: Colors.black),
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.accent, foregroundColor: Colors.black),
                 child: const Text('Adaugă'),
               )
             ],
@@ -333,27 +334,27 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
       builder: (context) {
         return StatefulBuilder(builder: (context, setDialogState) {
           return AlertDialog(
-            backgroundColor: const Color(0xFF131A2A),
-            title: Text('Editează ${table['name']}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            backgroundColor: AppColors.card,
+            title: Text('Editează ${table['name']}', style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold)),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextField(
                   controller: nameController,
-                  style: const TextStyle(color: Colors.white),
+                  style: TextStyle(color: AppColors.text),
                   decoration: InputDecoration(
                     labelText: 'Denumire $entityNameDiacritics',
-                    labelStyle: const TextStyle(color: Colors.white54),
+                    labelStyle: TextStyle(color: AppColors.text54),
                   ),
                 ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
                   initialValue: tableType,
-                  dropdownColor: const Color(0xFF131A2A),
-                  style: const TextStyle(color: Colors.white),
+                  dropdownColor: AppColors.card,
+                  style: TextStyle(color: AppColors.text),
                   decoration: InputDecoration(
                     labelText: 'Tip $entityNameDiacritics',
-                    labelStyle: const TextStyle(color: Colors.white54),
+                    labelStyle: TextStyle(color: AppColors.text54),
                   ),
                   items: const [
                     DropdownMenuItem(value: 'indoor', child: Text('Indoor')),
@@ -386,12 +387,12 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text('Atinge o căsuță liberă din cameră pentru a muta ${table['name']}.'),
-                      backgroundColor: const Color(0xFF00E5FF),
+                      backgroundColor: AppColors.accent,
                       duration: const Duration(seconds: 4),
                     ),
                   );
                 },
-                child: Text('Mută $entityNameLowercase', style: const TextStyle(color: Color(0xFF00E5FF))),
+                child: Text('Mută $entityNameLowercase', style: TextStyle(color: AppColors.accent)),
               ),
               ElevatedButton(
                 onPressed: () {
@@ -401,7 +402,7 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
                   });
                   Navigator.pop(context);
                 },
-                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00E5FF), foregroundColor: Colors.black),
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.accent, foregroundColor: Colors.black),
                 child: const Text('Salvează'),
               )
             ],
@@ -422,8 +423,8 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
       builder: (context) {
         return StatefulBuilder(builder: (context, setDialogState) {
           return AlertDialog(
-            backgroundColor: const Color(0xFF131A2A),
-            title: const Text('Configurare Antrenamente Copii', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+            backgroundColor: AppColors.card,
+            title: Text('Configurare Antrenamente Copii', style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold, fontSize: 16)),
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -435,23 +436,23 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
                   ),
                   const SizedBox(height: 16),
                   SwitchListTile(
-                    title: const Text('Activează Automat', style: TextStyle(color: Colors.white, fontSize: 14)),
-                    subtitle: const Text('Rezervă mesele în timpul orelor de antrenament', style: TextStyle(color: Colors.white54, fontSize: 11)),
+                    title: Text('Activează Automat', style: TextStyle(color: AppColors.text, fontSize: 14)),
+                    subtitle: Text('Rezervă mesele în timpul orelor de antrenament', style: TextStyle(color: AppColors.text54, fontSize: 11)),
                     value: enabled,
-                    activeThumbColor: const Color(0xFF00E5FF),
+                    activeThumbColor: AppColors.accent,
                     onChanged: (val) => setDialogState(() => enabled = val),
                   ),
-                  const Divider(color: Colors.white24),
+                  Divider(color: AppColors.text24),
                   const SizedBox(height: 8),
-                  const Text('Interval orar antrenament:', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)),
+                  Text('Interval orar antrenament:', style: TextStyle(color: AppColors.text70, fontSize: 12, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   Row(
                     children: [
                       Expanded(
                         child: DropdownButtonFormField<int>(
                           initialValue: start,
-                          dropdownColor: const Color(0xFF131A2A),
-                          style: const TextStyle(color: Colors.white),
+                          dropdownColor: AppColors.card,
+                          style: TextStyle(color: AppColors.text),
                           decoration: const InputDecoration(labelText: 'De la ora'),
                           items: List.generate(24, (i) => DropdownMenuItem(value: i, child: Text('$i:00'))),
                           onChanged: (val) => setDialogState(() => start = val ?? 17),
@@ -461,8 +462,8 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
                       Expanded(
                         child: DropdownButtonFormField<int>(
                           initialValue: end,
-                          dropdownColor: const Color(0xFF131A2A),
-                          style: const TextStyle(color: Colors.white),
+                          dropdownColor: AppColors.card,
+                          style: TextStyle(color: AppColors.text),
                           decoration: const InputDecoration(labelText: 'Până la ora'),
                           items: List.generate(24, (i) => DropdownMenuItem(value: i, child: Text('$i:00'))),
                           onChanged: (val) => setDialogState(() => end = val ?? 19),
@@ -471,7 +472,7 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  const Text('Zilele săptămânii cu antrenament:', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)),
+                  Text('Zilele săptămânii cu antrenament:', style: TextStyle(color: AppColors.text70, fontSize: 12, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   Wrap(
                     spacing: 8,
@@ -490,8 +491,8 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
                       return FilterChip(
                         label: Text(day['name'] as String),
                         selected: isSelected,
-                        selectedColor: const Color(0xFF00E5FF),
-                        labelStyle: TextStyle(color: isSelected ? Colors.black : Colors.white, fontSize: 11),
+                        selectedColor: AppColors.accent,
+                        labelStyle: TextStyle(color: isSelected ? AppColors.onAccent : AppColors.text, fontSize: 11),
                         onSelected: (selected) {
                           setDialogState(() {
                             if (selected) {
@@ -510,7 +511,7 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text('Anulează', style: TextStyle(color: Colors.white54)),
+                child: Text('Anulează', style: TextStyle(color: AppColors.text54)),
               ),
               ElevatedButton(
                 onPressed: () {
@@ -524,7 +525,7 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
                   });
                   Navigator.pop(context);
                 },
-                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00E5FF), foregroundColor: Colors.black),
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.accent, foregroundColor: Colors.black),
                 child: const Text('Salvează'),
               )
             ],
@@ -546,22 +547,22 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          backgroundColor: const Color(0xFF131A2A),
+          backgroundColor: AppColors.card,
           title: Text(
             'Detalii Ocupare - $tableName',
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold),
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Rezervat de: $host', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+              Text('Rezervat de: $host', style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold, fontSize: 15)),
               const SizedBox(height: 8),
-              Text('Data: $date', style: const TextStyle(color: Colors.white70, fontSize: 13)),
-              Text('Interval: $start:00 - $end:00', style: const TextStyle(color: Colors.white70, fontSize: 13)),
-              Text('Tip Meci: ${isPrivate ? "Privat" : "Public"}', style: const TextStyle(color: Colors.white70, fontSize: 13)),
+              Text('Data: $date', style: TextStyle(color: AppColors.text70, fontSize: 13)),
+              Text('Interval: $start:00 - $end:00', style: TextStyle(color: AppColors.text70, fontSize: 13)),
+              Text('Tip Meci: ${isPrivate ? "Privat" : "Public"}', style: TextStyle(color: AppColors.text70, fontSize: 13)),
               const SizedBox(height: 12),
-              Text('Jucători înscriși (${joined.length}):', style: const TextStyle(color: Color(0xFF00E5FF), fontWeight: FontWeight.bold, fontSize: 13)),
+              Text('Jucători înscriși (${joined.length}):', style: TextStyle(color: AppColors.accent, fontWeight: FontWeight.bold, fontSize: 13)),
               const SizedBox(height: 6),
               ...joined.map((p) {
                 final pData = p as Map<String, dynamic>;
@@ -569,9 +570,9 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
                   padding: const EdgeInsets.only(bottom: 4.0),
                   child: Row(
                     children: [
-                      const Icon(Icons.person, color: Colors.white38, size: 14),
+                      Icon(Icons.person, color: AppColors.text38, size: 14),
                       const SizedBox(width: 6),
-                      Text(pData['username'] ?? 'Player', style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                      Text(pData['username'] ?? 'Player', style: TextStyle(color: AppColors.text70, fontSize: 12)),
                     ],
                   ),
                 );
@@ -581,7 +582,7 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
           actions: [
             ElevatedButton(
               onPressed: () => Navigator.pop(context),
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00E5FF), foregroundColor: Colors.black),
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.accent, foregroundColor: Colors.black),
               child: const Text('Închide'),
             )
           ],
@@ -613,19 +614,19 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
       builder: (context) {
         return StatefulBuilder(builder: (context, setDialogState) {
           return AlertDialog(
-            backgroundColor: const Color(0xFF131A2A),
+            backgroundColor: AppColors.card,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
-              side: const BorderSide(color: Color(0xFF00E5FF), width: 1.5),
+              side: BorderSide(color: AppColors.accent, width: 1.5),
             ),
             title: Row(
               children: [
-                const Icon(Icons.phone_in_talk, color: Color(0xFF00E5FF)),
+                Icon(Icons.phone_in_talk, color: AppColors.accent),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     'Rezervare Rapidă - ${table['name']}',
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                    style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold, fontSize: 16),
                   ),
                 ),
               ],
@@ -642,12 +643,12 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
                   const SizedBox(height: 16),
                   TextField(
                     controller: nameController,
-                    style: const TextStyle(color: Colors.white, fontSize: 14),
-                    decoration: const InputDecoration(
+                    style: TextStyle(color: AppColors.text, fontSize: 14),
+                    decoration: InputDecoration(
                       labelText: 'Nume Client / Detalii Telefon',
-                      labelStyle: TextStyle(color: Colors.white54, fontSize: 12),
-                      enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
-                      focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF00E5FF))),
+                      labelStyle: TextStyle(color: AppColors.text54, fontSize: 12),
+                      enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.text24)),
+                      focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.accent)),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -656,11 +657,11 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
                       Expanded(
                         child: DropdownButtonFormField<num>(
                           initialValue: startHour,
-                          dropdownColor: const Color(0xFF131A2A),
-                          style: const TextStyle(color: Colors.white, fontSize: 13),
-                          decoration: const InputDecoration(
+                          dropdownColor: AppColors.card,
+                          style: TextStyle(color: AppColors.text, fontSize: 13),
+                          decoration: InputDecoration(
                             labelText: 'De la ora',
-                            labelStyle: TextStyle(color: Colors.white54, fontSize: 11),
+                            labelStyle: TextStyle(color: AppColors.text54, fontSize: 11),
                           ),
                           items: dropdownHours.where((h) => h < close).map((h) {
                             return DropdownMenuItem(value: h, child: Text(_formatHour(h)));
@@ -679,11 +680,11 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
                       Expanded(
                         child: DropdownButtonFormField<num>(
                           initialValue: endHour,
-                          dropdownColor: const Color(0xFF131A2A),
-                          style: const TextStyle(color: Colors.white, fontSize: 13),
-                          decoration: const InputDecoration(
+                          dropdownColor: AppColors.card,
+                          style: TextStyle(color: AppColors.text, fontSize: 13),
+                          decoration: InputDecoration(
                             labelText: 'Până la ora',
-                            labelStyle: TextStyle(color: Colors.white54, fontSize: 11),
+                            labelStyle: TextStyle(color: AppColors.text54, fontSize: 11),
                           ),
                           items: dropdownHours.where((h) => h > startHour).map((h) {
                             return DropdownMenuItem(value: h, child: Text(_formatHour(h)));
@@ -696,11 +697,11 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
                   const SizedBox(height: 16),
                   DropdownButtonFormField<String>(
                     initialValue: paymentStatus,
-                    dropdownColor: const Color(0xFF131A2A),
-                    style: const TextStyle(color: Colors.white, fontSize: 13),
-                    decoration: const InputDecoration(
+                    dropdownColor: AppColors.card,
+                    style: TextStyle(color: AppColors.text, fontSize: 13),
+                    decoration: InputDecoration(
                       labelText: 'Status Plată',
-                      labelStyle: TextStyle(color: Colors.white54, fontSize: 11),
+                      labelStyle: TextStyle(color: AppColors.text54, fontSize: 11),
                     ),
                     items: const [
                       DropdownMenuItem(value: 'pending', child: Text('Neplătit (În așteptare)')),
@@ -714,7 +715,7 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text('Anulează', style: TextStyle(color: Colors.white54)),
+                child: Text('Anulează', style: TextStyle(color: AppColors.text54)),
               ),
               ElevatedButton(
                 onPressed: () async {
@@ -745,6 +746,7 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
                       venueData: venueData,
                       startHour: startHour,
                       endHour: endHour,
+                      date: _selectedDate,
                     );
 
                     final Map<String, dynamic> offlineHost = {
@@ -797,7 +799,7 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
                     if (mounted) setState(() => _loading = false);
                   }
                 },
-                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00E5FF), foregroundColor: Colors.black),
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.accent, foregroundColor: Colors.black),
                 child: const Text('Creează'),
               )
             ],
@@ -836,13 +838,13 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF131A2A),
-        title: const Text('Anulează Rezervarea', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        content: const Text('Ești sigur că vrei să anulezi această rezervare?', style: TextStyle(color: Colors.white70)),
+        backgroundColor: AppColors.card,
+        title: Text('Anulează Rezervarea', style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold)),
+        content: Text('Ești sigur că vrei să anulezi această rezervare?', style: TextStyle(color: AppColors.text70)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Nu', style: TextStyle(color: Colors.white54)),
+            child: Text('Nu', style: TextStyle(color: AppColors.text54)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
@@ -887,35 +889,35 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
   @override
   Widget build(BuildContext context) {
     final scaffold = Scaffold(
-      backgroundColor: const Color(0xFF0A0E17),
+      backgroundColor: AppColors.bg,
       drawer: widget.isAdmin && !widget.showBackButton
           ? const PlayerDrawer(activePage: 'tables_layout')
           : null,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF131A2A),
+        backgroundColor: AppColors.card,
         elevation: 0,
         leading: widget.showBackButton
             ? IconButton(
-                icon: const Icon(Icons.arrow_back, color: Color(0xFF00E5FF)),
+                icon: Icon(Icons.arrow_back, color: AppColors.accent),
                 onPressed: () => Navigator.pop(context),
               )
             : Builder(
                 builder: (context) => IconButton(
-                  icon: const Icon(Icons.menu, color: Color(0xFF00E5FF)),
+                  icon: Icon(Icons.menu, color: AppColors.accent),
                   onPressed: () => Scaffold.of(context).openDrawer(),
                 ),
               ),
         title: Text(
           widget.venueName,
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+          style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold, fontSize: 18),
         ),
         centerTitle: true,
         actions: [
           if (widget.isAdmin && !_isEditing)
             TextButton.icon(
               onPressed: () => setState(() => _isEditing = true),
-              icon: const Icon(Icons.edit, color: Color(0xFF00E5FF), size: 18),
-              label: const Text('Aranjează', style: TextStyle(color: Color(0xFF00E5FF))),
+              icon: Icon(Icons.edit, color: AppColors.accent, size: 18),
+              label: Text('Aranjează', style: TextStyle(color: AppColors.accent)),
             )
           else if (widget.isAdmin && _isEditing) ...[
             TextButton(
@@ -926,21 +928,21 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
                 });
                 _loadVenuePlan(); // Reload saved
               },
-              child: const Text('Anulează', style: TextStyle(color: Colors.white54)),
+              child: Text('Anulează', style: TextStyle(color: AppColors.text54)),
             ),
             TextButton(
               onPressed: _saveVenuePlan,
               child: _saving
-                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF00E5FF)))
-                  : const Text('Salvează', style: TextStyle(color: Color(0xFF00E5FF), fontWeight: FontWeight.bold)),
+                  ? SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accent))
+                  : Text('Salvează', style: TextStyle(color: AppColors.accent, fontWeight: FontWeight.bold)),
             ),
           ]
         ],
         bottom: !_isEditing
-            ? const TabBar(
-                indicatorColor: Color(0xFF00E5FF),
-                labelColor: Color(0xFF00E5FF),
-                unselectedLabelColor: Colors.white54,
+            ? TabBar(
+                indicatorColor: AppColors.accent,
+                labelColor: AppColors.accent,
+                unselectedLabelColor: AppColors.text54,
                 tabs: [
                   Tab(icon: Icon(Icons.calendar_today), text: 'Programări Astăzi'),
                   Tab(icon: Icon(Icons.room), text: 'Plan Cameră & Mese'),
@@ -949,7 +951,7 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
             : null,
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)))
+          ? Center(child: CircularProgressIndicator(color: AppColors.accent))
           : Column(
               children: [
                 _buildSportSelector(),
@@ -989,7 +991,7 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
 
     return Container(
       width: double.infinity,
-      color: const Color(0xFF131A2A),
+      color: AppColors.card,
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
@@ -1000,10 +1002,10 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
             return Padding(
               padding: const EdgeInsets.only(right: 8.0),
               child: ChoiceChip(
-                label: Text(names[s] ?? s, style: TextStyle(color: isSelected ? Colors.black : Colors.white)),
+                label: Text(names[s] ?? s, style: TextStyle(color: isSelected ? AppColors.onAccent : AppColors.text)),
                 selected: isSelected,
-                selectedColor: const Color(0xFF00E5FF),
-                backgroundColor: const Color(0xFF1E293B),
+                selectedColor: AppColors.accent,
+                backgroundColor: AppColors.card2,
                 onSelected: (val) {
                   if (val) {
                     setState(() {
@@ -1033,11 +1035,11 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.calendar_today, color: Colors.white24, size: 64),
+            Icon(Icons.calendar_today, color: AppColors.text24, size: 64),
             const SizedBox(height: 16),
-            const Text(
+            Text(
               'Nu există programări active pentru astăzi',
-              style: TextStyle(color: Colors.white54, fontSize: 16, fontWeight: FontWeight.bold),
+              style: TextStyle(color: AppColors.text54, fontSize: 16, fontWeight: FontWeight.bold),
             ),
           ],
         ),
@@ -1079,10 +1081,10 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
         return Container(
           margin: const EdgeInsets.only(bottom: 10),
           decoration: BoxDecoration(
-            color: const Color(0xFF131A2A),
+            color: AppColors.card,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: isPaid ? Colors.greenAccent.withValues(alpha: 0.3) : const Color(0xFFFF0055).withValues(alpha: 0.3),
+              color: isPaid ? Colors.greenAccent.withValues(alpha: 0.3) : AppColors.bad.withValues(alpha: 0.3),
               width: 1,
             ),
           ),
@@ -1096,9 +1098,9 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
                   children: [
                     CircleAvatar(
                       radius: 20,
-                      backgroundColor: const Color(0xFF1E293B),
+                      backgroundColor: AppColors.card2,
                       backgroundImage: (hostAvatar != null && hostAvatar.isNotEmpty) ? NetworkImage(hostAvatar) : null,
-                      child: (hostAvatar == null || hostAvatar.isEmpty) ? const Icon(Icons.person, color: Colors.grey, size: 20) : null,
+                      child: (hostAvatar == null || hostAvatar.isEmpty) ? Icon(Icons.person, color: AppColors.muted, size: 20) : null,
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -1107,7 +1109,7 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
                         children: [
                           Text(
                             clientName,
-                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                            style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold, fontSize: 14),
                           ),
                           const SizedBox(height: 4),
                           Row(
@@ -1115,17 +1117,17 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF0A0E17),
+                                  color: AppColors.bg,
                                   borderRadius: BorderRadius.circular(4),
-                                  border: Border.all(color: Colors.white12),
+                                  border: Border.all(color: AppColors.text12),
                                 ),
                                 child: Row(
                                   children: [
-                                    const Icon(Icons.table_restaurant, color: Color(0xFF00E5FF), size: 10),
+                                    Icon(Icons.table_restaurant, color: AppColors.accent, size: 10),
                                     const SizedBox(width: 4),
                                     Text(
                                       tableName,
-                                      style: const TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold),
+                                      style: TextStyle(color: AppColors.text70, fontSize: 10, fontWeight: FontWeight.bold),
                                     ),
                                   ],
                                 ),
@@ -1134,17 +1136,17 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF0A0E17),
+                                  color: AppColors.bg,
                                   borderRadius: BorderRadius.circular(4),
-                                  border: Border.all(color: Colors.white12),
+                                  border: Border.all(color: AppColors.text12),
                                 ),
                                 child: Row(
                                   children: [
-                                    const Icon(Icons.access_time, color: Color(0xFF00E5FF), size: 10),
+                                    Icon(Icons.access_time, color: AppColors.accent, size: 10),
                                     const SizedBox(width: 4),
                                     Text(
                                       '${_formatHour(start)} - ${_formatHour(end)}',
-                                      style: const TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold),
+                                      style: TextStyle(color: AppColors.text70, fontSize: 10, fontWeight: FontWeight.bold),
                                     ),
                                   ],
                                 ),
@@ -1158,13 +1160,13 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFFFD700).withValues(alpha: 0.1),
+                          color: AppColors.gold.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: const Color(0xFFFFD700), width: 1),
+                          border: Border.all(color: AppColors.gold, width: 1),
                         ),
                         child: Text(
                           '${price.toStringAsFixed(0)} RON',
-                          style: const TextStyle(color: Color(0xFFFFD700), fontSize: 10, fontWeight: FontWeight.bold),
+                          style: TextStyle(color: AppColors.gold, fontSize: 10, fontWeight: FontWeight.bold),
                         ),
                       ),
                   ],
@@ -1173,11 +1175,11 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      const Icon(Icons.emoji_events, color: Color(0xFFFFD700), size: 12),
+                      Icon(Icons.emoji_events, color: AppColors.gold, size: 12),
                       const SizedBox(width: 4),
                       Text(
                         'Nivel: $hostLevel',
-                        style: const TextStyle(color: Colors.white70, fontSize: 10),
+                        style: TextStyle(color: AppColors.text70, fontSize: 10),
                       ),
                     ],
                   ),
@@ -1187,14 +1189,14 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
                   children: [
                     Icon(
                       isPaid ? Icons.check_circle : Icons.error_outline,
-                      color: isPaid ? const Color(0xFF00FF66) : const Color(0xFFFF0055),
+                      color: isPaid ? AppColors.good : AppColors.bad,
                       size: 12,
                     ),
                     const SizedBox(width: 4),
                     Text(
                       isPaid ? 'Plată Confirmată' : 'Plată Neconfirmată',
                       style: TextStyle(
-                        color: isPaid ? const Color(0xFF00FF66) : const Color(0xFFFF0055),
+                        color: isPaid ? AppColors.good : AppColors.bad,
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
                       ),
@@ -1211,8 +1213,8 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
                         icon: const Icon(Icons.cancel, size: 12),
                         label: const Text('Anulează', style: TextStyle(fontSize: 10)),
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFFFF0055),
-                          side: const BorderSide(color: Color(0xFFFF0055)),
+                          foregroundColor: AppColors.bad,
+                          side: BorderSide(color: AppColors.bad),
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                           minimumSize: Size.zero,
                         ),
@@ -1224,7 +1226,7 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
                           icon: const Icon(Icons.payments, size: 12),
                           label: const Text('Confirmă', style: TextStyle(fontSize: 10)),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF00FF66),
+                            backgroundColor: AppColors.good,
                             foregroundColor: Colors.black,
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                             minimumSize: Size.zero,
@@ -1248,15 +1250,15 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
       children: [
         // Plan View Header / Selectors
         Container(
-          color: const Color(0xFF131A2A),
+          color: AppColors.card,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Column(
             children: [
               Row(
                 children: [
-                  const Icon(Icons.calendar_month, color: Color(0xFF00E5FF), size: 20),
+                  Icon(Icons.calendar_month, color: AppColors.accent, size: 20),
                   const SizedBox(width: 8),
-                  const Text('Data:', style: TextStyle(color: Colors.grey, fontSize: 14)),
+                  Text('Data:', style: TextStyle(color: AppColors.muted, fontSize: 14)),
                   const SizedBox(width: 8),
                   InkWell(
                     onTap: () async {
@@ -1275,13 +1277,13 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF0A0E17),
+                        color: AppColors.bg,
                         borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.3)),
+                        border: Border.all(color: AppColors.accent.withValues(alpha: 0.3)),
                       ),
                       child: Text(
                         DateFormat('dd MMM yyyy').format(_selectedDate),
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                        style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold, fontSize: 13),
                       ),
                     ),
                   ),
@@ -1290,15 +1292,15 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
               const SizedBox(height: 12),
               Row(
                 children: [
-                  const Icon(Icons.access_time, color: Color(0xFF00E5FF), size: 20),
+                  Icon(Icons.access_time, color: AppColors.accent, size: 20),
                   const SizedBox(width: 8),
-                  const Text('Interval orar:', style: TextStyle(color: Colors.grey, fontSize: 14)),
+                  Text('Interval orar:', style: TextStyle(color: AppColors.muted, fontSize: 14)),
                   const SizedBox(width: 8),
                   Expanded(
                     child: DropdownButtonFormField<int>(
                       initialValue: _selectedHour,
-                      dropdownColor: const Color(0xFF131A2A),
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                      dropdownColor: AppColors.card,
+                      style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold, fontSize: 14),
                       decoration: const InputDecoration(
                         contentPadding: EdgeInsets.symmetric(horizontal: 10),
                         border: InputBorder.none,
@@ -1324,8 +1326,8 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _buildLegendItem('Liberă', const Color(0xFF00FF66)),
-              _buildBadgeLegend('Ocupată', const Color(0xFFFF0055)),
+              _buildLegendItem('Liberă', AppColors.good),
+              _buildBadgeLegend('Ocupată', AppColors.bad),
               _buildLegendItem('Antrenament', Colors.purpleAccent),
             ],
           ),
@@ -1339,12 +1341,12 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
                 margin: const EdgeInsets.all(16),
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF131A2A).withValues(alpha: 0.8),
+                  color: AppColors.card.withValues(alpha: 0.8),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFF1E293B), width: 2),
+                  border: Border.all(color: AppColors.card2, width: 2),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF00E5FF).withValues(alpha: 0.05),
+                      color: AppColors.accent.withValues(alpha: 0.05),
                       blurRadius: 20,
                       spreadRadius: 2,
                     )
@@ -1353,9 +1355,9 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text(
+                    Text(
                       'PLAN CAMERĂ CLUB',
-                      style: TextStyle(color: Colors.white38, fontWeight: FontWeight.bold, fontSize: 10, letterSpacing: 2),
+                      style: TextStyle(color: AppColors.text38, fontWeight: FontWeight.bold, fontSize: 10, letterSpacing: 2),
                     ),
                     const SizedBox(height: 12),
                     // Environment Toggle
@@ -1366,11 +1368,11 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
                           _selectedEnvironment = index == 0 ? 'indoor' : 'outdoor';
                         });
                       },
-                      color: Colors.white54,
+                      color: AppColors.text54,
                       selectedColor: Colors.black,
-                      fillColor: const Color(0xFF00E5FF),
-                      borderColor: const Color(0xFF1E293B),
-                      selectedBorderColor: const Color(0xFF00E5FF),
+                      fillColor: AppColors.accent,
+                      borderColor: AppColors.card2,
+                      selectedBorderColor: AppColors.accent,
                       borderRadius: BorderRadius.circular(8),
                       children: const [
                         Padding(
@@ -1412,19 +1414,19 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
         // Edit Header
         Container(
           width: double.infinity,
-          color: const Color(0xFF131A2A),
+          color: AppColors.card,
           padding: const EdgeInsets.all(12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 'MOD EDITARE SALĂ / CAMERĂ',
-                style: TextStyle(color: Color(0xFF00E5FF), fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 1.2),
+                style: TextStyle(color: AppColors.accent, fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 1.2),
               ),
               const SizedBox(height: 4),
-              const Text(
+              Text(
                 '• Atinge un spațiu liber pentru a adăuga un element.\n• Atinge un element pentru a-l edita, șterge sau a-i schimba poziția.',
-                style: TextStyle(color: Colors.white54, fontSize: 11),
+                style: TextStyle(color: AppColors.text54, fontSize: 11),
               ),
               const SizedBox(height: 8),
               SizedBox(
@@ -1454,11 +1456,11 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
               _selectedEnvironment = index == 0 ? 'indoor' : 'outdoor';
             });
           },
-          color: Colors.white54,
+          color: AppColors.text54,
           selectedColor: Colors.black,
-          fillColor: const Color(0xFF00E5FF),
-          borderColor: const Color(0xFF1E293B),
-          selectedBorderColor: const Color(0xFF00E5FF),
+          fillColor: AppColors.accent,
+          borderColor: AppColors.card2,
+          selectedBorderColor: AppColors.accent,
           borderRadius: BorderRadius.circular(8),
           children: const [
             Padding(
@@ -1480,12 +1482,12 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
                 margin: const EdgeInsets.all(16),
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF131A2A).withValues(alpha: 0.8),
+                  color: AppColors.card.withValues(alpha: 0.8),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFF1E293B), width: 2),
+                  border: Border.all(color: AppColors.card2, width: 2),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF00E5FF).withValues(alpha: 0.05),
+                      color: AppColors.accent.withValues(alpha: 0.05),
                       blurRadius: 20,
                       spreadRadius: 2,
                     )
@@ -1494,9 +1496,9 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text(
+                    Text(
                       'PLAN CAMERĂ CLUB (EDITARE)',
-                      style: TextStyle(color: Colors.white38, fontWeight: FontWeight.bold, fontSize: 10, letterSpacing: 2),
+                      style: TextStyle(color: AppColors.text38, fontWeight: FontWeight.bold, fontSize: 10, letterSpacing: 2),
                     ),
                     const SizedBox(height: 12),
                     // The 2D Grid
@@ -1539,21 +1541,21 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
             height: 50,
             margin: const EdgeInsets.all(3),
             decoration: BoxDecoration(
-              color: isMoving ? Colors.orange.withValues(alpha: 0.2) : const Color(0xFF1E293B),
+              color: isMoving ? Colors.orange.withValues(alpha: 0.2) : AppColors.card2,
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
-                color: isMoving ? Colors.orangeAccent : const Color(0xFF00E5FF).withValues(alpha: 0.3),
+                color: isMoving ? Colors.orangeAccent : AppColors.accent.withValues(alpha: 0.3),
                 width: 1.5,
               ),
             ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(icon, color: const Color(0xFF00E5FF), size: 14),
+                Icon(icon, color: AppColors.accent, size: 14),
                 const SizedBox(height: 2),
                 Text(
                   table['name'] ?? '',
-                  style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold),
+                  style: TextStyle(color: AppColors.text, fontSize: 8, fontWeight: FontWeight.bold),
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
                 ),
@@ -1580,16 +1582,16 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
             height: 50,
             margin: const EdgeInsets.all(3),
             decoration: BoxDecoration(
-              color: isMovingTarget ? Colors.green.withValues(alpha: 0.2) : const Color(0xFF131A2A),
+              color: isMovingTarget ? Colors.green.withValues(alpha: 0.2) : AppColors.card,
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
-                color: isMovingTarget ? Colors.greenAccent : Colors.white12,
+                color: isMovingTarget ? Colors.greenAccent : AppColors.text12,
                 style: BorderStyle.solid,
                 width: 1,
               ),
             ),
-            child: const Center(
-              child: Icon(Icons.add, color: Colors.white24, size: 16),
+            child: Center(
+              child: Icon(Icons.add, color: AppColors.text24, size: 16),
             ),
           ),
         );
@@ -1601,10 +1603,10 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
         final bool isOccupied = _isTableOccupied(tableId, _selectedHour);
         final bool isTraining = table['type'] == 'training' && _isTrainingHour(_selectedHour);
         
-        Color statusColor = const Color(0xFF00FF66); // Free (Green)
+        Color statusColor = AppColors.good; // Free (Green)
         String statusText = 'LIBER';
         if (isOccupied) {
-          statusColor = const Color(0xFFFF0055); // Occupied (Red)
+          statusColor = AppColors.bad; // Occupied (Red)
           statusText = 'OCUPAT';
         } else if (isTraining) {
           statusColor = Colors.purpleAccent; // Kids Training (Purple)
@@ -1639,7 +1641,7 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text('${table['name']} este liberă în acest interval!'),
-                    backgroundColor: const Color(0xFF00FF66),
+                    backgroundColor: AppColors.good,
                     duration: const Duration(seconds: 1),
                   ),
                 );
@@ -1661,7 +1663,7 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
                 const SizedBox(height: 2),
                 Text(
                   table['name'] ?? '',
-                  style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                  style: TextStyle(color: AppColors.text, fontSize: 9, fontWeight: FontWeight.bold),
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
                 ),
@@ -1696,7 +1698,7 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
           decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
         const SizedBox(width: 6),
-        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 11)),
+        Text(label, style: TextStyle(color: AppColors.muted, fontSize: 11)),
       ],
     );
   }

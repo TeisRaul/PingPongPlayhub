@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/table_service.dart';
 import '../utils/hour_utils.dart';
+import '../theme/app_theme.dart';
 
 /// Alege altă masă pentru o rezervare. Arată mesele sălii pe intervalul
 /// rezervării: libere, ocupate (și de cine), antrenament și masa curentă.
@@ -25,7 +26,7 @@ class ChangeTableDialog extends StatefulWidget {
 }
 
 class _ChangeTableDialogState extends State<ChangeTableDialog> {
-  static const _cyan = Color(0xFF00E5FF);
+  static Color get _cyan => AppColors.accent;
 
   late Future<List<TableOption>> _future;
   TableOption? _selected;
@@ -41,7 +42,7 @@ class _ChangeTableDialogState extends State<ChangeTableDialog> {
   Color _colorFor(TableState s) {
     switch (s) {
       case TableState.free:
-        return const Color(0xFF00FF66);
+        return AppColors.good;
       case TableState.occupied:
         return Colors.redAccent;
       case TableState.training:
@@ -99,8 +100,8 @@ class _ChangeTableDialogState extends State<ChangeTableDialog> {
     final m = widget.match;
     return AlertDialog(
       scrollable: true,
-      backgroundColor: const Color(0xFF131A2A),
-      title: const Text('Schimbă masa', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+      backgroundColor: AppColors.card,
+      title: Text('Schimbă masa', style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold)),
       content: SizedBox(
         width: 360,
         child: Column(
@@ -109,14 +110,14 @@ class _ChangeTableDialogState extends State<ChangeTableDialog> {
           children: [
             Text(
               'Interval: ${m['date']} · ${formatHour(m['startHour'])} - ${formatHour(m['endHour'])}',
-              style: const TextStyle(color: Colors.white70),
+              style: TextStyle(color: AppColors.text70),
             ),
             const SizedBox(height: 12),
             FutureBuilder<List<TableOption>>(
               future: _future,
               builder: (context, snapshot) {
                 if (snapshot.connectionState != ConnectionState.done) {
-                  return const Padding(
+                  return Padding(
                     padding: EdgeInsets.all(24),
                     child: Center(child: CircularProgressIndicator(color: _cyan)),
                   );
@@ -126,8 +127,8 @@ class _ChangeTableDialogState extends State<ChangeTableDialog> {
                 }
                 final options = snapshot.data ?? [];
                 if (options.isEmpty) {
-                  return const Text('Sala nu are mese configurate pentru această rezervare.',
-                      style: TextStyle(color: Colors.grey));
+                  return Text('Sala nu are mese configurate pentru această rezervare.',
+                      style: TextStyle(color: AppColors.muted));
                 }
                 return Wrap(
                   spacing: 8,
@@ -152,7 +153,7 @@ class _ChangeTableDialogState extends State<ChangeTableDialog> {
                             const SizedBox(height: 4),
                             Text(o.name,
                                 textAlign: TextAlign.center,
-                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                                style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold, fontSize: 12)),
                             const SizedBox(height: 2),
                             Text(_labelFor(o),
                                 textAlign: TextAlign.center, style: TextStyle(color: color, fontSize: 10)),
@@ -174,7 +175,7 @@ class _ChangeTableDialogState extends State<ChangeTableDialog> {
       actions: [
         TextButton(
           onPressed: _saving ? null : () => Navigator.pop(context, false),
-          child: const Text('Anulează', style: TextStyle(color: Colors.grey)),
+          child: Text('Anulează', style: TextStyle(color: AppColors.muted)),
         ),
         ElevatedButton(
           style: ElevatedButton.styleFrom(backgroundColor: _cyan, foregroundColor: Colors.black),

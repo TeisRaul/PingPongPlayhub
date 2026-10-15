@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import '../utils/player_name.dart';
+import '../services/notification_service.dart';
+import '../l10n/strings.dart';
+import '../data/sports.dart';
 import '../utils/hour_utils.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/booking_service.dart';
@@ -6,6 +10,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../data/mock_locations.dart';
 import '../utils/level_utils.dart';
 import '../widgets/city_selector.dart';
+import '../theme/app_theme.dart';
 
 class FindMatchTab extends StatefulWidget {
   const FindMatchTab({super.key});
@@ -122,7 +127,7 @@ class _FindMatchTabState extends State<FindMatchTab> {
     try {
       final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
       final userData = userDoc.data() ?? {};
-      final guestUsername = userData['username'] ?? 'Jucător necunoscut';
+      final guestUsername = playerDisplayName(userData, email: user.email, fallback: tr('common.unknown_player'));
       final guestAvatarUrl = userData['avatarUrl'];
       final guestRating = userData['rating'] ?? 0;
       final guestLevelName = LevelUtils.getLevelDetails(guestRating)['levelName'];
@@ -136,6 +141,36 @@ class _FindMatchTabState extends State<FindMatchTab> {
         'role': 'guest'
       };
 
+      final String hostUid = (data['hostUid'] ?? '').toString();
+      final nArgs = {...NotificationService.matchArgs(data), 'player': guestUsername, 'host': (data['hostUsername'] ?? '').toString()};
+
+      // Gazda vrea să aprobe manual: trimitem cererea, nu intrăm direct la masă.
+      if (data['requireApproval'] == true && hostUid.isNotEmpty && hostUid != user.uid) {
+        final List<dynamic> already = List<dynamic>.from(data['joinRequestUids'] ?? []);
+        if (already.contains(user.uid)) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tr('n.request_already')), backgroundColor: Colors.orangeAccent));
+          }
+          return;
+        }
+        await FirebaseFirestore.instance.collection('matches').doc(matchId).update({
+          'joinRequestUids': FieldValue.arrayUnion([user.uid]),
+        });
+        await NotificationService.send(
+          toUid: hostUid,
+          type: 'join_request',
+          titleKey: 'n.join_req_title',
+          bodyKey: 'n.join_req_body',
+          args: nArgs,
+          matchId: matchId,
+          extra: {'player': newPlayer, 'fromUsername': guestUsername, 'fromAvatarUrl': guestAvatarUrl ?? ''},
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tr('n.request_sent_snack')), backgroundColor: Colors.green));
+        }
+        return;
+      }
+
       final result = await BookingService.joinMatch(matchId, newPlayer);
       if (result != JoinResult.joined) {
         if (mounted) {
@@ -146,23 +181,15 @@ class _FindMatchTabState extends State<FindMatchTab> {
         return;
       }
 
-      // Send join notification to host
-      final hostUid = data['hostUid'];
-      if (hostUid != null && hostUid != user.uid) {
-        final newNotificationRef = FirebaseFirestore.instance.collection('notifications').doc();
-        await FirebaseFirestore.instance.collection('notifications').doc(newNotificationRef.id).set({
-          'toUid': hostUid,
-          'fromUid': user.uid,
-          'fromUsername': guestUsername,
-          'fromAvatarUrl': guestAvatarUrl ?? '',
-          'title': 'Jucător nou la masă',
-          'body': '$guestUsername s-a alăturat meciului tău de pe data de ${data['date']}.',
-          'type': 'match_join',
-          'status': 'pending',
-          'matchId': matchId,
-          'timestamp': FieldValue.serverTimestamp(),
-        });
-      }
+      // Gazda și sala află că s-a alăturat cineva (popup + email).
+      await NotificationService.send(
+        toUid: hostUid,
+        type: 'match_join',
+        titleKey: 'n.joined_title',
+        bodyKey: 'n.joined_body',
+        args: nArgs,
+        matchId: matchId,
+      );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Te-ai alăturat cu succes!'), backgroundColor: Colors.green));
@@ -181,15 +208,15 @@ class _FindMatchTabState extends State<FindMatchTab> {
         // Filtre
         Container(
           padding: const EdgeInsets.all(16),
-          color: const Color(0xFF131A2A),
+          color: AppColors.card,
           child: Column(
             children: [
               TextField(
                 decoration: InputDecoration(
                   hintText: 'Caută oraș, jucător, locație...',
-                  prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                  prefixIcon: Icon(Icons.search, color: AppColors.muted),
                   filled: true,
-                  fillColor: const Color(0xFF1E293B),
+                  fillColor: AppColors.card2,
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                 ),
                 onChanged: (val) => setState(() => _searchQuery = val.toLowerCase()),
@@ -225,23 +252,16 @@ class _FindMatchTabState extends State<FindMatchTab> {
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Row(
-                  children: [
-                    {'id': 'ping_pong', 'label': 'Ping Pong'},
-                    {'id': 'padel', 'label': 'Padel'},
-                    {'id': 'tenis', 'label': 'Tenis'},
-                    {'id': 'fotbal', 'label': 'Fotbal'},
-                    {'id': 'handbal', 'label': 'Handbal'},
-                    {'id': 'baschet', 'label': 'Baschet'},
-                  ].map((sport) {
+                  children: sportOptions().map((sport) {
                     final bool isSelected = _selectedSports.contains(sport['id']);
                     return Padding(
                       padding: const EdgeInsets.only(right: 8.0),
                       child: FilterChip(
                         label: Text(sport['label']!),
                         selected: isSelected,
-                        selectedColor: const Color(0xFF00E5FF),
-                        labelStyle: TextStyle(color: isSelected ? Colors.black : Colors.white),
-                        backgroundColor: const Color(0xFF1E293B),
+                        selectedColor: AppColors.accent,
+                        labelStyle: TextStyle(color: isSelected ? AppColors.onAccent : AppColors.text),
+                        backgroundColor: AppColors.card2,
                         onSelected: (val) {
                           setState(() {
                             if (val) {
@@ -268,7 +288,7 @@ class _FindMatchTabState extends State<FindMatchTab> {
               if (snapshot.hasError) {
                 return const Center(child: Text('A apărut o eroare la încărcare.', style: TextStyle(color: Colors.red)));
               }
-              if (!snapshot.hasData) return const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)));
+              if (!snapshot.hasData) return Center(child: CircularProgressIndicator(color: AppColors.accent));
 
               final docs = snapshot.data!.docs;
               
@@ -277,7 +297,7 @@ class _FindMatchTabState extends State<FindMatchTab> {
                 final data = doc.data() as Map<String, dynamic>;
                 
                 if (data['visibility'] == 'private') return false;
-                if (data['status'] == 'matched' || data['status'] == 'completed') return false;
+                if (data['status'] == 'matched' || data['status'] == 'completed' || data['status'] == 'cancelled') return false;
 
                 // Verificare trecut
                 try {
@@ -314,7 +334,7 @@ class _FindMatchTabState extends State<FindMatchTab> {
               }).toList();
 
               if (filtered.isEmpty) {
-                return const Center(child: Text('Nu am găsit meciuri cu aceste filtre.', style: TextStyle(color: Colors.grey)));
+                return Center(child: Text('Nu am găsit meciuri cu aceste filtre.', style: TextStyle(color: AppColors.muted)));
               }
 
               return ListView.builder(
@@ -328,13 +348,14 @@ class _FindMatchTabState extends State<FindMatchTab> {
                   final int maxPlayers = data['maxPlayers'] ?? 2;
                   final bool isMyMatch = currentUser != null && joinedUids.contains(currentUser.uid);
                   final bool isMatched = data['status'] == 'matched' || joinedUids.length >= maxPlayers;
+                  final bool requestSent = currentUser != null && List<dynamic>.from(data['joinRequestUids'] ?? []).contains(currentUser.uid);
                   
                   return Card(
-                    color: const Color(0xFF131A2A),
+                    color: AppColors.card,
                     margin: const EdgeInsets.only(bottom: 16),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
-                      side: BorderSide(color: const Color(0xFF00E5FF).withValues(alpha: 0.3)),
+                      side: BorderSide(color: AppColors.accent.withValues(alpha: 0.3)),
                     ),
                     child: Padding(
                       padding: const EdgeInsets.all(16),
@@ -344,12 +365,12 @@ class _FindMatchTabState extends State<FindMatchTab> {
                           Row(
                             children: [
                               CircleAvatar(
-                                backgroundColor: const Color(0xFF1E293B),
+                                backgroundColor: AppColors.card2,
                                 backgroundImage: data['hostAvatarUrl'] != null && data['hostAvatarUrl'].toString().isNotEmpty
                                     ? NetworkImage(data['hostAvatarUrl'])
                                     : null,
                                 child: data['hostAvatarUrl'] == null || data['hostAvatarUrl'].toString().isEmpty
-                                    ? Text(data['hostUsername']?.substring(0, 1).toUpperCase() ?? 'U', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))
+                                    ? Text(data['hostUsername']?.substring(0, 1).toUpperCase() ?? 'U', style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold))
                                     : null,
                               ),
                               const SizedBox(width: 12),
@@ -357,8 +378,8 @@ class _FindMatchTabState extends State<FindMatchTab> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(data['hostUsername'] ?? 'Unknown', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
-                                    Text('Nivel: ${data['hostLevel'] ?? 'Necunoscut'}', style: TextStyle(color: const Color(0xFF00E5FF).withValues(alpha: 0.8), fontSize: 12)),
+                                    Text(data['hostUsername'] ?? 'Unknown', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.text)),
+                                    Text('Nivel: ${data['hostLevel'] ?? 'Necunoscut'}', style: TextStyle(color: AppColors.accent.withValues(alpha: 0.8), fontSize: 12)),
                                   ],
                                 ),
                               ),
@@ -367,21 +388,21 @@ class _FindMatchTabState extends State<FindMatchTab> {
                                 decoration: BoxDecoration(
                                   color: isMatched ? Colors.grey.withValues(alpha: 0.2) : Colors.green.withValues(alpha: 0.2),
                                   borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(color: isMatched ? Colors.grey : Colors.green),
+                                  border: Border.all(color: isMatched ? AppColors.muted : Colors.green),
                                 ),
-                                child: Text(isMatched ? 'MATCHED' : 'OPEN', style: TextStyle(color: isMatched ? Colors.grey : Colors.green, fontWeight: FontWeight.bold, fontSize: 12)),
+                                child: Text(isMatched ? 'MATCHED' : 'OPEN', style: TextStyle(color: isMatched ? AppColors.muted : Colors.green, fontWeight: FontWeight.bold, fontSize: 12)),
                               )
                             ],
                           ),
                           const SizedBox(height: 16),
                           Row(
                             children: [
-                              const Icon(Icons.location_on, size: 16, color: Colors.grey),
+                              Icon(Icons.location_on, size: 16, color: AppColors.muted),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
                                   '${data['locationName']} (${data['city']}) • ${data['sport'] != null ? data['sport'].toString().toUpperCase() : 'PING PONG'}',
-                                  style: const TextStyle(color: Colors.white),
+                                  style: TextStyle(color: AppColors.text),
                                 ),
                               ),
                             ],
@@ -389,17 +410,17 @@ class _FindMatchTabState extends State<FindMatchTab> {
                           const SizedBox(height: 8),
                           Row(
                             children: [
-                              const Icon(Icons.calendar_today, size: 16, color: Colors.grey),
+                              Icon(Icons.calendar_today, size: 16, color: AppColors.muted),
                               const SizedBox(width: 8),
-                              Text('${data['date']}', style: const TextStyle(color: Colors.white)),
+                              Text('${data['date']}', style: TextStyle(color: AppColors.text)),
                               const SizedBox(width: 16),
-                              const Icon(Icons.access_time, size: 16, color: Colors.grey),
+                              Icon(Icons.access_time, size: 16, color: AppColors.muted),
                               const SizedBox(width: 8),
-                              Text('${formatHour(data['startHour'])} - ${formatHour(data['endHour'])}', style: const TextStyle(color: Colors.white)),
+                              Text('${formatHour(data['startHour'])} - ${formatHour(data['endHour'])}', style: TextStyle(color: AppColors.text)),
                             ],
                           ),
                           const SizedBox(height: 16),
-                          const Divider(color: Colors.grey),
+                          Divider(color: AppColors.muted),
                           const SizedBox(height: 8),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -407,20 +428,20 @@ class _FindMatchTabState extends State<FindMatchTab> {
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(data['paymentMethod'] ?? '', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                                  Text(data['paymentSplit'] ?? '', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                                  Text(data['paymentMethod'] ?? '', style: TextStyle(fontSize: 12, color: AppColors.muted)),
+                                  Text(data['paymentSplit'] ?? '', style: TextStyle(fontSize: 12, color: AppColors.muted)),
                                   const SizedBox(height: 4),
-                                  Text('${joinedUids.length} / $maxPlayers Jucători', style: const TextStyle(fontSize: 12, color: Color(0xFF00E5FF), fontWeight: FontWeight.bold)),
+                                  Text('${joinedUids.length} / $maxPlayers Jucători', style: TextStyle(fontSize: 12, color: AppColors.accent, fontWeight: FontWeight.bold)),
                                 ],
                               ),
                               ElevatedButton(
-                                onPressed: (isMyMatch || isMatched) ? null : () => _joinMatch(docId, data),
+                                onPressed: (isMyMatch || isMatched || requestSent) ? null : () => _joinMatch(docId, data),
                                 style: ElevatedButton.styleFrom(
                                   padding: const EdgeInsets.symmetric(horizontal: 24),
-                                  disabledBackgroundColor: Colors.grey[800],
-                                  disabledForegroundColor: Colors.white54,
+                                  disabledBackgroundColor: AppColors.border,
+                                  disabledForegroundColor: AppColors.text54,
                                 ),
-                                child: Text(isMyMatch ? 'Meciul tău' : (isMatched ? 'Rezervat' : 'Joacă cu ei!')),
+                                child: Text(isMyMatch ? 'Meciul tău' : (isMatched ? 'Rezervat' : (requestSent ? tr('n.request_sent') : (data['requireApproval'] == true ? tr('n.request_join') : 'Joacă cu ei!')))),
                               ),
                             ],
                           )

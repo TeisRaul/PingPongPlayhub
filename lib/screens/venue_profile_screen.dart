@@ -1,3 +1,4 @@
+import '../l10n/strings.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -9,6 +10,7 @@ import '../widgets/player_drawer.dart';
 import '../data/mock_locations.dart';
 import '../widgets/city_selector.dart';
 import 'payment_screen.dart';
+import '../theme/app_theme.dart';
 
 class VenueProfileScreen extends StatefulWidget {
   final String? venueId;
@@ -173,11 +175,11 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.dark(
-              primary: Color(0xFF00E5FF),
-              onPrimary: Colors.black,
-              surface: Color(0xFF131A2A),
-              onSurface: Colors.white,
+            colorScheme: AppColors.scheme(
+              primary: AppColors.accent,
+              onPrimary: AppColors.onAccent,
+              surface: AppColors.card,
+              onSurface: AppColors.text,
             ),
           ),
           child: child!,
@@ -301,11 +303,11 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.dark(
-              primary: Color(0xFF00E5FF),
-              onPrimary: Colors.black,
-              surface: Color(0xFF131A2A),
-              onSurface: Colors.white,
+            colorScheme: AppColors.scheme(
+              primary: AppColors.accent,
+              onPrimary: AppColors.onAccent,
+              surface: AppColors.card,
+              onSurface: AppColors.text,
             ),
           ),
           child: child!,
@@ -344,17 +346,17 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF131A2A),
-        title: const Text('Deblocare Dată', style: TextStyle(color: Colors.white)),
+        backgroundColor: AppColors.card,
+        title: Text('Deblocare Dată', style: TextStyle(color: AppColors.text)),
         content: Text('Dorești să deblochezi data de $dateStr pentru rezervări standard?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Anulează', style: TextStyle(color: Colors.grey)),
+            child: Text('Anulează', style: TextStyle(color: AppColors.muted)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Deblochează', style: TextStyle(color: Color(0xFF00E5FF))),
+            child: Text('Deblochează', style: TextStyle(color: AppColors.accent)),
           ),
         ],
       ),
@@ -452,8 +454,8 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              backgroundColor: const Color(0xFF131A2A),
-              title: const Text('Schimbă Parola', style: TextStyle(color: Colors.white)),
+              backgroundColor: AppColors.card,
+              title: Text('Schimbă Parola', style: TextStyle(color: AppColors.text)),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -469,9 +471,9 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
                     decoration: const InputDecoration(labelText: 'Parola nouă'),
                   ),
                   const SizedBox(height: 8),
-                  const Text(
+                  Text(
                     'Parola nouă trebuie să aibă minim 8 caractere, o literă mare și un simbol.',
-                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                    style: TextStyle(fontSize: 12, color: AppColors.muted),
                   ),
                 ],
               ),
@@ -513,7 +515,7 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
                             ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.red));
                           }
                         },
-                  child: isSaving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Text('Salvează'),
+                  child: isSaving ? SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: AppColors.text, strokeWidth: 2)) : const Text('Salvează'),
                 ),
               ],
             );
@@ -553,16 +555,16 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
+        color: AppColors.card2,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.3), width: 1),
+        border: Border.all(color: AppColors.accent.withValues(alpha: 0.3), width: 1),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(iconData, color: const Color(0xFF00E5FF), size: 16),
+          Icon(iconData, color: AppColors.accent, size: 16),
           const SizedBox(width: 8),
-          Text(label, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500)),
+          Text(label, style: TextStyle(color: AppColors.text, fontSize: 13, fontWeight: FontWeight.w500)),
         ],
       ),
     );
@@ -580,11 +582,11 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
       'box': 'Box',
     };
     return Chip(
-      backgroundColor: const Color(0xFF131A2A),
-      side: const BorderSide(color: Color(0xFF00E5FF), width: 0.8),
+      backgroundColor: AppColors.card,
+      side: BorderSide(color: AppColors.accent, width: 0.8),
       label: Text(
         names[sportKey] ?? sportKey,
-        style: const TextStyle(color: Colors.white, fontSize: 13),
+        style: TextStyle(color: AppColors.text, fontSize: 13),
       ),
     );
   }
@@ -605,8 +607,8 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
       stream: FirebaseFirestore.instance.collection('venues').doc(targetVenueId).snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF))),
+          return Scaffold(
+            body: Center(child: CircularProgressIndicator(color: AppColors.accent)),
           );
         }
         if (!snapshot.hasData || !snapshot.data!.exists) {
@@ -624,13 +626,13 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
             elevation: 0,
             leading: isReadOnly 
                 ? IconButton(
-                    icon: const Icon(Icons.arrow_back, color: Colors.white),
+                    icon: Icon(Icons.arrow_back, color: AppColors.text),
                     onPressed: () => Navigator.pop(context),
                   )
                 : (!_isEditing
                     ? Builder(
                         builder: (context) => IconButton(
-                          icon: const Icon(Icons.menu, color: Color(0xFF00E5FF)),
+                          icon: Icon(Icons.menu, color: AppColors.accent),
                           onPressed: () {
                             Scaffold.of(context).openDrawer();
                           },
@@ -645,18 +647,18 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
                         },
                       )),
             title: Text(_isEditing ? 'Editează Profilul Sălii' : (isReadOnly ? venueData['venueName'] ?? 'Profil Sală' : 'Profilul Sălii'),
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold)),
             centerTitle: true,
             actions: [
               if (!_isEditing && !isReadOnly)
                 IconButton(
-                  icon: const Icon(Icons.edit, color: Color(0xFF00E5FF)),
+                  icon: Icon(Icons.edit, color: AppColors.accent),
                   onPressed: () => _enterEditMode(venueData),
                 ),
             ],
           ),
           body: _isSaving
-              ? const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)))
+              ? Center(child: CircularProgressIndicator(color: AppColors.accent))
               : SingleChildScrollView(
                   padding: const EdgeInsets.all(20.0),
                   child: _isEditing ? _buildEditForm() : _buildVisualProfile(venueData, targetVenueId, isReadOnly),
@@ -709,8 +711,8 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              backgroundColor: const Color(0xFF131A2A),
-              title: const Text('Adaugă o recenzie', style: TextStyle(color: Colors.white)),
+              backgroundColor: AppColors.card,
+              title: Text('Adaugă o recenzie', style: TextStyle(color: AppColors.text)),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -735,12 +737,12 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
                   TextField(
                     controller: commentController,
                     maxLines: 3,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: const InputDecoration(
+                    style: TextStyle(color: AppColors.text),
+                    decoration: InputDecoration(
                       labelText: 'Cum a fost experiența ta?',
-                      labelStyle: TextStyle(color: Colors.grey),
-                      enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.grey)),
-                      focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF00E5FF))),
+                      labelStyle: TextStyle(color: AppColors.muted),
+                      enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: AppColors.muted)),
+                      focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: AppColors.accent)),
                     ),
                   ),
                 ],
@@ -751,7 +753,7 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
                   child: const Text('Anulează', style: TextStyle(color: Colors.redAccent)),
                 ),
                 ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00E5FF), foregroundColor: Colors.black),
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.accent, foregroundColor: Colors.black),
                   onPressed: () async {
                     if (commentController.text.trim().isEmpty) return;
                     final user = FirebaseAuth.instance.currentUser!;
@@ -809,19 +811,19 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
                 height: 100,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  border: Border.all(color: const Color(0xFF00E5FF), width: 2),
+                  border: Border.all(color: AppColors.accent, width: 2),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF00E5FF).withValues(alpha: 0.2),
+                      color: AppColors.accent.withValues(alpha: 0.2),
                       blurRadius: 15,
                       spreadRadius: 2,
                     )
                   ],
                 ),
-                child: const CircleAvatar(
+                child: CircleAvatar(
                   radius: 46,
-                  backgroundColor: Color(0xFF131A2A),
-                  child: Icon(Icons.storefront, color: Color(0xFF00E5FF), size: 50),
+                  backgroundColor: AppColors.card,
+                  child: Icon(Icons.storefront, color: AppColors.accent, size: 50),
                 ),
               ),
             ],
@@ -831,7 +833,7 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
         Text(
           data['venueName'] ?? '-',
           textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
+          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.text),
         ),
         const SizedBox(height: 8),
 
@@ -840,10 +842,10 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
             decoration: BoxDecoration(
-              color: isVerified ? const Color(0xFF00E5FF).withValues(alpha: 0.1) : Colors.orangeAccent.withValues(alpha: 0.1),
+              color: isVerified ? AppColors.accent.withValues(alpha: 0.1) : Colors.orangeAccent.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: isVerified ? const Color(0xFF00E5FF) : Colors.orangeAccent,
+                color: isVerified ? AppColors.accent : Colors.orangeAccent,
                 width: 1,
               ),
             ),
@@ -852,14 +854,14 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
               children: [
                 Icon(
                   isVerified ? Icons.verified : Icons.hourglass_empty,
-                  color: isVerified ? const Color(0xFF00E5FF) : Colors.orangeAccent,
+                  color: isVerified ? AppColors.accent : Colors.orangeAccent,
                   size: 16,
                 ),
                 const SizedBox(width: 6),
                 Text(
                   isVerified ? 'Club Verificat' : 'În curs de verificare',
                   style: TextStyle(
-                    color: isVerified ? const Color(0xFF00E5FF) : Colors.orangeAccent,
+                    color: isVerified ? AppColors.accent : Colors.orangeAccent,
                     fontWeight: FontWeight.bold,
                     fontSize: 13,
                   ),
@@ -899,7 +901,7 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
         ],
 
         const SizedBox(height: 30),
-        const Divider(color: Colors.grey, thickness: 0.5),
+        Divider(color: AppColors.muted, thickness: 0.5),
 
         // Section 1: Business Details
         _buildSectionHeader('Informații Business'),
@@ -910,7 +912,7 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
         _buildProfileDetailRow(Icons.location_on_outlined, 'Locație', '${data['address'] ?? '-'}, ${data['city'] ?? '-'}'),
 
         const SizedBox(height: 20),
-        const Divider(color: Colors.grey, thickness: 0.5),
+        Divider(color: AppColors.muted, thickness: 0.5),
 
         // Section: Supported Sports
         _buildSectionHeader('Sporturi Suportate'),
@@ -920,10 +922,10 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
                 runSpacing: 8,
                 children: (data['supportedSports'] as List).map((s) => _buildSportChip(s.toString())).toList(),
               )
-            : const Text('Doar Ping Pong (Legacy)', style: TextStyle(color: Colors.grey)),
+            : Text('Doar Ping Pong (Legacy)', style: TextStyle(color: AppColors.muted)),
 
         const SizedBox(height: 20),
-        const Divider(color: Colors.grey, thickness: 0.5),
+        Divider(color: AppColors.muted, thickness: 0.5),
 
         // Section 2: Table Capacity
         _buildSectionHeader('Mese & Capacitate'),
@@ -944,14 +946,14 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
         ),
 
         const SizedBox(height: 25),
-        const Divider(color: Colors.grey, thickness: 0.5),
+        Divider(color: AppColors.muted, thickness: 0.5),
 
         // Section 3: Facilities
         _buildSectionHeader('Dotări & Facilități'),
         facilities.isEmpty
-            ? const Padding(
+            ? Padding(
                 padding: EdgeInsets.symmetric(vertical: 8.0),
-                child: Text('Nicio facilitate selectată.', style: TextStyle(color: Colors.grey)),
+                child: Text('Nicio facilitate selectată.', style: TextStyle(color: AppColors.muted)),
               )
             : Wrap(
                 spacing: 10,
@@ -960,7 +962,7 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
               ),
 
         const SizedBox(height: 25),
-        const Divider(color: Colors.grey, thickness: 0.5),
+        Divider(color: AppColors.muted, thickness: 0.5),
 
         // Section: Meniu & Servicii (Inventory)
         _buildSectionHeader('Meniu & Echipamente'),
@@ -975,14 +977,14 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
               return const Text('Eroare la încărcarea meniului.', style: TextStyle(color: Colors.red));
             }
             if (invSnapshot.connectionState == ConnectionState.waiting) {
-              return const CircularProgressIndicator(color: Color(0xFF00E5FF));
+              return CircularProgressIndicator(color: AppColors.accent);
             }
 
             final items = invSnapshot.data?.docs ?? [];
             if (items.isEmpty) {
-              return const Padding(
+              return Padding(
                 padding: EdgeInsets.symmetric(vertical: 8.0),
-                child: Text('Niciun produs adăugat în meniu.', style: TextStyle(color: Colors.grey)),
+                child: Text('Niciun produs adăugat în meniu.', style: TextStyle(color: AppColors.muted)),
               );
             }
 
@@ -1007,22 +1009,22 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
                       Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF1E293B),
+                          color: AppColors.card2,
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: Icon(iconData, color: const Color(0xFF00E5FF), size: 20),
+                        child: Icon(iconData, color: AppColors.accent, size: 20),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
-                            Text(category, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                            Text(name, style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold, fontSize: 15)),
+                            Text(category, style: TextStyle(color: AppColors.muted, fontSize: 12)),
                           ],
                         ),
                       ),
-                      Text('$price RON', style: const TextStyle(color: Color(0xFF00E5FF), fontWeight: FontWeight.bold, fontSize: 14)),
+                      Text('$price RON', style: TextStyle(color: AppColors.accent, fontWeight: FontWeight.bold, fontSize: 14)),
                     ],
                   ),
                 );
@@ -1032,7 +1034,7 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
         ),
 
         const SizedBox(height: 25),
-        const Divider(color: Colors.grey, thickness: 0.5),
+        Divider(color: AppColors.muted, thickness: 0.5),
 
         // Section 4: Schedule
         _buildSectionHeader('Program de Funcționare'),
@@ -1041,7 +1043,7 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
         _buildScheduleRow('Duminică', schedule['Duminica'] ?? '09:00 - 18:00'),
 
         const SizedBox(height: 25),
-        const Divider(color: Colors.grey, thickness: 0.5),
+        Divider(color: AppColors.muted, thickness: 0.5),
 
         // Section 5: Tariffs and Financials
         _buildSectionHeader('Tarif & Detalii Financiare'),
@@ -1066,7 +1068,7 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
               icon: const Icon(Icons.credit_card, size: 18),
               label: const Text('Cumpără Abonament'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF00E5FF),
+                backgroundColor: AppColors.accent,
                 foregroundColor: Colors.black,
               ),
               onPressed: () => _buySubscription(targetVenueId, data),
@@ -1101,11 +1103,11 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Row(
+                Row(
                   children: [
                     Icon(Icons.payment, color: Color(0xFF635BFF)),
                     SizedBox(width: 8),
-                    Text('Încasări prin Stripe', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                    Text('Încasări prin Stripe', style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold, fontSize: 16)),
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -1113,7 +1115,7 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
                   (data['stripeAccountId'] != null)
                       ? 'Contul Stripe este conectat. Sunteți pregătit să încasați plăți automat în IBAN-ul dvs.'
                       : 'Pentru a putea încasa banii din rezervări, trebuie să vă conectați IBAN-ul prin Stripe.',
-                  style: const TextStyle(color: Colors.white70, fontSize: 13),
+                  style: TextStyle(color: AppColors.text70, fontSize: 13),
                 ),
                 const SizedBox(height: 16),
                 SizedBox(
@@ -1134,7 +1136,7 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
         ],
 
         const SizedBox(height: 25),
-        const Divider(color: Colors.grey, thickness: 0.5),
+        Divider(color: AppColors.muted, thickness: 0.5),
 
         // Section 6: Blocked Dates Management
         Row(
@@ -1143,27 +1145,27 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
             _buildSectionHeader('Zile Blocate (Fără Rezervări)'),
             if (!isReadOnly)
               IconButton(
-                icon: const Icon(Icons.add_circle_outline, color: Color(0xFF00E5FF)),
+                icon: Icon(Icons.add_circle_outline, color: AppColors.accent),
                 onPressed: () => _addBlockedDate(blockedDates),
               ),
           ],
         ),
         const SizedBox(height: 8),
         blockedDates.isEmpty
-            ? const Padding(
+            ? Padding(
                 padding: EdgeInsets.symmetric(vertical: 8.0),
-                child: Text('Nicio dată blocată.', style: TextStyle(color: Colors.grey, fontSize: 14)),
+                child: Text('Nicio dată blocată.', style: TextStyle(color: AppColors.muted, fontSize: 14)),
               )
             : Wrap(
                 spacing: 8,
                 runSpacing: 8,
                 children: blockedDates.map((dateStr) {
                   return Chip(
-                    backgroundColor: const Color(0xFF131A2A),
+                    backgroundColor: AppColors.card,
                     side: const BorderSide(color: Colors.redAccent, width: 0.8),
                     label: Text(
                       dateStr.toString(),
-                      style: const TextStyle(color: Colors.white, fontSize: 13),
+                      style: TextStyle(color: AppColors.text, fontSize: 13),
                     ),
                     deleteIcon: isReadOnly ? null : const Icon(Icons.cancel, color: Colors.redAccent, size: 18),
                     onDeleted: isReadOnly ? null : () => _removeBlockedDate(dateStr.toString(), blockedDates),
@@ -1172,7 +1174,7 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
               ),
 
         const SizedBox(height: 25),
-        const Divider(color: Colors.grey, thickness: 0.5),
+        Divider(color: AppColors.muted, thickness: 0.5),
 
         // Section 6.5: Trainers List
         _buildSectionHeader('Antrenori Asociați'),
@@ -1180,7 +1182,7 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
         _buildTrainersList(targetVenueId, isReadOnly),
 
         const SizedBox(height: 25),
-        const Divider(color: Colors.grey, thickness: 0.5),
+        Divider(color: AppColors.muted, thickness: 0.5),
 
         // Section 7: Reviews
         Row(
@@ -1189,8 +1191,8 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
             _buildSectionHeader('Recenzii Jucători'),
             if (isReadOnly)
               TextButton.icon(
-                icon: const Icon(Icons.add_comment, color: Color(0xFF00E5FF), size: 16),
-                label: const Text('Adaugă Recenzie', style: TextStyle(color: Color(0xFF00E5FF))),
+                icon: Icon(Icons.add_comment, color: AppColors.accent, size: 16),
+                label: Text('Adaugă Recenzie', style: TextStyle(color: AppColors.accent)),
                 onPressed: () => _showReviewDialog(targetVenueId),
               ),
             if (!isReadOnly && data['rating'] != null)
@@ -1200,7 +1202,7 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
                   const SizedBox(width: 4),
                   Text(
                     '${(data['rating'] as num).toStringAsFixed(1)} / 5.0 (${data['ratingCount'] ?? 0})',
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold),
                   ),
                 ],
               ),
@@ -1219,7 +1221,7 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
           label: const Text('Schimbă Parola Contului'),
           style: OutlinedButton.styleFrom(
             foregroundColor: Colors.white,
-            side: const BorderSide(color: Colors.grey),
+            side: BorderSide(color: AppColors.muted),
             padding: const EdgeInsets.symmetric(vertical: 16),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           ),
@@ -1234,10 +1236,10 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
       padding: const EdgeInsets.symmetric(vertical: 16.0),
       child: Text(
         title,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 18,
           fontWeight: FontWeight.bold,
-          color: Color(0xFF00E5FF),
+          color: AppColors.accent,
           letterSpacing: 0.5,
         ),
       ),
@@ -1250,17 +1252,17 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: const Color(0xFF00E5FF).withValues(alpha: 0.8), size: 22),
+          Icon(icon, color: AppColors.accent.withValues(alpha: 0.8), size: 22),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                Text(label, style: TextStyle(color: AppColors.muted, fontSize: 12)),
                 const SizedBox(height: 3),
                 Text(
                   value,
-                  style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w500),
+                  style: TextStyle(color: AppColors.text, fontSize: 15, fontWeight: FontWeight.w500),
                 ),
               ],
             ),
@@ -1274,19 +1276,19 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFF131A2A),
+        color: AppColors.card,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.grey[800]!, width: 1),
+        border: Border.all(color: AppColors.border, width: 1),
       ),
       child: Column(
         children: [
-          Icon(icon, color: const Color(0xFF00E5FF), size: 24),
+          Icon(icon, color: AppColors.accent, size: 24),
           const SizedBox(height: 8),
-          Text(label, style: const TextStyle(color: Colors.grey, fontSize: 11)),
+          Text(label, style: TextStyle(color: AppColors.muted, fontSize: 11)),
           const SizedBox(height: 4),
           Text(
             value,
-            style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+            style: TextStyle(color: AppColors.text, fontSize: 18, fontWeight: FontWeight.bold),
           ),
         ],
       ),
@@ -1299,11 +1301,11 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(dayGroup, style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w500)),
+          Text(dayGroup, style: TextStyle(color: AppColors.text, fontSize: 15, fontWeight: FontWeight.w500)),
           Text(
             hours,
-            style: const TextStyle(
-              color: Color(0xFF00E5FF),
+            style: TextStyle(
+              color: AppColors.accent,
               fontSize: 15,
               fontWeight: FontWeight.bold,
               fontFamily: 'monospace',
@@ -1323,13 +1325,13 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
           .snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)));
+          return Center(child: CircularProgressIndicator(color: AppColors.accent));
         }
         final docs = snapshot.data!.docs;
         if (docs.isEmpty) {
-          return const Padding(
+          return Padding(
             padding: EdgeInsets.symmetric(vertical: 8.0),
-            child: Text('Niciun antrenor asociat acestei săli.', style: TextStyle(color: Colors.grey, fontSize: 14)),
+            child: Text('Niciun antrenor asociat acestei săli.', style: TextStyle(color: AppColors.muted, fontSize: 14)),
           );
         }
 
@@ -1346,15 +1348,15 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
             if (priceText.isEmpty) priceText = 'Preț nesetat';
 
             return Card(
-              color: const Color(0xFF1E293B),
+              color: AppColors.card2,
               margin: const EdgeInsets.only(bottom: 12),
               child: ListTile(
-                leading: const CircleAvatar(
-                  backgroundColor: Color(0xFF131A2A),
-                  child: Icon(Icons.sports, color: Color(0xFF00E5FF)),
+                leading: CircleAvatar(
+                  backgroundColor: AppColors.card,
+                  child: Icon(Icons.sports, color: AppColors.accent),
                 ),
-                title: Text(name.isEmpty ? 'Antrenor Necunoscut' : name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                subtitle: Text('Preț: $priceText', style: const TextStyle(color: Color(0xFF00E5FF))),
+                title: Text(name.isEmpty ? 'Antrenor Necunoscut' : name, style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold)),
+                subtitle: Text('Preț: $priceText', style: TextStyle(color: AppColors.accent)),
                 trailing: isReadOnly ? Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -1364,7 +1366,7 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
                     ),
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF00E5FF),
+                        backgroundColor: AppColors.accent,
                         foregroundColor: Colors.black,
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                         minimumSize: Size.zero,
@@ -1372,7 +1374,7 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
                       onPressed: () {
                         // Rezervare antrenor (mock or actual scheduling logic)
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Rezervarea antrenorului $name este în lucru!')),
+                          SnackBar(content: Text(tr('tr.book_hint'))),
                         );
                       },
                       child: const Text('Rezervă', style: TextStyle(fontSize: 12)),
@@ -1397,8 +1399,8 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              backgroundColor: const Color(0xFF131A2A),
-              title: const Text('Recenzie Antrenor', style: TextStyle(color: Colors.white)),
+              backgroundColor: AppColors.card,
+              title: Text('Recenzie Antrenor', style: TextStyle(color: AppColors.text)),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -1423,12 +1425,12 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
                   TextField(
                     controller: commentController,
                     maxLines: 3,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: const InputDecoration(
+                    style: TextStyle(color: AppColors.text),
+                    decoration: InputDecoration(
                       labelText: 'Părerea ta despre antrenor',
-                      labelStyle: TextStyle(color: Colors.grey),
-                      enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.grey)),
-                      focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF00E5FF))),
+                      labelStyle: TextStyle(color: AppColors.muted),
+                      enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: AppColors.muted)),
+                      focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: AppColors.accent)),
                     ),
                   ),
                 ],
@@ -1439,7 +1441,7 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
                   child: const Text('Anulează', style: TextStyle(color: Colors.redAccent)),
                 ),
                 ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00E5FF), foregroundColor: Colors.black),
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.accent, foregroundColor: Colors.black),
                   onPressed: () async {
                     if (commentController.text.trim().isEmpty) return;
                     final user = FirebaseAuth.instance.currentUser!;
@@ -1486,12 +1488,12 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)));
+          return Center(child: CircularProgressIndicator(color: AppColors.accent));
         }
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return const Padding(
+          return Padding(
             padding: EdgeInsets.symmetric(vertical: 8.0),
-            child: Text('Nu există recenzii momentan.', style: TextStyle(color: Colors.grey, fontSize: 14)),
+            child: Text('Nu există recenzii momentan.', style: TextStyle(color: AppColors.muted, fontSize: 14)),
           );
         }
 
@@ -1508,9 +1510,9 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
               margin: const EdgeInsets.only(bottom: 12),
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFF131A2A),
+                color: AppColors.card,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.grey[800]!),
+                border: Border.all(color: AppColors.border),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1519,17 +1521,17 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
                     children: [
                       CircleAvatar(
                         radius: 16,
-                        backgroundColor: Colors.grey[700],
+                        backgroundColor: AppColors.border700,
                         backgroundImage: (avatarUrl != null && avatarUrl.isNotEmpty) ? NetworkImage(avatarUrl) : null,
                         child: (avatarUrl == null || avatarUrl.isEmpty)
-                            ? const Icon(Icons.person, size: 20, color: Colors.white)
+                            ? Icon(Icons.person, size: 20, color: AppColors.text)
                             : null,
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           authorName,
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                          style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold),
                         ),
                       ),
                       Row(
@@ -1545,7 +1547,7 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
                   ),
                   if (comment.isNotEmpty) ...[
                     const SizedBox(height: 8),
-                    Text(comment, style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                    Text(comment, style: TextStyle(color: AppColors.text70, fontSize: 13)),
                   ],
                 ],
               ),
@@ -1563,9 +1565,9 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text(
+          Text(
             'Actualizează Datele Clubului',
-            style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+            style: TextStyle(color: AppColors.text, fontSize: 20, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 20),
 
@@ -1622,9 +1624,9 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
           ),
           const SizedBox(height: 24),
 
-          const Text(
+          Text(
             'Capacitate (Mese)',
-            style: TextStyle(color: Color(0xFF00E5FF), fontSize: 16, fontWeight: FontWeight.bold),
+            style: TextStyle(color: AppColors.accent, fontSize: 16, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
 
@@ -1660,9 +1662,9 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
           const SizedBox(height: 24),
 
           // Facilities Selection
-          const Text(
+          Text(
             'Facilități Incluse',
-            style: TextStyle(color: Color(0xFF00E5FF), fontSize: 16, fontWeight: FontWeight.bold),
+            style: TextStyle(color: AppColors.accent, fontSize: 16, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 10),
           _buildFacilityCheckbox('vestiare', 'Vestiare / Dușuri'),
@@ -1675,9 +1677,9 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
           const SizedBox(height: 24),
 
           // Operating hours selection
-          const Text(
+          Text(
             'Program de Funcționare',
-            style: TextStyle(color: Color(0xFF00E5FF), fontSize: 16, fontWeight: FontWeight.bold),
+            style: TextStyle(color: AppColors.accent, fontSize: 16, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
           _buildScheduleEditRow('Luni - Vineri', _lvOpenCtrl, _lvCloseCtrl),
@@ -1686,16 +1688,16 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
 
           const SizedBox(height: 24),
 
-          const Text(
+          Text(
             'Tarife & Informații Financiare',
-            style: TextStyle(color: Color(0xFF00E5FF), fontSize: 16, fontWeight: FontWeight.bold),
+            style: TextStyle(color: AppColors.accent, fontSize: 16, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
 
           DropdownButtonFormField<String>(
             initialValue: _priceType,
-            dropdownColor: const Color(0xFF131A2A),
-            style: const TextStyle(color: Colors.white, fontSize: 14),
+            dropdownColor: AppColors.card,
+            style: TextStyle(color: AppColors.text, fontSize: 14),
             decoration: const InputDecoration(
               labelText: 'Tip Tarifare',
               prefixIcon: Icon(Icons.payments_outlined),
@@ -1718,7 +1720,7 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
                   child: TextFormField(
                     controller: _flatPriceHourController,
                     keyboardType: TextInputType.number,
-                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    style: TextStyle(color: AppColors.text, fontSize: 14),
                     decoration: const InputDecoration(
                       labelText: 'Tarif 1 Oră (RON)',
                       prefixIcon: Icon(Icons.monetization_on_outlined),
@@ -1735,7 +1737,7 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
                   child: TextFormField(
                     controller: _flatPriceHalfController,
                     keyboardType: TextInputType.number,
-                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    style: TextStyle(color: AppColors.text, fontSize: 14),
                     decoration: const InputDecoration(
                       labelText: 'Tarif 0.5 Oră (RON)',
                       prefixIcon: Icon(Icons.monetization_on_outlined),
@@ -1753,8 +1755,8 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
             const SizedBox(height: 16),
             DropdownButtonFormField<int>(
               initialValue: _dynamicHourLimit,
-              dropdownColor: const Color(0xFF131A2A),
-              style: const TextStyle(color: Colors.white, fontSize: 14),
+              dropdownColor: AppColors.card,
+              style: TextStyle(color: AppColors.text, fontSize: 14),
               decoration: const InputDecoration(
                 labelText: 'Oră Limită Preț',
                 prefixIcon: Icon(Icons.access_time),
@@ -1769,7 +1771,7 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
                   child: TextFormField(
                     controller: _dynamicPriceHourBeforeController,
                     keyboardType: TextInputType.number,
-                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    style: TextStyle(color: AppColors.text, fontSize: 14),
                     decoration: const InputDecoration(
                       labelText: 'Tarif 1 Oră Înainte (RON)',
                     ),
@@ -1785,7 +1787,7 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
                   child: TextFormField(
                     controller: _dynamicPriceHalfBeforeController,
                     keyboardType: TextInputType.number,
-                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    style: TextStyle(color: AppColors.text, fontSize: 14),
                     decoration: const InputDecoration(
                       labelText: 'Tarif 0.5 Oră Înainte (RON)',
                     ),
@@ -1805,7 +1807,7 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
                   child: TextFormField(
                     controller: _dynamicPriceHourAfterController,
                     keyboardType: TextInputType.number,
-                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    style: TextStyle(color: AppColors.text, fontSize: 14),
                     decoration: const InputDecoration(
                       labelText: 'Tarif 1 Oră După (RON)',
                     ),
@@ -1821,7 +1823,7 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
                   child: TextFormField(
                     controller: _dynamicPriceHalfAfterController,
                     keyboardType: TextInputType.number,
-                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    style: TextStyle(color: AppColors.text, fontSize: 14),
                     decoration: const InputDecoration(
                       labelText: 'Tarif 0.5 Oră După (RON)',
                     ),
@@ -1850,26 +1852,26 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
           ),
           const SizedBox(height: 16),
           SwitchListTile(
-            title: const Text('Permite Rezervări la Jumătate de Oră', style: TextStyle(color: Colors.white, fontSize: 14)),
-            subtitle: const Text('Jucătorii pot alege intervale de tip 16:30 - 17:30', style: TextStyle(color: Colors.white54, fontSize: 11)),
+            title: Text('Permite Rezervări la Jumătate de Oră', style: TextStyle(color: AppColors.text, fontSize: 14)),
+            subtitle: Text('Jucătorii pot alege intervale de tip 16:30 - 17:30', style: TextStyle(color: AppColors.text54, fontSize: 11)),
             value: _allowHalfHour,
-            activeThumbColor: const Color(0xFF00E5FF),
+            activeThumbColor: AppColors.accent,
             onChanged: (val) => setState(() => _allowHalfHour = val),
           ),
           const SizedBox(height: 16),
           SwitchListTile(
-            title: const Text('Oferă Abonament Lunar', style: TextStyle(color: Colors.white, fontSize: 14)),
-            subtitle: const Text('Jucătorii pot cumpăra abonament pentru ore nelimitate/limitate.', style: TextStyle(color: Colors.white54, fontSize: 11)),
+            title: Text('Oferă Abonament Lunar', style: TextStyle(color: AppColors.text, fontSize: 14)),
+            subtitle: Text('Jucătorii pot cumpăra abonament pentru ore nelimitate/limitate.', style: TextStyle(color: AppColors.text54, fontSize: 11)),
             value: _offerSubscription,
-            activeThumbColor: const Color(0xFF00E5FF),
+            activeThumbColor: AppColors.accent,
             onChanged: (val) => setState(() => _offerSubscription = val),
           ),
           if (_offerSubscription) ...[
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
               value: _subscriptionType,
-              dropdownColor: const Color(0xFF131A2A),
-              style: const TextStyle(color: Colors.white, fontSize: 14),
+              dropdownColor: AppColors.card,
+              style: TextStyle(color: AppColors.text, fontSize: 14),
               decoration: const InputDecoration(
                 labelText: 'Tip Abonament',
                 prefixIcon: Icon(Icons.merge_type),
@@ -1889,7 +1891,7 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
               TextFormField(
                 controller: _subscriptionEntriesController,
                 keyboardType: TextInputType.number,
-                style: const TextStyle(color: Colors.white, fontSize: 14),
+                style: TextStyle(color: AppColors.text, fontSize: 14),
                 decoration: const InputDecoration(
                   labelText: 'Număr Intrări pe Lună',
                   prefixIcon: Icon(Icons.confirmation_number_outlined),
@@ -1907,7 +1909,7 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
             TextFormField(
               controller: _subscriptionPriceController,
               keyboardType: TextInputType.number,
-              style: const TextStyle(color: Colors.white, fontSize: 14),
+              style: TextStyle(color: AppColors.text, fontSize: 14),
               decoration: const InputDecoration(
                 labelText: 'Preț Abonament (RON/lună)',
                 prefixIcon: Icon(Icons.star_outline),
@@ -1923,9 +1925,9 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
           ],
           const SizedBox(height: 16),
           _buildSectionHeader('Alte Servicii Extra (ex: Antrenor, Masaj)'),
-          const Text(
+          Text(
             'Adaugă servicii speciale, altele decât produsele de bar sau echipamentele de închiriat (vezi Secțiunea Meniu & Echipamente pentru bar).',
-            style: TextStyle(color: Colors.grey, fontSize: 12),
+            style: TextStyle(color: AppColors.muted, fontSize: 12),
           ),
           const SizedBox(height: 8),
           ..._extraServices.asMap().entries.map((entry) {
@@ -1939,7 +1941,7 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
                     flex: 2,
                     child: TextFormField(
                       initialValue: service['name'],
-                      style: const TextStyle(color: Colors.white, fontSize: 13),
+                      style: TextStyle(color: AppColors.text, fontSize: 13),
                       decoration: const InputDecoration(labelText: 'Nume Serviciu', isDense: true),
                       onChanged: (val) => setState(() => _extraServices[idx]['name'] = val),
                     ),
@@ -1950,7 +1952,7 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
                     child: TextFormField(
                       initialValue: service['price'].toString(),
                       keyboardType: TextInputType.number,
-                      style: const TextStyle(color: Colors.white, fontSize: 13),
+                      style: TextStyle(color: AppColors.text, fontSize: 13),
                       decoration: const InputDecoration(labelText: 'Preț (RON)', isDense: true),
                       onChanged: (val) => setState(() => _extraServices[idx]['price'] = double.tryParse(val) ?? 0.0),
                     ),
@@ -1965,8 +1967,8 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
           }),
           TextButton.icon(
             onPressed: () => setState(() => _extraServices.add({'name': '', 'price': 0.0})),
-            icon: const Icon(Icons.add, color: Color(0xFF00E5FF)),
-            label: const Text('Adaugă Serviciu Extra', style: TextStyle(color: Color(0xFF00E5FF))),
+            icon: Icon(Icons.add, color: AppColors.accent),
+            label: Text('Adaugă Serviciu Extra', style: TextStyle(color: AppColors.accent)),
           ),
           const SizedBox(height: 35),
 
@@ -1987,7 +1989,7 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
                 child: ElevatedButton(
                   onPressed: _saveChanges,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF00E5FF),
+                    backgroundColor: AppColors.accent,
                     foregroundColor: Colors.black,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -2013,15 +2015,15 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
       controller: controller,
       keyboardType: keyboardType,
       validator: validator,
-      style: const TextStyle(color: Colors.white),
+      style: TextStyle(color: AppColors.text),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(color: Colors.grey),
-        focusedBorder: const OutlineInputBorder(
-          borderSide: BorderSide(color: Color(0xFF00E5FF), width: 1.5),
+        labelStyle: TextStyle(color: AppColors.muted),
+        focusedBorder: OutlineInputBorder(
+          borderSide: BorderSide(color: AppColors.accent, width: 1.5),
         ),
         enabledBorder: OutlineInputBorder(
-          borderSide: BorderSide(color: Colors.grey[800]!),
+          borderSide: BorderSide(color: AppColors.border),
         ),
         errorBorder: const OutlineInputBorder(
           borderSide: BorderSide(color: Colors.redAccent),
@@ -2035,9 +2037,9 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
 
   Widget _buildFacilityCheckbox(String key, String title) {
     return CheckboxListTile(
-      title: Text(title, style: const TextStyle(color: Colors.white, fontSize: 15)),
+      title: Text(title, style: TextStyle(color: AppColors.text, fontSize: 15)),
       value: _tempFacilities[key],
-      activeColor: const Color(0xFF00E5FF),
+      activeColor: AppColors.accent,
       checkColor: Colors.black,
       contentPadding: EdgeInsets.zero,
       onChanged: (bool? val) {
@@ -2055,7 +2057,7 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
         children: [
           Expanded(
             flex: 3,
-            child: Text(label, style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w500)),
+            child: Text(label, style: TextStyle(color: AppColors.text, fontSize: 15, fontWeight: FontWeight.w500)),
           ),
           Expanded(
             flex: 2,
@@ -2064,20 +2066,20 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
                 decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey[800]!),
+                  border: Border.all(color: AppColors.border),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
                   openCtrl.text,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: Color(0xFF00E5FF), fontFamily: 'monospace', fontWeight: FontWeight.bold),
+                  style: TextStyle(color: AppColors.accent, fontFamily: 'monospace', fontWeight: FontWeight.bold),
                 ),
               ),
             ),
           ),
-          const Padding(
+          Padding(
             padding: EdgeInsets.symmetric(horizontal: 10),
-            child: Text('la', style: TextStyle(color: Colors.grey)),
+            child: Text('la', style: TextStyle(color: AppColors.muted)),
           ),
           Expanded(
             flex: 2,
@@ -2086,13 +2088,13 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
                 decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey[800]!),
+                  border: Border.all(color: AppColors.border),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
                   closeCtrl.text,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: Color(0xFF00E5FF), fontFamily: 'monospace', fontWeight: FontWeight.bold),
+                  style: TextStyle(color: AppColors.accent, fontFamily: 'monospace', fontWeight: FontWeight.bold),
                 ),
               ),
             ),

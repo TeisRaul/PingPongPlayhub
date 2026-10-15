@@ -3,10 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fl_chart/fl_chart.dart';
+import '../l10n/strings.dart';
+import '../utils/hour_utils.dart';
 import '../utils/level_utils.dart';
 import '../utils/match_stats.dart';
 import 'avatar_screen.dart';
+import 'my_stats_screen.dart';
 import '../widgets/player_drawer.dart';
+import '../theme/app_theme.dart';
 
 class MyProfileScreen extends StatefulWidget {
   const MyProfileScreen({super.key});
@@ -55,6 +59,22 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
       }
       
       final tMatches = matchesQuery.docs.length;
+
+      // Evoluția reală a ratingului, din meciurile care au salvat `ratingChanges`.
+      final realHistory = <MapEntry<DateTime, List<int>>>[];
+      for (var match in matchesQuery.docs) {
+        final m = match.data();
+        final rc = m['ratingChanges'];
+        if (rc is! Map || rc[user.uid] is! Map) continue;
+        try {
+          final when = dateAtHour((m['date'] ?? '').toString(), m['startHour']);
+          realHistory.add(MapEntry(when, [
+            (rc[user.uid]['before'] as num).toInt(),
+            (rc[user.uid]['after'] as num).toInt(),
+          ]));
+        } catch (_) {}
+      }
+      realHistory.sort((a, b) => a.key.compareTo(b.key));
       final rate = formatWinRate(w, tMatches);
 
       if (doc.exists) {
@@ -69,7 +89,12 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
           
           // Mocking rating history if not present in DB for the chart to look good
           List<dynamic> historyRaw = userData?['ratingHistory'] ?? [];
-          if (historyRaw.isEmpty) {
+          if (realHistory.isNotEmpty) {
+            ratingHistory = [
+              realHistory.first.value[0].toDouble(),
+              for (final h in realHistory) h.value[1].toDouble(),
+            ];
+          } else if (historyRaw.isEmpty) {
              final currentR = (userData?['rating'] ?? 1000).toDouble();
              ratingHistory = [
                currentR - 50 < 1000 ? 1000 : currentR - 50,
@@ -105,10 +130,10 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
     
     // Incepator
     if (totalMatches >= 1 || (userData?['wins'] ?? 0) > 0) {
-      badges.add(_buildBadgeItem(Icons.water_drop, 'First Drop', 'Începător', const Color(0xFF00FF66)));
+      badges.add(_buildBadgeItem(Icons.water_drop, 'First Drop', 'Începător', AppColors.good));
     }
     if (wins >= 1) {
-      badges.add(_buildBadgeItem(Icons.thumb_up, 'Rookie Win', 'Începător', const Color(0xFF00E5FF)));
+      badges.add(_buildBadgeItem(Icons.thumb_up, 'Rookie Win', 'Începător', AppColors.accent));
     }
     
     // Intermediar
@@ -121,7 +146,7 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
     
     // Avansat
     if (totalMatches >= 100) {
-      badges.add(_buildBadgeItem(Icons.account_balance, 'Arena Master', 'Avansat', const Color(0xFFFFD700)));
+      badges.add(_buildBadgeItem(Icons.account_balance, 'Arena Master', 'Avansat', AppColors.gold));
     }
     final rating = userData?['rating'] ?? 0;
     if (rating >= 2000) {
@@ -129,7 +154,7 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
     }
 
     if (badges.isEmpty) {
-      return [const Text('Joacă meciuri pentru a debloca insigne!', style: TextStyle(color: Colors.grey))];
+      return [Text('Joacă meciuri pentru a debloca insigne!', style: TextStyle(color: AppColors.muted))];
     }
     return badges;
   }
@@ -140,7 +165,7 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
       margin: const EdgeInsets.only(right: 12),
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: const Color(0xFF131A2A),
+        color: AppColors.card,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: color.withValues(alpha: 0.3), width: 1),
       ),
@@ -149,7 +174,7 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
         children: [
           Icon(icon, color: color, size: 28),
           const SizedBox(height: 8),
-          Text(title, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold), textAlign: TextAlign.center, maxLines: 2),
+          Text(title, style: TextStyle(color: AppColors.text, fontSize: 11, fontWeight: FontWeight.bold), textAlign: TextAlign.center, maxLines: 2),
           const SizedBox(height: 4),
           Text(category, style: TextStyle(color: color, fontSize: 9), textAlign: TextAlign.center),
         ],
@@ -159,8 +184,8 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
 
   Widget _buildStatsChart() {
     if (ratingHistory.length < 2) {
-      return const Center(
-        child: Text('Nu sunt destule date pentru grafic.', style: TextStyle(color: Colors.grey)),
+      return Center(
+        child: Text('Nu sunt destule date pentru grafic.', style: TextStyle(color: AppColors.muted)),
       );
     }
 
@@ -187,13 +212,13 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
             LineChartBarData(
               spots: spots,
               isCurved: true,
-              color: const Color(0xFF00E5FF),
+              color: AppColors.accent,
               barWidth: 3,
               isStrokeCapRound: true,
               dotData: const FlDotData(show: true),
               belowBarData: BarAreaData(
                 show: true,
-                color: const Color(0xFF00E5FF).withValues(alpha: 0.1),
+                color: AppColors.accent.withValues(alpha: 0.1),
               ),
             ),
           ],
@@ -214,8 +239,8 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              backgroundColor: const Color(0xFF131A2A),
-              title: const Text('Schimbă Parola', style: TextStyle(color: Colors.white)),
+              backgroundColor: AppColors.card,
+              title: Text('Schimbă Parola', style: TextStyle(color: AppColors.text)),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -231,9 +256,9 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
                     decoration: const InputDecoration(labelText: 'Parola nouă'),
                   ),
                   const SizedBox(height: 8),
-                  const Text(
+                  Text(
                     'Parola nouă trebuie să aibă minim 8 caractere, o literă mare și un simbol.',
-                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                    style: TextStyle(fontSize: 12, color: AppColors.muted),
                   ),
                 ],
               ),
@@ -279,8 +304,8 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
                           }
                         },
                   child: isSaving
-                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                      : const Text('Salvează', style: TextStyle(color: Color(0xFF00E5FF))),
+                      ? SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: AppColors.text, strokeWidth: 2))
+                      : Text('Salvează', style: TextStyle(color: AppColors.accent)),
                 ),
               ],
             );
@@ -295,21 +320,21 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          backgroundColor: const Color(0xFF131A2A),
-          title: const Text('Cereri de urmărire', style: TextStyle(color: Colors.white)),
+          backgroundColor: AppColors.card,
+          title: Text('Cereri de urmărire', style: TextStyle(color: AppColors.text)),
           content: SizedBox(
             width: double.maxFinite,
             height: 300,
             child: StreamBuilder<DocumentSnapshot>(
               stream: FirebaseFirestore.instance.collection('users').doc(FirebaseAuth.instance.currentUser?.uid).snapshots(),
               builder: (context, snapshot) {
-                if (!snapshot.hasData) return const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)));
+                if (!snapshot.hasData) return Center(child: CircularProgressIndicator(color: AppColors.accent));
                 
                 final data = snapshot.data!.data() as Map<String, dynamic>? ?? {};
                 final followRequests = List<String>.from(data['followRequests'] ?? []);
                 
                 if (followRequests.isEmpty) {
-                  return const Center(child: Text('Nu ai nicio cerere de urmărire.', style: TextStyle(color: Colors.grey)));
+                  return Center(child: Text('Nu ai nicio cerere de urmărire.', style: TextStyle(color: AppColors.muted)));
                 }
 
                 return ListView.builder(
@@ -319,12 +344,12 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
                     return FutureBuilder<DocumentSnapshot>(
                       future: FirebaseFirestore.instance.collection('users').doc(reqUid).get(),
                       builder: (context, userSnap) {
-                        if (!userSnap.hasData) return const ListTile(title: Text('Se încarcă...', style: TextStyle(color: Colors.grey)));
+                        if (!userSnap.hasData) return ListTile(title: Text('Se încarcă...', style: TextStyle(color: AppColors.muted)));
                         final reqData = userSnap.data!.data() as Map<String, dynamic>? ?? {};
                         final name = reqData['username'] ?? 'Utilizator necunoscut';
                         
                         return ListTile(
-                          title: Text(name, style: const TextStyle(color: Colors.white)),
+                          title: Text(name, style: TextStyle(color: AppColors.text)),
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
@@ -375,7 +400,7 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Închide', style: TextStyle(color: Color(0xFF00E5FF))),
+              child: Text('Închide', style: TextStyle(color: AppColors.accent)),
             ),
           ],
         );
@@ -386,8 +411,8 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF))),
+      return Scaffold(
+        body: Center(child: CircularProgressIndicator(color: AppColors.accent)),
       );
     }
 
@@ -404,7 +429,7 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
         elevation: 0,
         leading: Builder(
           builder: (context) => IconButton(
-            icon: const Icon(Icons.menu, color: Color(0xFF00E5FF)),
+            icon: Icon(Icons.menu, color: AppColors.accent),
             onPressed: () {
               Scaffold.of(context).openDrawer();
             },
@@ -429,8 +454,8 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
                     height: 120,
                     child: CircularProgressIndicator(
                       value: progress,
-                      backgroundColor: Colors.grey[800],
-                      color: const Color(0xFF00E5FF),
+                      backgroundColor: AppColors.border,
+                      color: AppColors.accent,
                       strokeWidth: 6,
                     ),
                   ),
@@ -443,9 +468,9 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
                     },
                     child: CircleAvatar(
                       radius: 50,
-                      backgroundColor: Colors.grey[700],
+                      backgroundColor: AppColors.border700,
                       backgroundImage: _getAvatarProvider(userData?['avatarUrl']),
-                      child: userData?['avatarUrl'] == null ? const Icon(Icons.person, size: 50, color: Colors.white) : null,
+                      child: userData?['avatarUrl'] == null ? Icon(Icons.person, size: 50, color: AppColors.text) : null,
                     ),
                   ),
                   Positioned(
@@ -453,8 +478,8 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
                     right: 0,
                     child: Container(
                       padding: const EdgeInsets.all(6),
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF00E5FF),
+                      decoration: BoxDecoration(
+                        color: AppColors.accent,
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(Icons.edit, color: Colors.black, size: 20),
@@ -467,41 +492,49 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
             Text(
               levelName,
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF00E5FF)),
+              style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: AppColors.accent),
             ),
             const SizedBox(height: 8),
             Text(
               '$currentPoints / ${currentPoints + pointsToNext} Puncte (Rating total: $rating)',
               textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.grey, fontSize: 16),
+              style: TextStyle(color: AppColors.muted, fontSize: 16),
             ),
             
             const SizedBox(height: 32),
-            const Divider(color: Colors.grey),
+            Divider(color: AppColors.muted),
             
             // --- NEW: Player Statistics ---
             const SizedBox(height: 16),
-            const Text('Statistici Meciuri', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
+            Text('Statistici Meciuri', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.text)),
             const SizedBox(height: 16),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                _buildStatCircle('Victorii', '$wins', const Color(0xFF00FF66)),
-                _buildStatCircle('Jucate', '$totalMatches', const Color(0xFF00E5FF)),
-                _buildStatCircle('Win Rate', winRate, const Color(0xFFFFD700)),
+                _buildStatCircle('Victorii', '$wins', AppColors.good),
+                _buildStatCircle('Jucate', '$totalMatches', AppColors.accent),
+                _buildStatCircle('Win Rate', winRate, AppColors.gold),
               ],
             ),
             const SizedBox(height: 24),
-            const Text('Evoluție ELO (Ultimele Meciuri)', style: TextStyle(fontSize: 14, color: Colors.grey)),
+            Text('Evoluție ELO (Ultimele Meciuri)', style: TextStyle(fontSize: 14, color: AppColors.muted)),
             const SizedBox(height: 16),
             _buildStatsChart(),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                icon: const Icon(Icons.insights_outlined, size: 18),
+                label: Text(tr('stats.full_btn')),
+                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MyStatsScreen())),
+              ),
+            ),
 
             const SizedBox(height: 32),
-            const Divider(color: Colors.grey),
+            Divider(color: AppColors.muted),
             
             // --- NEW: Badges ---
             const SizedBox(height: 16),
-            const Text('Ecusoane (Badges)', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
+            Text('Ecusoane (Badges)', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.text)),
             const SizedBox(height: 16),
             SizedBox(
               height: 110,
@@ -512,14 +545,14 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
             ),
 
             const SizedBox(height: 32),
-            const Divider(color: Colors.grey),
+            Divider(color: AppColors.muted),
             
             const SizedBox(height: 16),
-            const Text('Setări Confidențialitate', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
+            Text('Setări Confidențialitate', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.text)),
             SwitchListTile(
-              title: const Text('Cont Privat', style: TextStyle(color: Colors.white)),
-              subtitle: const Text('Doar urmăritorii pot vedea postările tale.', style: TextStyle(color: Colors.grey, fontSize: 12)),
-              activeColor: const Color(0xFF00E5FF),
+              title: Text('Cont Privat', style: TextStyle(color: AppColors.text)),
+              subtitle: Text('Doar urmăritorii pot vedea postările tale.', style: TextStyle(color: AppColors.muted, fontSize: 12)),
+              activeColor: AppColors.accent,
               value: _isPrivate,
               onChanged: (val) async {
                 setState(() => _isPrivate = val);
@@ -537,18 +570,18 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
             ),
             
             const SizedBox(height: 16),
-            const Divider(color: Colors.grey),
+            Divider(color: AppColors.muted),
 
             const SizedBox(height: 16),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Date Personale', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
+                Text('Date Personale', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.text)),
                 if (_isPrivate) 
                   TextButton.icon(
                     onPressed: _showFollowRequestsDialog,
-                    icon: const Icon(Icons.group_add, color: Color(0xFF00E5FF), size: 18),
-                    label: const Text('Cereri', style: TextStyle(color: Color(0xFF00E5FF))),
+                    icon: Icon(Icons.group_add, color: AppColors.accent, size: 18),
+                    label: Text('Cereri', style: TextStyle(color: AppColors.accent)),
                   ),
               ],
             ),
@@ -567,7 +600,7 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
               label: const Text('Schimbă Parola'),
               style: OutlinedButton.styleFrom(
                 foregroundColor: Colors.white,
-                side: const BorderSide(color: Colors.grey),
+                side: BorderSide(color: AppColors.muted),
                 padding: const EdgeInsets.symmetric(vertical: 16),
               ),
             ),
@@ -589,11 +622,11 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
             color: color.withValues(alpha: 0.1),
           ),
           child: Center(
-            child: Text(value, style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+            child: Text(value, style: TextStyle(color: AppColors.text, fontSize: 18, fontWeight: FontWeight.bold)),
           ),
         ),
         const SizedBox(height: 8),
-        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+        Text(label, style: TextStyle(color: AppColors.muted, fontSize: 12)),
       ],
     );
   }
@@ -603,14 +636,14 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
       padding: const EdgeInsets.only(bottom: 16.0),
       child: Row(
         children: [
-          Icon(icon, color: const Color(0xFF00E5FF), size: 24),
+          Icon(icon, color: AppColors.accent, size: 24),
           const SizedBox(width: 16),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+              Text(label, style: TextStyle(color: AppColors.muted, fontSize: 12)),
               const SizedBox(height: 4),
-              Text(value, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500)),
+              Text(value, style: TextStyle(color: AppColors.text, fontSize: 16, fontWeight: FontWeight.w500)),
             ],
           ),
         ],

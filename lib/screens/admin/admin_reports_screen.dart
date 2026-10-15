@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import '../../theme/app_theme.dart';
 
 class AdminReportsScreen extends StatefulWidget {
   final String venueId;
@@ -23,11 +24,11 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0E17),
+      backgroundColor: AppColors.bg,
       appBar: AppBar(
-        title: const Text('Rapoarte și Casierie', style: TextStyle(color: Colors.white, fontSize: 18)),
-        backgroundColor: const Color(0xFF131A2A),
-        iconTheme: const IconThemeData(color: Color(0xFF00E5FF)),
+        title: Text('Rapoarte și Casierie', style: TextStyle(color: AppColors.text, fontSize: 18)),
+        backgroundColor: AppColors.card,
+        iconTheme: IconThemeData(color: AppColors.accent),
         actions: [
           IconButton(
             icon: const Icon(Icons.calendar_month),
@@ -49,11 +50,11 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
         stream: _getMatchesStream(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)));
+            return Center(child: CircularProgressIndicator(color: AppColors.accent));
           }
 
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return const Center(child: Text('Nu există date pentru această sală.', style: TextStyle(color: Colors.grey)));
+            return Center(child: Text('Nu există date pentru această sală.', style: TextStyle(color: AppColors.muted)));
           }
 
           final allMatches = snapshot.data!.docs;
@@ -125,17 +126,17 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
                 ]),
                 const SizedBox(height: 16),
                 _buildDetailsCard('Defalcare Servicii (Doar Încasate)', [
-                  _DetailRow('Încasări Mese Ping Pong', totalMese, Colors.white),
-                  _DetailRow('Încasări Bar / Snack', totalBar, Colors.white),
+                  _DetailRow('Încasări Mese Ping Pong', totalMese, AppColors.text),
+                  _DetailRow('Încasări Bar / Snack', totalBar, AppColors.text),
                 ]),
                 const SizedBox(height: 16),
                 _buildDetailsCard('Restanțe / Neplătite', [
                   _DetailRow('Meciuri Active (Neîncasate)', totalUnpaid, Colors.redAccent),
                 ]),
                 const SizedBox(height: 32),
-                const Text(
+                Text(
                   'NOTĂ: Acest raport este STRICT PENTRU GESTIUNE INTERNĂ (Echivalent Raport X).\n\nÎnchiderea Zilei Fiscale (Raportul Z Oficial) se eliberează direct de pe casa de marcat fizică (din dotare). Asigurați-vă că totalul Cash de aici corespunde cu sertarul de bani înainte de a tipări Raportul Z fizic.',
-                  style: TextStyle(color: Colors.grey, fontSize: 12, height: 1.5, fontStyle: FontStyle.italic),
+                  style: TextStyle(color: AppColors.muted, fontSize: 12, height: 1.5, fontStyle: FontStyle.italic),
                   textAlign: TextAlign.center,
                 ),
               ],
@@ -150,12 +151,12 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
+        color: AppColors.card2,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF00E5FF).withOpacity(0.3)),
+        border: Border.all(color: AppColors.accent.withOpacity(0.3)),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF00E5FF).withOpacity(0.1),
+            color: AppColors.accent.withOpacity(0.1),
             blurRadius: 10,
             spreadRadius: 2,
           )
@@ -163,12 +164,12 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
       ),
       child: Column(
         children: [
-          Text('Raport Schimb (Tip X)', style: TextStyle(color: Colors.grey[400], fontSize: 14)),
+          Text('Raport Schimb (Tip X)', style: TextStyle(color: AppColors.muted, fontSize: 14)),
           const SizedBox(height: 4),
-          Text(DateFormat('dd MMM yyyy').format(_selectedDate), style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+          Text(DateFormat('dd MMM yyyy').format(_selectedDate), style: TextStyle(color: AppColors.text, fontSize: 18, fontWeight: FontWeight.bold)),
           const SizedBox(height: 16),
-          Text('${grandTotal.toStringAsFixed(2)} RON', style: const TextStyle(color: Color(0xFF00E5FF), fontSize: 32, fontWeight: FontWeight.bold)),
-          const Text('Total Încasat (Astăzi)', style: TextStyle(color: Colors.grey, fontSize: 14)),
+          Text('${grandTotal.toStringAsFixed(2)} RON', style: TextStyle(color: AppColors.accent, fontSize: 32, fontWeight: FontWeight.bold)),
+          Text('Total Încasat (Astăzi)', style: TextStyle(color: AppColors.muted, fontSize: 14)),
         ],
       ),
     );
@@ -178,21 +179,21 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF131A2A),
+        color: AppColors.card,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[800]!),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-          const Divider(color: Colors.grey),
+          Text(title, style: TextStyle(color: AppColors.text, fontSize: 16, fontWeight: FontWeight.bold)),
+          Divider(color: AppColors.muted),
           ...rows.map((r) => Padding(
             padding: const EdgeInsets.symmetric(vertical: 8.0),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(r.label, style: const TextStyle(color: Colors.grey, fontSize: 14)),
+                Text(r.label, style: TextStyle(color: AppColors.muted, fontSize: 14)),
                 Text('${r.amount.toStringAsFixed(2)} RON', style: TextStyle(color: r.color, fontSize: 14, fontWeight: FontWeight.bold)),
               ],
             ),

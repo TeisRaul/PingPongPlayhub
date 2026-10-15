@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_theme.dart';
 
 class CitySelectorField extends StatelessWidget {
   final String? selectedCity;
@@ -20,7 +21,7 @@ class CitySelectorField extends StatelessWidget {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: const Color(0xFF131A2A),
+      backgroundColor: AppColors.card,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -41,8 +42,8 @@ class CitySelectorField extends StatelessWidget {
       controller: TextEditingController(text: selectedCity ?? ''),
       decoration: InputDecoration(
         labelText: labelText,
-        prefixIcon: const Icon(Icons.location_city, color: Color(0xFF00E5FF)),
-        suffixIcon: const Icon(Icons.keyboard_arrow_down, color: Colors.grey),
+        prefixIcon: Icon(Icons.location_city, color: AppColors.accent),
+        suffixIcon: Icon(Icons.keyboard_arrow_down, color: AppColors.muted),
       ),
       validator: validator,
       onTap: () => _showSearchBottomSheet(context),
@@ -107,31 +108,31 @@ class _CitySearchBottomSheetState extends State<_CitySearchBottomSheet> {
                 width: 40,
                 height: 5,
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade700,
+                  color: AppColors.border700,
                   borderRadius: BorderRadius.circular(10),
                 ),
               ),
             ),
             const SizedBox(height: 16),
-            const Text(
+            Text(
               'Alege Orașul',
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
+                color: AppColors.text,
               ),
             ),
             const SizedBox(height: 16),
             // Câmp de căutare
             TextField(
               autofocus: true,
-              style: const TextStyle(color: Colors.white),
+              style: TextStyle(color: AppColors.text),
               decoration: InputDecoration(
                 hintText: 'Caută orașul...',
-                hintStyle: const TextStyle(color: Colors.grey),
-                prefixIcon: const Icon(Icons.search, color: Color(0xFF00E5FF)),
+                hintStyle: TextStyle(color: AppColors.muted),
+                prefixIcon: Icon(Icons.search, color: AppColors.accent),
                 filled: true,
-                fillColor: const Color(0xFF1E293B),
+                fillColor: AppColors.card2,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide.none,
@@ -144,10 +145,10 @@ class _CitySearchBottomSheetState extends State<_CitySearchBottomSheet> {
             // Listă orașe
             Expanded(
               child: _filteredCities.isEmpty
-                  ? const Center(
+                  ? Center(
                       child: Text(
                         'Niciun oraș găsit',
-                        style: TextStyle(color: Colors.grey),
+                        style: TextStyle(color: AppColors.muted),
                       ),
                     )
                   : ListView.builder(
@@ -159,12 +160,12 @@ class _CitySearchBottomSheetState extends State<_CitySearchBottomSheet> {
                           margin: const EdgeInsets.only(bottom: 8),
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? const Color(0xFF00E5FF).withValues(alpha: 0.12)
-                                : const Color(0xFF1E293B).withValues(alpha: 0.5),
+                                ? AppColors.accent.withValues(alpha: 0.12)
+                                : AppColors.card2.withValues(alpha: 0.5),
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(
                               color: isSelected
-                                  ? const Color(0xFF00E5FF).withValues(alpha: 0.5)
+                                  ? AppColors.accent.withValues(alpha: 0.5)
                                   : Colors.transparent,
                             ),
                           ),
@@ -172,12 +173,12 @@ class _CitySearchBottomSheetState extends State<_CitySearchBottomSheet> {
                             title: Text(
                               city,
                               style: TextStyle(
-                                color: isSelected ? const Color(0xFF00E5FF) : Colors.white,
+                                color: isSelected ? AppColors.accent : AppColors.text,
                                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                               ),
                             ),
                             trailing: isSelected
-                                ? const Icon(Icons.check, color: Color(0xFF00E5FF))
+                                ? Icon(Icons.check, color: AppColors.accent)
                                 : null,
                             onTap: () {
                               widget.onCitySelected(city);

@@ -43,6 +43,17 @@ service cloud.firestore {
       return chatId.matches('tournament_.*');
     }
 
+    // Chat-ul lobby-ului unui meci: id-ul este match_<idMeci>; au acces jucătorii din meci.
+    function isMatchChat(chatId) {
+      return chatId.matches('match_.*');
+    }
+
+    function inMatchChat(chatId) {
+      return isMatchChat(chatId) &&
+        exists(/databases/$(database)/documents/matches/$(chatId.split('_')[1])) &&
+        uid() in get(/databases/$(database)/documents/matches/$(chatId.split('_')[1])).data.get('joinedUids', []);
+    }
+
     // ---------- Utilizatori ----------
     match /users/{userId} {
       allow read: if signedIn();
@@ -56,7 +67,9 @@ service cloud.firestore {
         (isOwner(userId) && !changed().hasAny(['isAdmin', 'role'])) ||
         // Actualizări între utilizatori făcute de aplicație (rating după meci,
         // trustScore, urmăriri). Doar aceste câmpuri.
-        (signedIn() && changed().hasOnly(['rating', 'trustScore', 'followers', 'following', 'followRequests']));
+        (signedIn() && changed().hasOnly(['rating', 'trustScore', 'followers', 'following', 'followRequests'])) ||
+        // Recenzie pentru antrenor: doar media și numărătoarea.
+        (signedIn() && changed().hasOnly(['trainerRating', 'trainerRatingTotal', 'trainerRatingCount']));
 
       allow delete: if isAdmin();
 
@@ -79,11 +92,12 @@ service cloud.firestore {
 
       // Sala nouă nu se poate auto-verifica; doar adminul o poate crea verificată.
       allow create: if isAdmin() ||
-        (isOwner(venueId) && request.resource.data.get('isVerified', false) == false);
+        (isOwner(venueId) && request.resource.data.get('isVerified', false) == false &&
+         !request.resource.data.keys().hasAny(['billing']));
 
       allow update: if isAdmin() ||
         // Sala își editează profilul, dar nu își poate (re)seta verificarea sau rating-ul.
-        (isOwner(venueId) && !changed().hasAny(['isVerified', 'ratingTotal', 'ratingCount', 'rating'])) ||
+        (isOwner(venueId) && !changed().hasAny(['isVerified', 'ratingTotal', 'ratingCount', 'rating', 'billing'])) ||
         // Orice jucător poate lăsa o recenzie (actualizează media sălii).
         (signedIn() && changed().hasOnly(['ratingTotal', 'ratingCount', 'rating']));
 
@@ -121,7 +135,7 @@ service cloud.firestore {
           uid() in resource.data.get('joinedUids', [])) &&
          !changed().hasAny(['paymentStatus', 'paymentMethod', 'paymentSplit', 'price', 'refundedAmount', 'barOrderItems', 'extraServices', 'invoiceData', 'locationId'])) ||
         // Alt jucător care se alătură la masă.
-        changed().hasOnly(['joinedPlayers', 'joinedUids', 'status'])
+        changed().hasOnly(['joinedPlayers', 'joinedUids', 'status', 'joinRequestUids'])
       );
 
       allow delete: if signedIn() &&
@@ -132,10 +146,64 @@ service cloud.firestore {
     }
 
     // ---------- Notificări ----------
+    // ---------- Setări generale (ex. abonament obligatoriu pentru săli) ----------
+    match /config/{docId} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    // ---------- Căutări publice pentru autentificare / înregistrare ----------
+    // Citibile doar document cu document (get), fără listare. Conțin doar uid (+ email pentru username).
+    match /username_lookup/{key} {
+      allow get: if true;
+      allow create: if signedIn() && (request.resource.data.get('uid', '') == uid() || isAdmin());
+      allow update, delete: if signedIn() && (resource.data.get('uid', '') == uid() || isAdmin());
+    }
+    match /phone_lookup/{key} {
+      allow get: if true;
+      allow create: if signedIn() && (request.resource.data.get('uid', '') == uid() || isAdmin());
+      allow update, delete: if signedIn() && (resource.data.get('uid', '') == uid() || isAdmin());
+    }
+
     match /notifications/{notificationId} {
       allow read: if signedIn() && (resource.data.get('toUid', '') == uid() || isAdmin());
       allow create: if signedIn();
       allow update, delete: if signedIn() && (resource.data.get('toUid', '') == uid() || isAdmin());
+    }
+
+    // ---------- Token-uri pentru notificări push (un document per dispozitiv) ----------
+    match /push_tokens/{token} {
+      allow read: if signedIn() && resource.data.get('uid', '') == uid();
+      // Contul curent preia token-ul dispozitivului (ex. după ce altcineva s-a delogat de pe el).
+      allow create, update: if signedIn() && request.resource.data.get('uid', '') == uid();
+      allow delete: if signedIn() && resource.data.get('uid', '') == uid();
+    }
+
+    // ---------- Lista de așteptare pentru mese ----------
+    match /waitlist/{entryId} {
+      allow read, delete: if signedIn() && resource.data.get('uid', '') == uid();
+      allow create, update: if signedIn() && request.resource.data.get('uid', '') == uid();
+    }
+
+    // ---------- Vouchere ----------
+    // Doar sala (și adminul) vede și editează codurile. Jucătorii le verifică prin Cloud Functions
+    // (checkVoucher / redeemVoucher); contorul de folosiri îl modifică doar serverul.
+    match /vouchers/{voucherId} {
+      allow read: if signedIn() && (resource.data.get('venueId', '') == uid() || isAdmin());
+      allow create: if signedIn() &&
+        request.resource.data.get('venueId', '') == uid() &&
+        voucherId.matches(uid() + '_.*') &&
+        request.resource.data.get('usedCount', 0) == 0;
+      allow update: if signedIn() &&
+        (resource.data.get('venueId', '') == uid() || isAdmin()) &&
+        !changed().hasAny(['venueId', 'usedCount']);
+      allow delete: if signedIn() && (resource.data.get('venueId', '') == uid() || isAdmin());
+
+      match /redemptions/{redemptionId} {
+        allow read: if signedIn() &&
+          (get(/databases/$(database)/documents/vouchers/$(voucherId)).data.get('venueId', '') == uid() || isAdmin());
+        allow write: if false;
+      }
     }
 
     // ---------- Prieteni ----------
@@ -160,23 +228,25 @@ service cloud.firestore {
     // ---------- Chat ----------
     match /chats/{chatId} {
       allow get: if signedIn() &&
-        (isTournamentChat(chatId) || resource == null || uid() in resource.data.get('uids', []));
+        (isTournamentChat(chatId) || resource == null || uid() in resource.data.get('uids', []) || inMatchChat(chatId));
       allow list: if signedIn() &&
         (isTournamentChat(chatId) || uid() in resource.data.get('uids', []));
       allow create: if signedIn() &&
-        (isTournamentChat(chatId) || uid() in request.resource.data.get('uids', []));
+        (isTournamentChat(chatId) || uid() in request.resource.data.get('uids', []) || inMatchChat(chatId));
       allow update: if signedIn() &&
-        (isTournamentChat(chatId) || uid() in resource.data.get('uids', []));
+        (isTournamentChat(chatId) || uid() in resource.data.get('uids', []) || inMatchChat(chatId));
       allow delete: if isAdmin();
 
       match /messages/{messageId} {
+        // Chat nou (documentul nu există încă): nu sunt mesaje de citit, deci lista goală e permisă.
         allow read: if signedIn() &&
-          (isTournamentChat(chatId) ||
+          (isTournamentChat(chatId) || inMatchChat(chatId) ||
+           !exists(/databases/$(database)/documents/chats/$(chatId)) ||
            uid() in get(/databases/$(database)/documents/chats/$(chatId)).data.get('uids', []));
         // getAfter: la primul mesaj, chat-ul se creează în același batch.
         allow create: if signedIn() &&
           request.resource.data.get('senderUid', '') == uid() &&
-          (isTournamentChat(chatId) ||
+          (isTournamentChat(chatId) || inMatchChat(chatId) ||
            uid() in getAfter(/databases/$(database)/documents/chats/$(chatId)).data.get('uids', []));
         allow update, delete: if isAdmin();
       }

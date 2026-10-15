@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../data/sport_specs.dart';
+import '../l10n/strings.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../data/mock_locations.dart';
@@ -8,6 +10,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:async';
+import '../theme/app_theme.dart';
 
 class VenueSignupScreen extends StatefulWidget {
   final bool isAdminCreating;
@@ -77,6 +80,133 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
   final Map<String, TextEditingController> _outdoorResourcesControllers = {
     'ping_pong': TextEditingController(text: '0'),
   };
+
+  // Detalii & reguli pe sport (capacitate, formate, dotări, supraveghere) + regulile generale ale sălii.
+  final Map<String, Map<String, dynamic>> _sportSpecs = {};
+  final _venueRulesController = TextEditingController();
+
+  Widget _buildSpecField(String sport, SpecField f, Map<String, dynamic> raw, Map<String, dynamic> norm) {
+    switch (f.type) {
+      case SpecType.toggle:
+        return SwitchListTile(
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+          activeColor: AppColors.accent,
+          title: Text(f.label, style: TextStyle(color: AppColors.text70, fontSize: 14)),
+          value: norm[f.id] == true,
+          onChanged: (v) => setState(() => raw[f.id] = v),
+        );
+      case SpecType.number:
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: TextFormField(
+            key: ValueKey('spec_${sport}_${f.id}'),
+            initialValue: '${norm[f.id]}',
+            keyboardType: TextInputType.number,
+            decoration: InputDecoration(labelText: f.label, prefixIcon: const Icon(Icons.groups)),
+            onChanged: (t) => raw[f.id] = int.tryParse(t.trim()) ?? 0,
+          ),
+        );
+      case SpecType.choice:
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: DropdownButtonFormField<String>(
+            key: ValueKey('spec_${sport}_${f.id}'),
+            initialValue: norm[f.id]?.toString(),
+            decoration: InputDecoration(labelText: f.label),
+            items: [for (final o in f.options) DropdownMenuItem(value: o, child: Text(SportSpecs.optionLabel(o)))],
+            onChanged: (v) => setState(() => raw[f.id] = v),
+          ),
+        );
+      case SpecType.multi:
+        final List<String> selected = List<String>.from((norm[f.id] as List?) ?? const []);
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(f.label, style: TextStyle(color: AppColors.text70, fontSize: 14)),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                children: [
+                  for (final o in f.options)
+                    FilterChip(
+                      label: Text(SportSpecs.optionLabel(o)),
+                      selected: selected.contains(o),
+                      selectedColor: AppColors.accent.withValues(alpha: 0.2),
+                      checkmarkColor: AppColors.accent,
+                      backgroundColor: AppColors.card,
+                      onSelected: (on) => setState(() {
+                        final next = List<String>.from(selected);
+                        if (on) {
+                          next.add(o);
+                        } else {
+                          next.remove(o);
+                        }
+                        raw[f.id] = next;
+                      }),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        );
+    }
+  }
+
+  Widget _buildSpecsBlock(String sport) {
+    final Map<String, dynamic> raw = _sportSpecs.putIfAbsent(sport, () => <String, dynamic>{});
+    final Map<String, dynamic> norm = SportSpecs.normalize(sport, raw);
+    return Card(
+      color: AppColors.card,
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: AppColors.accent.withValues(alpha: 0.15)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(_sportNames[sport] ?? sport, style: TextStyle(color: AppColors.accent, fontWeight: FontWeight.bold, fontSize: 15)),
+            const SizedBox(height: 4),
+            ...SportSpecs.fieldsFor(sport).map((f) => _buildSpecField(sport, f, raw, norm)),
+            SwitchListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              activeColor: AppColors.accent,
+              title: Text(tr('spec.supervised'), style: TextStyle(color: AppColors.text70, fontSize: 14)),
+              value: norm['supervised'] == true,
+              onChanged: (v) => setState(() => raw['supervised'] = v),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: TextFormField(
+                key: ValueKey('spec_${sport}_minAge'),
+                initialValue: '${norm['minAge']}',
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(labelText: tr('spec.min_age'), prefixIcon: const Icon(Icons.cake_outlined)),
+                onChanged: (t) => raw['minAge'] = int.tryParse(t.trim()) ?? 0,
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: TextFormField(
+                key: ValueKey('spec_${sport}_rules'),
+                initialValue: '${norm['rules']}',
+                maxLines: 3,
+                decoration: InputDecoration(labelText: tr('spec.rules'), prefixIcon: const Icon(Icons.rule)),
+                onChanged: (t) => raw['rules'] = t,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   void _toggleSport(String key, bool? value) {
     setState(() {
@@ -166,6 +296,14 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
         _supportedSports[sport] = activeSports.contains(sport);
       }
       
+      final rawSpecs = data['sportSpecs'];
+      if (rawSpecs is Map) {
+        rawSpecs.forEach((k, v) {
+          if (v is Map) _sportSpecs[k.toString()] = Map<String, dynamic>.from(v);
+        });
+      }
+      _venueRulesController.text = (data['venueRules'] ?? '').toString();
+
       final resources = data['resourcesPerSport'] as Map<String, dynamic>? ?? {};
       resources.forEach((sport, res) {
         if (_supportedSports[sport] == true) {
@@ -221,6 +359,7 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
     _cityController.dispose();
     _addressController.dispose();
     _websiteController.dispose();
+    _venueRulesController.dispose();
     for (var ctrl in _indoorResourcesControllers.values) {
       ctrl.dispose();
     }
@@ -310,11 +449,11 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.dark(
-              primary: Color(0xFF00E5FF),
-              onPrimary: Colors.black,
-              surface: Color(0xFF131A2A),
-              onSurface: Colors.white,
+            colorScheme: AppColors.scheme(
+              primary: AppColors.accent,
+              onPrimary: AppColors.onAccent,
+              surface: AppColors.card,
+              onSurface: AppColors.text,
             ),
           ),
           child: child!,
@@ -459,6 +598,10 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
         'totalTables': totalTables,
         'supportedSports': activeSports,
         'resourcesPerSport': resourcesPerSport,
+        'sportSpecs': {
+          for (final sport in activeSports) sport: SportSpecs.normalize(sport, _sportSpecs[sport]),
+        },
+        'venueRules': _venueRulesController.text.trim(),
         'isPublic': _isPublic,
         'allowHalfHourRentals': _allowHalfHourRentals,
         'layouts': generatedLayouts,
@@ -533,16 +676,16 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
           barrierDismissible: false,
           builder: (context) {
             return AlertDialog(
-              backgroundColor: const Color(0xFF131A2A),
+              backgroundColor: AppColors.card,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
-                side: const BorderSide(color: Color(0xFF00E5FF), width: 1.5),
+                side: BorderSide(color: AppColors.accent, width: 1.5),
               ),
               title: Row(
                 children: [
-                  const Icon(Icons.check_circle_outline, color: Color(0xFF00E5FF), size: 28),
+                  Icon(Icons.check_circle_outline, color: AppColors.accent, size: 28),
                   const SizedBox(width: 10),
-                  Text(widget.isEditMode ? 'Sală Actualizată!' : (widget.isAdminCreating ? 'Sală Creată (Admin)' : 'Cont Creat!'), style: const TextStyle(color: Colors.white)),
+                  Text(widget.isEditMode ? 'Sală Actualizată!' : (widget.isAdminCreating ? 'Sală Creată (Admin)' : 'Cont Creat!'), style: TextStyle(color: AppColors.text)),
                 ],
               ),
               content: Text(
@@ -551,7 +694,7 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
                     : (widget.isAdminCreating
                         ? 'Sala a fost creată cu succes, dar administratorul trebuie să-și reseteze parola pe baza email-ului setat.'
                         : 'Contul de Sală a fost creat cu succes!\n\nAcesta va deveni complet funcțional și vizibil pentru jucători după ce va fi aprobat manual de către administratorul PingPong Playhub.'),
-                style: const TextStyle(color: Colors.white70),
+                style: TextStyle(color: AppColors.text70),
               ),
               actions: [
                 TextButton(
@@ -564,7 +707,7 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
                       Navigator.pop(context); // Return to login
                     }
                   },
-                  child: const Text('OK', style: TextStyle(color: Color(0xFF00E5FF), fontWeight: FontWeight.bold)),
+                  child: Text('OK', style: TextStyle(color: AppColors.accent, fontWeight: FontWeight.bold)),
                 ),
               ],
             );
@@ -592,15 +735,15 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
         children: [
           Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: Color(0xFF00E5FF),
+              color: AppColors.accent,
               letterSpacing: 0.5,
             ),
           ),
           const SizedBox(height: 4),
-          const Divider(color: Color(0xFF1E293B), height: 1, thickness: 1.5),
+          Divider(color: AppColors.card2, height: 1, thickness: 1.5),
         ],
       ),
     );
@@ -613,7 +756,7 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
         children: [
           Expanded(
             flex: 3,
-            child: Text(label, style: const TextStyle(color: Colors.white70, fontSize: 15)),
+            child: Text(label, style: TextStyle(color: AppColors.text70, fontSize: 15)),
           ),
           Expanded(
             flex: 4,
@@ -656,10 +799,10 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0E17),
+      backgroundColor: AppColors.bg,
       appBar: AppBar(
         title: Text(widget.isEditMode ? 'Editare Sală' : 'Înregistrare Sală / Club'),
-        backgroundColor: const Color(0xFF131A2A),
+        backgroundColor: AppColors.card,
         elevation: 0,
       ),
       body: SafeArea(
@@ -670,19 +813,19 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Icon(
+                Icon(
                   Icons.storefront,
                   size: 64,
-                  color: Color(0xFF00E5FF),
+                  color: AppColors.accent,
                 ),
                 const SizedBox(height: 12),
                 Text(
                   widget.isEditMode ? 'Editare Detalii Sală' : 'Creează Cont de Sală',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: AppColors.text,
                   ),
                 ),
                 const SizedBox(height: 6),
@@ -691,7 +834,7 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
                       ? 'Actualizează informațiile locației tale.'
                       : 'Completează detaliile clubului tău pentru a începe organizarea de turnee și meciuri.',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.grey, fontSize: 13),
+                  style: TextStyle(color: AppColors.muted, fontSize: 13),
                 ),
 
                 // 1. Date Contact Business
@@ -796,12 +939,12 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
                       },
                     ),
                     if (_isVerifying)
-                      const Padding(
+                      Padding(
                         padding: EdgeInsets.only(right: 16.0),
                         child: SizedBox(
                           width: 16,
                           height: 16,
-                          child: CircularProgressIndicator(color: Color(0xFF00E5FF), strokeWidth: 2),
+                          child: CircularProgressIndicator(color: AppColors.accent, strokeWidth: 2),
                         ),
                       ),
                   ],
@@ -810,9 +953,9 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
                   Container(
                     margin: const EdgeInsets.only(top: 4),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF1E293B),
+                      color: AppColors.card2,
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.grey[800]!),
+                      border: Border.all(color: AppColors.border),
                     ),
                     child: ListView.separated(
                       shrinkWrap: true,
@@ -822,8 +965,8 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
                       itemBuilder: (context, index) {
                         final option = _addressSuggestions[index];
                         return ListTile(
-                          leading: const Icon(Icons.location_on, color: Colors.grey),
-                          title: Text(option['display_name'] ?? '', style: const TextStyle(color: Colors.white, fontSize: 13)),
+                          leading: Icon(Icons.location_on, color: AppColors.muted),
+                          title: Text(option['display_name'] ?? '', style: TextStyle(color: AppColors.text, fontSize: 13)),
                           onTap: () => _selectAddress(option),
                         );
                       },
@@ -836,7 +979,7 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
                     margin: const EdgeInsets.only(bottom: 16),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFF00E5FF)),
+                      border: Border.all(color: AppColors.accent),
                     ),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(12),
@@ -877,17 +1020,17 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
                 // 3. Dotări și Facilități
                 _buildSectionHeader('3. Detalii Sală & Dotări'),
                 SwitchListTile(
-                  title: const Text('Locație Publică / Gratuită', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                  subtitle: const Text('Mese/terenuri publice gratis. Tarifele vor fi dezactivate.', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                  title: Text('Locație Publică / Gratuită', style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold)),
+                  subtitle: Text('Mese/terenuri publice gratis. Tarifele vor fi dezactivate.', style: TextStyle(color: AppColors.muted, fontSize: 12)),
                   value: _isPublic,
-                  activeColor: const Color(0xFF00E5FF),
+                  activeColor: AppColors.accent,
                   onChanged: (val) => setState(() => _isPublic = val),
                   contentPadding: EdgeInsets.zero,
                 ),
                 const SizedBox(height: 16),
-                const Text(
+                Text(
                   'Sporturi Suportate:',
-                  style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                  style: TextStyle(color: AppColors.text, fontSize: 15, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
                 Wrap(
@@ -897,11 +1040,11 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
                     return FilterChip(
                       label: Text(_sportNames[key]!),
                       selected: _supportedSports[key]!,
-                      selectedColor: const Color(0xFF00E5FF).withValues(alpha: 0.2),
-                      checkmarkColor: const Color(0xFF00E5FF),
-                      backgroundColor: const Color(0xFF131A2A),
+                      selectedColor: AppColors.accent.withValues(alpha: 0.2),
+                      checkmarkColor: AppColors.accent,
+                      backgroundColor: AppColors.card,
                       labelStyle: TextStyle(
-                        color: _supportedSports[key]! ? const Color(0xFF00E5FF) : Colors.white70,
+                        color: _supportedSports[key]! ? AppColors.accent : AppColors.text70,
                       ),
                       onSelected: (bool selected) {
                         _toggleSport(key, selected);
@@ -910,9 +1053,9 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
                   }).toList(),
                 ),
                 const SizedBox(height: 16),
-                const Text(
+                Text(
                   'Număr Terenuri / Mese per Sport:',
-                  style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                  style: TextStyle(color: AppColors.text, fontSize: 15, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
                 ..._supportedSports.entries.where((e) => e.value).map((entry) {
@@ -947,25 +1090,42 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
                     ),
                   );
                 }),
+                if (_supportedSports.values.any((v) => v)) ...[
+                  const SizedBox(height: 16),
+                  Text(tr('spec.title'), style: TextStyle(color: AppColors.text, fontSize: 15, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 4),
+                  Text(tr('spec.sub'), style: TextStyle(color: AppColors.muted, fontSize: 12)),
+                  const SizedBox(height: 8),
+                  ..._supportedSports.entries.where((e) => e.value).map((e) => _buildSpecsBlock(e.key)),
+                  TextFormField(
+                    controller: _venueRulesController,
+                    maxLines: 3,
+                    decoration: InputDecoration(
+                      labelText: tr('spec.venue_rules'),
+                      hintText: tr('spec.venue_rules_hint'),
+                      prefixIcon: const Icon(Icons.gavel_outlined),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 8),
-                const Text(
+                Text(
                   'Facilități incluse:',
-                  style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                  style: TextStyle(color: AppColors.text, fontSize: 15, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
                 Card(
-                  color: const Color(0xFF131A2A),
+                  color: AppColors.card,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
-                    side: BorderSide(color: const Color(0xFF00E5FF).withValues(alpha: 0.15)),
+                    side: BorderSide(color: AppColors.accent.withValues(alpha: 0.15)),
                   ),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
                     child: Column(
                       children: _facilities.keys.map((String key) {
                         return CheckboxListTile(
-                          title: Text(key, style: const TextStyle(color: Colors.white70, fontSize: 14)),
-                          activeColor: const Color(0xFF00E5FF),
+                          title: Text(key, style: TextStyle(color: AppColors.text70, fontSize: 14)),
+                          activeColor: AppColors.accent,
                           checkColor: Colors.black,
                           value: _facilities[key],
                           onChanged: (bool? value) {
@@ -986,16 +1146,16 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
                 _buildTimeSelectorRow('Duminică', _dOpenController, _dCloseController),
                 if (!_isPublic) ...[
                   SwitchListTile(
-                    title: const Text('Permite închiriere la jumătate de oră', style: TextStyle(color: Colors.white, fontSize: 14)),
+                    title: Text('Permite închiriere la jumătate de oră', style: TextStyle(color: AppColors.text, fontSize: 14)),
                     value: _allowHalfHourRentals,
-                    activeColor: const Color(0xFF00E5FF),
+                    activeColor: AppColors.accent,
                     onChanged: (val) => setState(() => _allowHalfHourRentals = val),
                     contentPadding: EdgeInsets.zero,
                   ),
                   DropdownButtonFormField<String>(
                     initialValue: _priceType,
-                    dropdownColor: const Color(0xFF131A2A),
-                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    dropdownColor: AppColors.card,
+                    style: TextStyle(color: AppColors.text, fontSize: 14),
                     decoration: const InputDecoration(
                       labelText: 'Tip Tarifare',
                       prefixIcon: Icon(Icons.payments_outlined),
@@ -1019,7 +1179,7 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
                         child: TextFormField(
                           controller: _flatPriceHourController,
                           keyboardType: TextInputType.number,
-                          style: const TextStyle(color: Colors.white, fontSize: 14),
+                          style: TextStyle(color: AppColors.text, fontSize: 14),
                           decoration: const InputDecoration(
                             labelText: 'Tarif 1 Oră (RON)',
                             prefixIcon: Icon(Icons.monetization_on_outlined),
@@ -1037,7 +1197,7 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
                           child: TextFormField(
                             controller: _flatPriceHalfController,
                             keyboardType: TextInputType.number,
-                            style: const TextStyle(color: Colors.white, fontSize: 14),
+                            style: TextStyle(color: AppColors.text, fontSize: 14),
                             decoration: const InputDecoration(
                               labelText: 'Tarif 0.5 Oră (RON)',
                               prefixIcon: Icon(Icons.monetization_on_outlined),
@@ -1056,8 +1216,8 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
                   const SizedBox(height: 16),
                   DropdownButtonFormField<int>(
                     initialValue: _dynamicHourLimit,
-                    dropdownColor: const Color(0xFF131A2A),
-                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    dropdownColor: AppColors.card,
+                    style: TextStyle(color: AppColors.text, fontSize: 14),
                     decoration: const InputDecoration(
                       labelText: 'Oră Limită Preț',
                       prefixIcon: Icon(Icons.access_time),
@@ -1072,7 +1232,7 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
                         child: TextFormField(
                           controller: _dynamicPriceHourBeforeController,
                           keyboardType: TextInputType.number,
-                          style: const TextStyle(color: Colors.white, fontSize: 14),
+                          style: TextStyle(color: AppColors.text, fontSize: 14),
                           decoration: const InputDecoration(
                             labelText: 'Tarif 1 Oră Înainte (RON)',
                           ),
@@ -1089,7 +1249,7 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
                           child: TextFormField(
                             controller: _dynamicPriceHalfBeforeController,
                             keyboardType: TextInputType.number,
-                            style: const TextStyle(color: Colors.white, fontSize: 14),
+                            style: TextStyle(color: AppColors.text, fontSize: 14),
                             decoration: const InputDecoration(
                               labelText: 'Tarif 0.5 Oră Înainte (RON)',
                             ),
@@ -1110,7 +1270,7 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
                         child: TextFormField(
                           controller: _dynamicPriceHourAfterController,
                           keyboardType: TextInputType.number,
-                          style: const TextStyle(color: Colors.white, fontSize: 14),
+                          style: TextStyle(color: AppColors.text, fontSize: 14),
                           decoration: const InputDecoration(
                             labelText: 'Tarif 1 Oră După (RON)',
                           ),
@@ -1127,7 +1287,7 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
                           child: TextFormField(
                             controller: _dynamicPriceHalfAfterController,
                             keyboardType: TextInputType.number,
-                            style: const TextStyle(color: Colors.white, fontSize: 14),
+                            style: TextStyle(color: AppColors.text, fontSize: 14),
                             decoration: const InputDecoration(
                               labelText: 'Tarif 0.5 Oră După (RON)',
                             ),
@@ -1146,18 +1306,18 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
                 const SizedBox(height: 24),
                 _buildSectionHeader('Abonamente (Opțional)'),
                 SwitchListTile(
-                  title: const Text('Oferă Abonament Lunar', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                  subtitle: const Text('Jucătorii pot cumpăra abonament pentru ore nelimitate/limitate.', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                  title: Text('Oferă Abonament Lunar', style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold)),
+                  subtitle: Text('Jucătorii pot cumpăra abonament pentru ore nelimitate/limitate.', style: TextStyle(color: AppColors.muted, fontSize: 12)),
                   value: _offerSubscription,
-                  activeColor: const Color(0xFF00E5FF),
+                  activeColor: AppColors.accent,
                   onChanged: (val) => setState(() => _offerSubscription = val),
                 ),
                 if (_offerSubscription) ...[
                   const SizedBox(height: 16),
                   DropdownButtonFormField<String>(
                     value: _subscriptionType,
-                    dropdownColor: const Color(0xFF131A2A),
-                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    dropdownColor: AppColors.card,
+                    style: TextStyle(color: AppColors.text, fontSize: 14),
                     decoration: const InputDecoration(
                       labelText: 'Tip Abonament',
                       prefixIcon: Icon(Icons.merge_type),
@@ -1177,7 +1337,7 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
                     TextFormField(
                       controller: _subscriptionEntriesController,
                       keyboardType: TextInputType.number,
-                      style: const TextStyle(color: Colors.white, fontSize: 14),
+                      style: TextStyle(color: AppColors.text, fontSize: 14),
                       decoration: const InputDecoration(
                         labelText: 'Număr Intrări pe Lună',
                         prefixIcon: Icon(Icons.confirmation_number_outlined),
@@ -1195,7 +1355,7 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
                   TextFormField(
                     controller: _subscriptionPriceController,
                     keyboardType: TextInputType.number,
-                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    style: TextStyle(color: AppColors.text, fontSize: 14),
                     decoration: const InputDecoration(
                       labelText: 'Preț Abonament (RON/lună)',
                       prefixIcon: Icon(Icons.star_outline),
@@ -1212,9 +1372,9 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
 
                 const SizedBox(height: 24),
                 _buildSectionHeader('4. Alte Servicii Extra'),
-                const Text(
+                Text(
                   'Adaugă servicii speciale pe care le oferiți, altele decât produsele de bar sau echipamentele. Ex: Antrenor personal, Masaj, Închiriere robot antrenament.',
-                  style: TextStyle(color: Colors.grey, fontSize: 12),
+                  style: TextStyle(color: AppColors.muted, fontSize: 12),
                 ),
                 const SizedBox(height: 12),
                 ..._extraServices.asMap().entries.map((entry) {
@@ -1228,7 +1388,7 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
                           flex: 2,
                           child: TextFormField(
                             initialValue: service['name'],
-                            style: const TextStyle(color: Colors.white, fontSize: 13),
+                            style: TextStyle(color: AppColors.text, fontSize: 13),
                             decoration: const InputDecoration(labelText: 'Nume Serviciu', isDense: true),
                             onChanged: (val) => setState(() => _extraServices[idx]['name'] = val),
                           ),
@@ -1239,7 +1399,7 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
                           child: TextFormField(
                             initialValue: service['price'].toString(),
                             keyboardType: TextInputType.number,
-                            style: const TextStyle(color: Colors.white, fontSize: 13),
+                            style: TextStyle(color: AppColors.text, fontSize: 13),
                             decoration: const InputDecoration(labelText: 'Preț (RON)', isDense: true),
                             onChanged: (val) => setState(() => _extraServices[idx]['price'] = double.tryParse(val) ?? 0.0),
                           ),
@@ -1254,15 +1414,15 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
                 }),
                 TextButton.icon(
                   onPressed: () => setState(() => _extraServices.add({'name': '', 'price': 0.0})),
-                  icon: const Icon(Icons.add, color: Color(0xFF00E5FF)),
-                  label: const Text('Adaugă Serviciu Extra', style: TextStyle(color: Color(0xFF00E5FF))),
+                  icon: Icon(Icons.add, color: AppColors.accent),
+                  label: Text('Adaugă Serviciu Extra', style: TextStyle(color: AppColors.accent)),
                 ),
                 
                 // Inventar Bar & Echipamente
                 _buildSectionHeader('5. Inventar Bar & Echipamente de Închiriat'),
-                const Text(
+                Text(
                   'Adaugă produsele vândute la bar (Sucuri, Beri, Apă, Mâncare) sau echipamentele pe care le poți închiria (Palete, Set Mingi, etc.).',
-                  style: TextStyle(color: Colors.grey, fontSize: 13),
+                  style: TextStyle(color: AppColors.muted, fontSize: 13),
                 ),
                 const SizedBox(height: 12),
                 ...List.generate(_initialInventory.length, (idx) {
@@ -1275,7 +1435,7 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
                           flex: 3,
                           child: TextFormField(
                             initialValue: item['name'],
-                            style: const TextStyle(color: Colors.white, fontSize: 13),
+                            style: TextStyle(color: AppColors.text, fontSize: 13),
                             decoration: const InputDecoration(labelText: 'Nume Produs', isDense: true),
                             onChanged: (val) => setState(() => _initialInventory[idx]['name'] = val),
                           ),
@@ -1285,8 +1445,8 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
                           flex: 2,
                           child: DropdownButtonFormField<String>(
                             value: item['category'],
-                            dropdownColor: const Color(0xFF131A2A),
-                            style: const TextStyle(color: Colors.white, fontSize: 12),
+                            dropdownColor: AppColors.card,
+                            style: TextStyle(color: AppColors.text, fontSize: 12),
                             decoration: const InputDecoration(labelText: 'Categorie', isDense: true),
                             items: _inventoryCategories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
                             onChanged: (val) {
@@ -1300,7 +1460,7 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
                           child: TextFormField(
                             initialValue: item['price'].toString(),
                             keyboardType: TextInputType.number,
-                            style: const TextStyle(color: Colors.white, fontSize: 13),
+                            style: TextStyle(color: AppColors.text, fontSize: 13),
                             decoration: const InputDecoration(labelText: 'Preț (RON)', isDense: true),
                             onChanged: (val) => setState(() => _initialInventory[idx]['price'] = double.tryParse(val) ?? 0.0),
                           ),
@@ -1315,8 +1475,8 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
                 }),
                 TextButton.icon(
                   onPressed: () => setState(() => _initialInventory.add({'name': '', 'category': 'Suc', 'price': 0.0})),
-                  icon: const Icon(Icons.add_shopping_cart, color: Color(0xFF00E5FF)),
-                  label: const Text('Adaugă Produs / Echipament', style: TextStyle(color: Color(0xFF00E5FF))),
+                  icon: Icon(Icons.add_shopping_cart, color: AppColors.accent),
+                  label: Text('Adaugă Produs / Echipament', style: TextStyle(color: AppColors.accent)),
                 ),
 
                 // 6. Date Financiare
@@ -1355,7 +1515,7 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
                       suffixIcon: IconButton(
                         icon: Icon(
                           _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                          color: Colors.grey,
+                          color: AppColors.muted,
                         ),
                         onPressed: () {
                           setState(() {
@@ -1381,7 +1541,7 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
                       suffixIcon: IconButton(
                         icon: Icon(
                           _obscureConfirmPassword ? Icons.visibility_off : Icons.visibility,
-                          color: Colors.grey,
+                          color: AppColors.muted,
                         ),
                         onPressed: () {
                           setState(() {
@@ -1409,10 +1569,10 @@ class _VenueSignupScreenState extends State<VenueSignupScreen> {
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
                   child: _isLoading
-                      ? const SizedBox(
+                      ? SizedBox(
                           height: 20,
                           width: 20,
-                          child: CircularProgressIndicator(color: Colors.white),
+                          child: CircularProgressIndicator(color: AppColors.text),
                         )
                       : const Text('ÎNREGISTREAZĂ SALA'),
                 ),

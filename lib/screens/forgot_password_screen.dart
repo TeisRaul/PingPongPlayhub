@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import '../l10n/app_locales.dart';
+import '../l10n/strings.dart';
+import '../widgets/language_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../theme/app_theme.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -16,7 +20,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     final email = _emailController.text.trim();
     if (email.isEmpty || !email.contains('@')) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Introdu o adresă de email validă.'), backgroundColor: Colors.red),
+        SnackBar(content: Text(tr('fp.invalid_email')), backgroundColor: Colors.red),
       );
       return;
     }
@@ -27,8 +31,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Ți-am trimis un link pe email pentru a reseta parola!'),
+          SnackBar(
+            content: Text(tr('fp.sent')),
             backgroundColor: Colors.green,
           ),
         );
@@ -36,8 +40,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       }
     } on FirebaseAuthException catch (e) {
       if (mounted) {
-        String msg = 'A apărut o eroare.';
-        if (e.code == 'user-not-found') msg = 'Nu există niciun cont cu acest email.';
+        String msg = tr('fp.error');
+        if (e.code == 'user-not-found') msg = tr('fp.no_account');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(msg), backgroundColor: Colors.red),
         );
@@ -47,8 +51,19 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     }
   }
 
+  void _onLangChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    AppLocales.current.addListener(_onLangChanged);
+  }
+
   @override
   void dispose() {
+    AppLocales.current.removeListener(_onLangChanged);
     _emailController.dispose();
     super.dispose();
   }
@@ -59,7 +74,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text('Resetare Parolă'),
+        title: Text(tr('fp.title')),
+        actions: const [LanguagePickerButton()],
       ),
       body: SafeArea(
         child: Padding(
@@ -67,21 +83,21 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text(
-                'Ai uitat parola?',
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
+              Text(
+                tr('auth.forgot'),
+                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: AppColors.text),
               ),
               const SizedBox(height: 16),
-              const Text(
-                'Introdu adresa de email asociată contului tău și îți vom trimite un link securizat pentru resetarea ei.',
-                style: TextStyle(color: Colors.grey, fontSize: 16),
+              Text(
+                tr('fp.sub'),
+                style: TextStyle(color: AppColors.muted, fontSize: 16),
               ),
               const SizedBox(height: 32),
               TextField(
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(
-                  labelText: 'Email',
+                decoration: InputDecoration(
+                  labelText: tr('fp.email'),
                   prefixIcon: Icon(Icons.email_outlined),
                 ),
               ),
@@ -90,8 +106,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 onPressed: _isLoading ? null : _resetPassword,
                 style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
                 child: _isLoading 
-                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) 
-                    : const Text('TRIMITE LINK'),
+                    ? SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: AppColors.text, strokeWidth: 2)) 
+                    : Text(tr('fp.send')),
               ),
             ],
           ),

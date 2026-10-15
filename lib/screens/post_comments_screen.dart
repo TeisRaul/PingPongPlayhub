@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'dart:convert';
+import '../theme/app_theme.dart';
 
 class PostCommentsScreen extends StatefulWidget {
   final String postId;
@@ -76,11 +77,11 @@ class _PostCommentsScreenState extends State<PostCommentsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0D1424),
+      backgroundColor: AppColors.bgDeep,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF131A2A),
-        title: const Text('Comentarii', style: TextStyle(color: Colors.white)),
-        iconTheme: const IconThemeData(color: Colors.white),
+        backgroundColor: AppColors.card,
+        title: Text('Comentarii', style: TextStyle(color: AppColors.text)),
+        iconTheme: IconThemeData(color: AppColors.text),
       ),
       body: Column(
         children: [
@@ -94,12 +95,12 @@ class _PostCommentsScreenState extends State<PostCommentsScreen> {
                   .snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)));
+                  return Center(child: CircularProgressIndicator(color: AppColors.accent));
                 }
 
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return const Center(
-                    child: Text('Niciun comentariu. Fii primul!', style: TextStyle(color: Colors.grey)),
+                  return Center(
+                    child: Text('Niciun comentariu. Fii primul!', style: TextStyle(color: AppColors.muted)),
                   );
                 }
 
@@ -119,12 +120,12 @@ class _PostCommentsScreenState extends State<PostCommentsScreen> {
                       children: [
                         CircleAvatar(
                           radius: 16,
-                          backgroundColor: const Color(0xFF1E293B),
+                          backgroundColor: AppColors.card2,
                           backgroundImage: data['authorAvatarUrl'] != null && (data['authorAvatarUrl'] as String).isNotEmpty
                               ? _getAvatarProvider(data['authorAvatarUrl'])
                               : null,
                           child: (data['authorAvatarUrl'] == null || (data['authorAvatarUrl'] as String).isEmpty)
-                              ? const Icon(Icons.person, size: 16, color: Colors.white)
+                              ? Icon(Icons.person, size: 16, color: AppColors.text)
                               : null,
                         ),
                         const SizedBox(width: 12),
@@ -132,7 +133,7 @@ class _PostCommentsScreenState extends State<PostCommentsScreen> {
                           child: Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF131A2A),
+                              color: AppColors.card,
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Column(
@@ -143,18 +144,18 @@ class _PostCommentsScreenState extends State<PostCommentsScreen> {
                                   children: [
                                     Text(
                                       data['authorUsername'] ?? 'Utilizator',
-                                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                                      style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold, fontSize: 13),
                                     ),
                                     Text(
                                       _formatTime(data['timestamp']),
-                                      style: const TextStyle(color: Colors.grey, fontSize: 10),
+                                      style: TextStyle(color: AppColors.muted, fontSize: 10),
                                     ),
                                   ],
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
                                   data['text'] ?? '',
-                                  style: const TextStyle(color: Colors.white70, fontSize: 14),
+                                  style: TextStyle(color: AppColors.text70, fontSize: 14),
                                 ),
                               ],
                             ),
@@ -171,18 +172,18 @@ class _PostCommentsScreenState extends State<PostCommentsScreen> {
           // Comment Input
           Container(
             padding: const EdgeInsets.all(12),
-            color: const Color(0xFF131A2A),
+            color: AppColors.card,
             child: Row(
               children: [
                 Expanded(
                   child: TextField(
                     controller: _commentController,
-                    style: const TextStyle(color: Colors.white),
+                    style: TextStyle(color: AppColors.text),
                     decoration: InputDecoration(
                       hintText: 'Adaugă un comentariu...',
-                      hintStyle: const TextStyle(color: Colors.grey),
+                      hintStyle: TextStyle(color: AppColors.muted),
                       filled: true,
-                      fillColor: const Color(0xFF1E293B),
+                      fillColor: AppColors.card2,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(24),
                         borderSide: BorderSide.none,
@@ -193,9 +194,9 @@ class _PostCommentsScreenState extends State<PostCommentsScreen> {
                 ),
                 const SizedBox(width: 8),
                 _isPosting
-                  ? const Padding(padding: EdgeInsets.all(12.0), child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Color(0xFF00E5FF))))
+                  ? Padding(padding: EdgeInsets.all(12.0), child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: AppColors.accent)))
                   : IconButton(
-                      icon: const Icon(Icons.send, color: Color(0xFF00E5FF)),
+                      icon: Icon(Icons.send, color: AppColors.accent),
                       onPressed: _postComment,
                     ),
               ],

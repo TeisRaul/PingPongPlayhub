@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'admin_matches_list_screen.dart';
 import '../signup_screen.dart';
+import '../../theme/app_theme.dart';
 
 /// Numele afișat: fullName, altfel prenume + nume, altfel username.
 String _displayName(Map<String, dynamic> data, {String fallback = 'Fără nume'}) {
@@ -31,23 +32,23 @@ class _AdminUsersListScreenState extends State<AdminUsersListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0E17),
+      backgroundColor: AppColors.bg,
       appBar: AppBar(
-        title: const Text('Gestiune Utilizatori', style: TextStyle(color: Colors.white, fontSize: 18)),
-        backgroundColor: const Color(0xFF131A2A),
-        iconTheme: const IconThemeData(color: Color(0xFF00E5FF)),
+        title: Text('Gestiune Utilizatori', style: TextStyle(color: AppColors.text, fontSize: 18)),
+        backgroundColor: AppColors.card,
+        iconTheme: IconThemeData(color: AppColors.accent),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(60),
           child: Padding(
             padding: const EdgeInsets.all(8.0),
             child: TextField(
-              style: const TextStyle(color: Colors.white),
+              style: TextStyle(color: AppColors.text),
               decoration: InputDecoration(
                 hintText: 'Caută după nume sau email...',
-                hintStyle: const TextStyle(color: Colors.grey),
-                prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                hintStyle: TextStyle(color: AppColors.muted),
+                prefixIcon: Icon(Icons.search, color: AppColors.muted),
                 filled: true,
-                fillColor: const Color(0xFF1E293B),
+                fillColor: AppColors.card2,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide.none,
@@ -62,12 +63,12 @@ class _AdminUsersListScreenState extends State<AdminUsersListScreen> {
         stream: FirebaseFirestore.instance.collection('users').snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)));
+            return Center(child: CircularProgressIndicator(color: AppColors.accent));
           }
 
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return const Center(
-              child: Text('Niciun utilizator înregistrat.', style: TextStyle(color: Colors.grey)),
+            return Center(
+              child: Text('Niciun utilizator înregistrat.', style: TextStyle(color: AppColors.muted)),
             );
           }
 
@@ -92,20 +93,20 @@ class _AdminUsersListScreenState extends State<AdminUsersListScreen> {
               final phone = data['phone'] ?? 'Fără telefon';
 
               return Card(
-                color: const Color(0xFF131A2A),
+                color: AppColors.card,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
-                  side: BorderSide(color: const Color(0xFF00E5FF).withValues(alpha: 0.3)),
+                  side: BorderSide(color: AppColors.accent.withValues(alpha: 0.3)),
                 ),
                 child: ListTile(
-                  leading: const CircleAvatar(
-                    backgroundColor: Color(0xFF1E293B),
-                    child: Icon(Icons.person, color: Color(0xFF00E5FF)),
+                  leading: CircleAvatar(
+                    backgroundColor: AppColors.card2,
+                    child: Icon(Icons.person, color: AppColors.accent),
                   ),
-                  title: Text(name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                  subtitle: Text('$email\n$phone', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                  title: Text(name, style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold)),
+                  subtitle: Text('$email\n$phone', style: TextStyle(color: AppColors.muted, fontSize: 12)),
                   isThreeLine: true,
-                  trailing: const Icon(Icons.arrow_forward_ios, color: Colors.grey, size: 16),
+                  trailing: Icon(Icons.arrow_forward_ios, color: AppColors.muted, size: 16),
                   onTap: () {
                     Navigator.push(
                       context,
@@ -154,13 +155,13 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF131A2A),
-        title: const Text('Ștergere Utilizator', style: TextStyle(color: Colors.white)),
-        content: const Text('Atenție! Această acțiune va șterge profilul public al utilizatorului din aplicație. Ești sigur?', style: TextStyle(color: Colors.grey)),
+        backgroundColor: AppColors.card,
+        title: Text('Ștergere Utilizator', style: TextStyle(color: AppColors.text)),
+        content: Text('Atenție! Această acțiune va șterge profilul public al utilizatorului din aplicație. Ești sigur?', style: TextStyle(color: AppColors.muted)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Anulează', style: TextStyle(color: Colors.grey)),
+            child: Text('Anulează', style: TextStyle(color: AppColors.muted)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
@@ -223,11 +224,11 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0E17),
+      backgroundColor: AppColors.bg,
       appBar: AppBar(
-        title: const Text('Detalii Utilizator', style: TextStyle(color: Colors.white, fontSize: 18)),
-        backgroundColor: const Color(0xFF131A2A),
-        iconTheme: const IconThemeData(color: Color(0xFF00E5FF)),
+        title: Text('Detalii Utilizator', style: TextStyle(color: AppColors.text, fontSize: 18)),
+        backgroundColor: AppColors.card,
+        iconTheme: IconThemeData(color: AppColors.accent),
         actions: [
           if (widget.userData['email'] != 'teisraul@yahoo.co.uk')
             IconButton(
@@ -240,12 +241,12 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
         stream: FirebaseFirestore.instance.collection('users').doc(widget.userId).snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)));
+            return Center(child: CircularProgressIndicator(color: AppColors.accent));
           }
 
           if (!snapshot.hasData || !snapshot.data!.exists) {
-            return const Center(
-              child: Text('Utilizatorul nu mai există', style: TextStyle(color: Colors.grey)),
+            return Center(
+              child: Text('Utilizatorul nu mai există', style: TextStyle(color: AppColors.muted)),
             );
           }
 
@@ -255,22 +256,22 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
             padding: const EdgeInsets.all(24),
             child: Column(
               children: [
-                const CircleAvatar(
+                CircleAvatar(
                   radius: 40,
-                  backgroundColor: Color(0xFF1E293B),
-                  child: Icon(Icons.person, color: Color(0xFF00E5FF), size: 40),
+                  backgroundColor: AppColors.card2,
+                  child: Icon(Icons.person, color: AppColors.accent, size: 40),
                 ),
                 const SizedBox(height: 16),
                 Text(
                   _displayName(freshData),
-                  style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+                  style: TextStyle(color: AppColors.text, fontSize: 24, fontWeight: FontWeight.bold),
                   textAlign: TextAlign.center,
                 ),
                 if (freshData['email'] != null) ...[
                   const SizedBox(height: 8),
                   Text(
                     freshData['email'],
-                    style: const TextStyle(color: Colors.grey, fontSize: 16),
+                    style: TextStyle(color: AppColors.muted, fontSize: 16),
                     textAlign: TextAlign.center,
                   ),
                 ],
@@ -291,10 +292,10 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
                     icon: const Icon(Icons.history),
                     label: const Text('Vezi Istoric Meciuri'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF131A2A),
-                      foregroundColor: Colors.white,
+                      backgroundColor: AppColors.card,
+                      foregroundColor: AppColors.text,
                       padding: const EdgeInsets.symmetric(vertical: 16),
-                      side: const BorderSide(color: Colors.grey),
+                      side: BorderSide(color: AppColors.muted),
                     ),
                   ),
                 ),
@@ -349,7 +350,7 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
                     icon: const Icon(Icons.edit_document),
                     label: const Text('Editează Utilizator Complet (Formular)'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF131A2A),
+                      backgroundColor: AppColors.card,
                       foregroundColor: Colors.amberAccent,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       side: const BorderSide(color: Colors.amberAccent),

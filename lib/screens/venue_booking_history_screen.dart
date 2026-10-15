@@ -3,6 +3,7 @@ import '../utils/hour_utils.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'check_in_flow.dart';
+import '../theme/app_theme.dart';
 
 class VenueBookingHistoryScreen extends StatefulWidget {
   final String venueName;
@@ -67,17 +68,17 @@ class _VenueBookingHistoryScreenState extends State<VenueBookingHistoryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0E17),
+      backgroundColor: AppColors.bg,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF131A2A),
+        backgroundColor: AppColors.card,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF00E5FF)),
+          icon: Icon(Icons.arrow_back, color: AppColors.accent),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
+        title: Text(
           'Istoric Rezervări & Meciuri',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+          style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold, fontSize: 18),
         ),
         centerTitle: true,
       ),
@@ -85,7 +86,7 @@ class _VenueBookingHistoryScreenState extends State<VenueBookingHistoryScreen> {
         children: [
           // Filter Tabs Bar
           Container(
-            color: const Color(0xFF131A2A),
+            color: AppColors.card,
             padding: const EdgeInsets.symmetric(vertical: 8),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -97,17 +98,17 @@ class _VenueBookingHistoryScreenState extends State<VenueBookingHistoryScreen> {
                     duration: const Duration(milliseconds: 200),
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     decoration: BoxDecoration(
-                      color: isSelected ? const Color(0xFF00E5FF).withValues(alpha: 0.15) : Colors.transparent,
+                      color: isSelected ? AppColors.accent.withValues(alpha: 0.15) : Colors.transparent,
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: isSelected ? const Color(0xFF00E5FF) : Colors.transparent,
+                        color: isSelected ? AppColors.accent : Colors.transparent,
                         width: 1.2,
                       ),
                     ),
                     child: Text(
                       filter,
                       style: TextStyle(
-                        color: isSelected ? const Color(0xFF00E5FF) : Colors.white60,
+                        color: isSelected ? AppColors.accent : Colors.white60,
                         fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                         fontSize: 13,
                       ),
@@ -135,7 +136,7 @@ class _VenueBookingHistoryScreenState extends State<VenueBookingHistoryScreen> {
                 }
 
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)));
+                  return Center(child: CircularProgressIndicator(color: AppColors.accent));
                 }
 
                 final rawDocs = snapshot.data?.docs ?? [];
@@ -184,11 +185,11 @@ class _VenueBookingHistoryScreenState extends State<VenueBookingHistoryScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.history_toggle_off, size: 48, color: Colors.white24),
+                        Icon(Icons.history_toggle_off, size: 48, color: AppColors.text24),
                         const SizedBox(height: 12),
                         Text(
                           'Niciun meci în istoric (${_statusFilter.toLowerCase()}).',
-                          style: const TextStyle(color: Colors.white38, fontSize: 14),
+                          style: TextStyle(color: AppColors.text38, fontSize: 14),
                         ),
                       ],
                     ),
@@ -216,10 +217,10 @@ class _VenueBookingHistoryScreenState extends State<VenueBookingHistoryScreen> {
                     final bool isPaid = isCard || paymentStatus == 'confirmed';
                     final double price = (data['price'] as num?)?.toDouble() ?? 0.0;
 
-                    Color statusColor = Colors.grey;
+                    Color statusColor = AppColors.muted;
                     String statusText = 'TRECUT';
                     if (status == 'completed') {
-                      statusColor = const Color(0xFF00FF66);
+                      statusColor = AppColors.good;
                       statusText = 'FINALIZAT';
                     } else if (status == 'cancelled') {
                       statusColor = Colors.redAccent;
@@ -229,13 +230,13 @@ class _VenueBookingHistoryScreenState extends State<VenueBookingHistoryScreen> {
                     final bool canConfirmCash = !isPaid && !isCard && status != 'cancelled';
 
                     return Card(
-                      color: const Color(0xFF131A2A),
+                      color: AppColors.card,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                         side: BorderSide(
                           color: status == 'cancelled'
                               ? Colors.redAccent.withValues(alpha: 0.2)
-                              : const Color(0xFF00E5FF).withValues(alpha: 0.1),
+                              : AppColors.accent.withValues(alpha: 0.1),
                           width: 1.5,
                         ),
                       ),
@@ -248,19 +249,19 @@ class _VenueBookingHistoryScreenState extends State<VenueBookingHistoryScreen> {
                               children: [
                                 CircleAvatar(
                                   radius: 16,
-                                  backgroundColor: const Color(0xFF1E293B),
+                                  backgroundColor: AppColors.card2,
                                   backgroundImage: data['hostAvatarUrl'] != null && (data['hostAvatarUrl'] as String).isNotEmpty
                                       ? NetworkImage(data['hostAvatarUrl'])
                                       : null,
                                   child: data['hostAvatarUrl'] == null || (data['hostAvatarUrl'] as String).isEmpty
-                                      ? Text(hostName.substring(0, 1).toUpperCase(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12))
+                                      ? Text(hostName.substring(0, 1).toUpperCase(), style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold, fontSize: 12))
                                       : null,
                                 ),
                                 const SizedBox(width: 10),
                                 Expanded(
                                   child: Text(
                                     hostName,
-                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white),
+                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.text),
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
@@ -278,14 +279,14 @@ class _VenueBookingHistoryScreenState extends State<VenueBookingHistoryScreen> {
                                 ),
                               ],
                             ),
-                            const Divider(color: Colors.white10, height: 20),
+                            Divider(color: AppColors.text10, height: 20),
                             Row(
                               children: [
-                                const Icon(Icons.calendar_month, color: Colors.white38, size: 16),
+                                Icon(Icons.calendar_month, color: AppColors.text38, size: 16),
                                 const SizedBox(width: 8),
                                 Text(
                                   '$date  |  ${formatHour(startHour)} - ${formatHour(endHour)}',
-                                  style: const TextStyle(color: Colors.white70, fontSize: 13),
+                                  style: TextStyle(color: AppColors.text70, fontSize: 13),
                                 ),
                               ],
                             ),
@@ -294,24 +295,24 @@ class _VenueBookingHistoryScreenState extends State<VenueBookingHistoryScreen> {
                               spacing: 8,
                               runSpacing: 8,
                               children: [
-                                _buildBadge(Icons.table_restaurant, 'Masa $tableId', const Color(0xFF00E5FF)),
+                                _buildBadge(Icons.table_restaurant, 'Masa $tableId', AppColors.accent),
                                 _buildBadge(
                                   isFriendly ? Icons.favorite_border : Icons.emoji_events_outlined,
                                   isFriendly ? 'Amical' : 'Competitiv',
-                                  isFriendly ? Colors.purpleAccent : const Color(0xFF00E5FF),
+                                  isFriendly ? Colors.purpleAccent : AppColors.accent,
                                 ),
                                 _buildBadge(
                                   isPaid ? Icons.check_circle_outline : Icons.error_outline,
                                   isPaid
                                       ? (isCard ? 'Card (Achitat)' : 'Cash (Achitat)')
                                       : 'Cash (Neachitat)',
-                                  isPaid ? const Color(0xFF00FF66) : Colors.orangeAccent,
+                                  isPaid ? AppColors.good : Colors.orangeAccent,
                                 ),
                                 if (price > 0)
                                   _buildBadge(
                                     Icons.payments_outlined,
                                     'De plată: ${price.toStringAsFixed(0)} RON',
-                                    const Color(0xFFFFD700),
+                                    AppColors.gold,
                                   ),
                               ],
                             ),
@@ -327,7 +328,7 @@ class _VenueBookingHistoryScreenState extends State<VenueBookingHistoryScreen> {
                                     style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                                   ),
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF00FF66),
+                                    backgroundColor: AppColors.good,
                                     foregroundColor: Colors.black,
                                     padding: const EdgeInsets.symmetric(vertical: 10),
                                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -347,7 +348,7 @@ class _VenueBookingHistoryScreenState extends State<VenueBookingHistoryScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: const Color(0xFF00E5FF),
+        backgroundColor: AppColors.accent,
         foregroundColor: Colors.black,
         icon: const Icon(Icons.qr_code_scanner),
         label: const Text('Scanează', style: TextStyle(fontWeight: FontWeight.bold)),

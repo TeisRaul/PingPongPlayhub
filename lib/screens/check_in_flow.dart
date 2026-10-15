@@ -4,6 +4,7 @@ import '../services/checkin_service.dart';
 import '../utils/hour_utils.dart';
 import 'change_table_dialog.dart';
 import 'qr_scanner_screen.dart';
+import '../theme/app_theme.dart';
 
 enum CheckInAction { cancel, approve, wait, noShow, changeTable }
 
@@ -61,24 +62,24 @@ class CheckInFlow {
         context: context,
         builder: (ctx) => AlertDialog(
           scrollable: true,
-          backgroundColor: const Color(0xFF131A2A),
-          title: const Text('Aprobare Check-in',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          backgroundColor: AppColors.card,
+          title: Text('Aprobare Check-in',
+              style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (isAdmin)
-                Text('Sală: ${data['locationName'] ?? '-'}', style: const TextStyle(color: Colors.white70)),
-              Text('Jucător: ${data['hostUsername'] ?? 'Host'}', style: const TextStyle(color: Colors.white70)),
+                Text('Sală: ${data['locationName'] ?? '-'}', style: TextStyle(color: AppColors.text70)),
+              Text('Jucător: ${data['hostUsername'] ?? 'Host'}', style: TextStyle(color: AppColors.text70)),
               Text(
                 'Data: ${data['date']} | ${formatHour(data['startHour'])} - ${formatHour(data['endHour'])}',
-                style: const TextStyle(color: Colors.white70),
+                style: TextStyle(color: AppColors.text70),
               ),
               const SizedBox(height: 6),
               Text(
                 'Masa ${data['tableId'] ?? '-'}',
-                style: const TextStyle(color: Color(0xFF00E5FF), fontSize: 22, fontWeight: FontWeight.bold),
+                style: TextStyle(color: AppColors.accent, fontSize: 22, fontWeight: FontWeight.bold),
               ),
               if (result.minutesEarly > 0) ...[
                 const SizedBox(height: 6),
@@ -135,12 +136,12 @@ class CheckInFlow {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, CheckInAction.cancel),
-              child: const Text('Anulează', style: TextStyle(color: Colors.grey)),
+              child: Text('Anulează', style: TextStyle(color: AppColors.muted)),
             ),
             if (data['tableId'] != null)
               TextButton(
                 onPressed: () => Navigator.pop(ctx, CheckInAction.changeTable),
-                child: const Text('Schimbă masa', style: TextStyle(color: Color(0xFF00E5FF))),
+                child: Text('Schimbă masa', style: TextStyle(color: AppColors.accent)),
               ),
             if (result.overlaps.isNotEmpty)
               TextButton(
@@ -154,8 +155,8 @@ class CheckInFlow {
               ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: busy ? Colors.redAccent : const Color(0xFF00E5FF),
-                foregroundColor: busy ? Colors.white : Colors.black,
+                backgroundColor: busy ? Colors.redAccent : AppColors.accent,
+                foregroundColor: busy ? AppColors.text : Colors.black,
               ),
               onPressed: () => Navigator.pop(ctx, CheckInAction.approve),
               child: Text(busy ? 'Aprob oricum' : (isPaid ? 'Aprob intrarea' : 'Am încasat & aprob')),

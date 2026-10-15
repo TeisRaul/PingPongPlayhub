@@ -1,3 +1,5 @@
+import '../services/account_lookup.dart';
+import '../services/push_service.dart';
 import 'dart:convert';
 import '../utils/hour_utils.dart';
 import 'package:flutter/material.dart';
@@ -5,9 +7,14 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'dart:async';
+import '../l10n/app_locales.dart';
+import '../l10n/strings.dart';
 import '../utils/level_utils.dart';
+import 'language_screen.dart';
 import '../utils/match_stats.dart';
 import 'check_in_flow.dart';
+import '../services/trainer_service.dart';
+import '../services/notification_service.dart';
 import 'match_detail_screen.dart';
 import 'admin/admin_dashboard.dart';
 import 'find_match_screen.dart';
@@ -16,7 +23,12 @@ import 'inbox_screen.dart';
 import 'tournaments_screen.dart';
 import 'venue_booking_history_screen.dart';
 import 'venue_tables_layout_screen.dart';
+import 'venue_calendar_screen.dart';
+import 'venue_mass_cancel_screen.dart';
+import 'venue_pricing_screen.dart';
+import 'venue_vouchers_screen.dart';
 import '../widgets/player_drawer.dart';
+import '../theme/app_theme.dart';
 
 class ParallelogramClipper extends CustomClipper<Path> {
   @override
@@ -39,7 +51,7 @@ class ParallelogramBorderPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     Paint paint = Paint()
-      ..color = const Color(0xFF00E5FF)
+      ..color = AppColors.accent
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3.0;
 
@@ -78,6 +90,8 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _loadUserData();
+    AccountLookup.ensureForCurrentUser();
+    PushService.instance.onLogin();
     _startNewsAutoScroll();
   }
 
@@ -105,6 +119,32 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
+  bool _languagePromptShown = false;
+
+  /// Folosește limba salvată pe cont; dacă nu există (primul login), cere alegerea ei o singură dată.
+  void _applyUserLanguage() {
+    // Limba aleasă înainte de login are prioritate și se salvează pe cont.
+    if (AppLocales.chosenBeforeLogin) {
+      AppLocales.chosenBeforeLogin = false;
+      AppLocales.saveForCurrentUser(AppLocales.current.value);
+      return;
+    }
+    final dynamic lang = userData?['language'];
+    if (lang is String && AppLocales.isSupported(lang)) {
+      if (AppLocales.current.value != lang) AppLocales.apply(lang);
+      return;
+    }
+    if (_languagePromptShown) return;
+    _languagePromptShown = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const LanguageScreen(firstTime: true)),
+      );
+    });
+  }
+
   Future<void> _loadUserData() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
@@ -122,6 +162,7 @@ class _HomeScreenState extends State<HomeScreen> {
               isAdmin = isSuperAdmin || (userData?['isAdmin'] == true);
               _isLoading = false;
             });
+            _applyUserLanguage();
           }
         } else {
           // If not found in users, load from venues collection
@@ -134,6 +175,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 isAdmin = isSuperAdmin;
                 _isLoading = false;
               });
+              _applyUserLanguage();
             }
           } else {
             if (mounted) {
@@ -204,11 +246,11 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.dark(
-              primary: Color(0xFF00E5FF),
-              onPrimary: Colors.black,
-              surface: Color(0xFF131A2A),
-              onSurface: Colors.white,
+            colorScheme: AppColors.scheme(
+              primary: AppColors.accent,
+              onPrimary: AppColors.onAccent,
+              surface: AppColors.card,
+              onSurface: AppColors.text,
             ),
           ),
           child: child!,
@@ -226,13 +268,13 @@ class _HomeScreenState extends State<HomeScreen> {
           showDialog(
             context: context,
             builder: (context) => AlertDialog(
-              backgroundColor: const Color(0xFF131A2A),
-              title: const Text('Deblocare Dată', style: TextStyle(color: Colors.white)),
+              backgroundColor: AppColors.card,
+              title: Text('Deblocare Dată', style: TextStyle(color: AppColors.text)),
               content: Text('Dorești să deblochezi data de $dateStr pentru rezervări standard?'),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('Anulează', style: TextStyle(color: Colors.grey)),
+                  child: Text('Anulează', style: TextStyle(color: AppColors.muted)),
                 ),
                 TextButton(
                   onPressed: () async {
@@ -248,7 +290,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       );
                     }
                   },
-                  child: const Text('Deblochează', style: TextStyle(color: Color(0xFF00E5FF))),
+                  child: Text('Deblochează', style: TextStyle(color: AppColors.accent)),
                 ),
               ],
             ),
@@ -283,26 +325,26 @@ class _HomeScreenState extends State<HomeScreen> {
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
-          backgroundColor: const Color(0xFF131A2A),
+          backgroundColor: AppColors.card,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
             side: const BorderSide(color: Colors.redAccent, width: 1.5),
           ),
-          title: const Row(
+          title: Row(
             children: [
               Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 28),
               SizedBox(width: 10),
-              Text('Anulează Rezervarea', style: TextStyle(color: Colors.white)),
+              Text('Anulează Rezervarea', style: TextStyle(color: AppColors.text)),
             ],
           ),
           content: Text(
             'Sigur dorești să anulezi acest meci programat în data de $date la ora ${formatHour(startHour)}?\n\nToți jucătorii înscriși vor fi notificați automat.',
-            style: const TextStyle(color: Colors.white70),
+            style: TextStyle(color: AppColors.text70),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Înapoi', style: TextStyle(color: Colors.grey)),
+              child: Text('Înapoi', style: TextStyle(color: AppColors.muted)),
             ),
             TextButton(
               onPressed: () async {
@@ -323,25 +365,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   }
 
                   await FirebaseFirestore.instance.collection('matches').doc(matchId).update(updates);
-
-                  // 2. Send notifications to all participants
-                  final batch = FirebaseFirestore.instance.batch();
-                  for (var playerUid in joinedUids) {
-                    if (playerUid != user.uid) {
-                      final notifyRef = FirebaseFirestore.instance.collection('notifications').doc();
-                      batch.set(notifyRef, {
-                        'toUid': playerUid,
-                        'fromUid': user.uid,
-                        'fromUsername': venueName,
-                        'title': 'Meci Anulat de Club',
-                        'body': 'Meciul tău din $date de la ora ${formatHour(startHour)} de la $venueName a fost anulat din motive administrative.',
-                        'type': 'match_cancel',
-                        'status': 'pending',
-                        'timestamp': FieldValue.serverTimestamp(),
-                      });
-                    }
+                  try {
+                    await TrainerService.cancelForMatch(matchId);
+                  } catch (e) {
+                    debugPrint('Anulare sesiune antrenor: $e');
                   }
-                  await batch.commit();
+
+                  // 2. Toți jucătorii înscriși primesc notificare (popup + email)
+                  await NotificationService.matchCancelled(matchId, {...matchData, 'locationName': matchData['locationName'] ?? venueName}, byName: venueName);
 
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -367,8 +398,8 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF))),
+      return Scaffold(
+        body: Center(child: CircularProgressIndicator(color: AppColors.accent)),
       );
     }
 
@@ -393,11 +424,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: Container(
                     width: 50,
                     height: 50,
-                    color: const Color(0xFF131A2A),
+                    color: AppColors.card,
                     child: isVenue
-                      ? const Center(child: Icon(Icons.storefront, color: Color(0xFF00E5FF), size: 24))
+                      ? Center(child: Icon(Icons.storefront, color: AppColors.accent, size: 24))
                       : avatarUrl == null
-                        ? const Center(child: Icon(Icons.person, color: Colors.white, size: 28))
+                        ? Center(child: Icon(Icons.person, color: AppColors.text, size: 28))
                         : Image(
                             image: _getAvatarProvider(avatarUrl)!,
                             fit: BoxFit.cover,
@@ -413,7 +444,7 @@ class _HomeScreenState extends State<HomeScreen> {
         actions: [
           if (!isVenue) ...[
             IconButton(
-              icon: const Icon(Icons.mail_outline, color: Colors.white),
+              icon: Icon(Icons.mail_outline, color: AppColors.text),
               onPressed: () {
                 Navigator.push(
                   context,
@@ -438,7 +469,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   alignment: Alignment.center,
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.notifications_none, color: Colors.white),
+                      icon: Icon(Icons.notifications_none, color: AppColors.text),
                       onPressed: () {
                         NotificationsDialog.show(context);
                       },
@@ -452,7 +483,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           decoration: BoxDecoration(
                             color: Colors.redAccent,
                             borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: const Color(0xFF0A0E17), width: 1.5),
+                            border: Border.all(color: AppColors.bg, width: 1.5),
                           ),
                           constraints: const BoxConstraints(
                             minWidth: 16,
@@ -460,8 +491,8 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           child: Text(
                             count > 9 ? '9+' : '$count',
-                            style: const TextStyle(
-                              color: Colors.white,
+                            style: TextStyle(
+                              color: AppColors.text,
                               fontSize: 9,
                               fontWeight: FontWeight.bold,
                             ),
@@ -546,14 +577,14 @@ class _HomeScreenState extends State<HomeScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Salut, ${userData?['username'] ?? 'Jucător'}!',
-                          style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.white),
+                          tr('home.greeting', {'name': (userData?['username'] ?? tr('drawer.fallback_player')).toString()}),
+                          style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: AppColors.text),
                           overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 4),
-                        const Text(
-                          'Bun venit în arena Playhub!',
-                          style: TextStyle(color: Colors.grey, fontSize: 14),
+                        Text(
+                          tr('home.welcome'),
+                          style: TextStyle(color: AppColors.muted, fontSize: 14),
                         ),
                       ],
                     ),
@@ -565,10 +596,10 @@ class _HomeScreenState extends State<HomeScreen> {
               // 1. Rank Panel
               Card(
                 elevation: 8,
-                color: const Color(0xFF131A2A),
+                color: AppColors.card,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
-                  side: BorderSide(color: const Color(0xFF00E5FF).withValues(alpha: 0.3), width: 1.5),
+                  side: BorderSide(color: AppColors.accent.withValues(alpha: 0.3), width: 1.5),
                 ),
                 child: Container(
                   decoration: BoxDecoration(
@@ -577,9 +608,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
-                        const Color(0xFF131A2A),
-                        const Color(0xFF0A0E17),
-                        const Color(0xFF00E5FF).withValues(alpha: 0.06),
+                        AppColors.card,
+                        AppColors.bg,
+                        AppColors.accent.withValues(alpha: 0.06),
                       ],
                     ),
                   ),
@@ -592,12 +623,12 @@ class _HomeScreenState extends State<HomeScreen> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF00E5FF).withValues(alpha: 0.12),
+                              color: AppColors.accent.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: const Color(0xFF00E5FF), width: 1.5),
+                              border: Border.all(color: AppColors.accent, width: 1.5),
                               boxShadow: [
                                 BoxShadow(
-                                  color: const Color(0xFF00E5FF).withValues(alpha: 0.2),
+                                  color: AppColors.accent.withValues(alpha: 0.2),
                                   blurRadius: 8,
                                   spreadRadius: 1,
                                 ),
@@ -605,8 +636,8 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                             child: Text(
                               levelName.toUpperCase(),
-                              style: const TextStyle(
-                                color: Color(0xFF00E5FF),
+                              style: TextStyle(
+                                color: AppColors.accent,
                                 fontSize: 15,
                                 fontWeight: FontWeight.w900,
                                 letterSpacing: 1.2,
@@ -617,15 +648,15 @@ class _HomeScreenState extends State<HomeScreen> {
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
-                              const Text(
-                                'RATING JUCĂTOR',
-                                style: TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.w600),
+                              Text(
+                                tr('home.rating_label'),
+                                style: TextStyle(color: AppColors.muted, fontSize: 10, fontWeight: FontWeight.w600),
                               ),
                               const SizedBox(height: 2),
                               Text(
                                 '$rating PTS',
-                                style: const TextStyle(
-                                  color: Colors.white,
+                                style: TextStyle(
+                                  color: AppColors.text,
                                   fontSize: 18,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -638,13 +669,13 @@ class _HomeScreenState extends State<HomeScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text(
-                            'Progres Nivel',
-                            style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500),
+                          Text(
+                            tr('home.level_progress'),
+                            style: TextStyle(color: AppColors.text70, fontSize: 13, fontWeight: FontWeight.w500),
                           ),
                           Text(
                             '$currentPoints / ${currentPoints + pointsToNext} XP',
-                            style: const TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold),
+                            style: TextStyle(color: AppColors.muted, fontSize: 12, fontWeight: FontWeight.bold),
                           ),
                         ],
                       ),
@@ -653,15 +684,15 @@ class _HomeScreenState extends State<HomeScreen> {
                         borderRadius: BorderRadius.circular(6),
                         child: LinearProgressIndicator(
                           value: progress,
-                          backgroundColor: Colors.grey[900],
-                          color: const Color(0xFF00E5FF),
+                          backgroundColor: AppColors.card2,
+                          color: AppColors.accent,
                           minHeight: 10,
                         ),
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        'Mai ai nevoie de $pointsToNext puncte pentru a trece la următorul nivel!',
-                        style: const TextStyle(color: Colors.grey, fontSize: 12, fontStyle: FontStyle.italic),
+                        tr('home.next_level', {'points': '$pointsToNext'}),
+                        style: TextStyle(color: AppColors.muted, fontSize: 12, fontStyle: FontStyle.italic),
                       ),
                     ],
                   ),
@@ -673,33 +704,33 @@ class _HomeScreenState extends State<HomeScreen> {
               Row(
                 children: [
                   _buildDashboardStatCard(
-                    'Meciuri Active',
+                    tr('home.stat_active'),
                     '$scheduledMatchesCount',
                     Icons.sports_tennis,
-                    const Color(0xFF00E5FF),
+                    AppColors.accent,
                   ),
                   const SizedBox(width: 12),
                   _buildDashboardStatCard(
-                    'Victorii',
+                    tr('home.stat_wins'),
                     '${completedCount > 0 ? winsCount : (userData?['wins'] ?? 0)}',
                     Icons.emoji_events_outlined,
-                    const Color(0xFFFF0055),
+                    AppColors.bad,
                   ),
                   const SizedBox(width: 12),
                   _buildDashboardStatCard(
-                    'Win Rate',
+                    tr('home.stat_winrate'),
                     completedCount > 0 ? formatWinRate(winsCount, completedCount) : '${userData?['winRate'] ?? "0%"}',
                     Icons.trending_up,
-                    const Color(0xFF00FF66),
+                    AppColors.good,
                   ),
                 ],
               ),
               const SizedBox(height: 24),
 
               // 3. News & Trivia Section
-              const Text(
-                'Noutăți & Curiozități',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+              Text(
+                tr('home.news'),
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.text),
               ),
               const SizedBox(height: 12),
               _buildNewsTriviaSection(),
@@ -707,17 +738,17 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 24),
 
               // 4. My Active Matches List
-              const Text(
-                'Meciurile Mele Programate',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+              Text(
+                tr('home.my_scheduled'),
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.text),
               ),
               const SizedBox(height: 12),
 
               if (snapshot.connectionState == ConnectionState.waiting)
-                const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)))
+                Center(child: CircularProgressIndicator(color: AppColors.accent))
               else if (activeMatches.isEmpty)
                 Card(
-                  color: const Color(0xFF131A2A),
+                  color: AppColors.card,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                     side: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
@@ -727,17 +758,17 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.calendar_today_outlined, size: 44, color: Colors.grey[600]),
+                        Icon(Icons.calendar_today_outlined, size: 44, color: AppColors.muted2),
                         const SizedBox(height: 12),
-                        const Text(
-                          'Nu ai meciuri active programate.',
-                          style: TextStyle(color: Colors.white70, fontSize: 15, fontWeight: FontWeight.bold),
+                        Text(
+                          tr('home.no_active'),
+                          style: TextStyle(color: AppColors.text70, fontSize: 15, fontWeight: FontWeight.bold),
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 8),
-                        const Text(
-                          'Fii primul care lansează o provocare sau alătură-te unui meci deschis în comunitate!',
-                          style: TextStyle(color: Colors.grey, fontSize: 13),
+                        Text(
+                          tr('home.no_active_sub'),
+                          style: TextStyle(color: AppColors.muted, fontSize: 13),
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 16),
@@ -749,9 +780,9 @@ class _HomeScreenState extends State<HomeScreen> {
                             );
                           },
                           icon: const Icon(Icons.search, size: 18, color: Colors.black),
-                          label: const Text('Caută Meciuri', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+                          label: Text(tr('home.find_matches'), style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF00E5FF),
+                            backgroundColor: AppColors.accent,
                             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                           ),
@@ -782,9 +813,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     final bool isPrivate = visibility.toLowerCase() == 'private';
                     final double price = (matchData['price'] as num?)?.toDouble() ?? 0.0;
 
-                    Color statusColor = const Color(0xFF00E5FF);
+                    Color statusColor = AppColors.accent;
                     if (status == 'matched') {
-                      statusColor = const Color(0xFF00FF66);
+                      statusColor = AppColors.good;
                     }
 
                     return GestureDetector(
@@ -796,11 +827,11 @@ class _HomeScreenState extends State<HomeScreen> {
     ),
   ),
   child: Card(
-                      color: const Color(0xFF131A2A),
+                      color: AppColors.card,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                         side: BorderSide(
-                          color: const Color(0xFF00E5FF).withValues(alpha: 0.15),
+                          color: AppColors.accent.withValues(alpha: 0.15),
                           width: 1.5,
                         ),
                       ),
@@ -813,12 +844,12 @@ class _HomeScreenState extends State<HomeScreen> {
                               children: [
                                 CircleAvatar(
                                   radius: 18,
-                                  backgroundColor: const Color(0xFF1E293B),
+                                  backgroundColor: AppColors.card2,
                                   backgroundImage: matchData['hostAvatarUrl'] != null && (matchData['hostAvatarUrl'] as String).isNotEmpty
                                       ? _getAvatarProvider(matchData['hostAvatarUrl'])
                                       : null,
                                   child: matchData['hostAvatarUrl'] == null || (matchData['hostAvatarUrl'] as String).isEmpty
-                                      ? Text(hostName.substring(0, 1).toUpperCase(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))
+                                      ? Text(hostName.substring(0, 1).toUpperCase(), style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold))
                                       : null,
                                 ),
                                 const SizedBox(width: 10),
@@ -828,7 +859,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                     children: [
                                       Text(
                                         hostName,
-                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.white),
+                                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.text),
                                         overflow: TextOverflow.ellipsis,
                                       ),
                                       if (!((matchData['hostUid'] ?? '').toString().startsWith('offline_') ||
@@ -837,7 +868,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                           matchData['hostUid'] == matchData['locationId']))
                                         Text(
                                           matchData['hostLevel'] ?? 'Jucător',
-                                          style: const TextStyle(fontSize: 12, color: Color(0xFF00E5FF)),
+                                          style: TextStyle(fontSize: 12, color: AppColors.accent),
                                           overflow: TextOverflow.ellipsis,
                                         ),
                                     ],
@@ -857,23 +888,23 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ),
                               ],
                             ),
-                            const Divider(color: Colors.grey, height: 24),
+                            Divider(color: AppColors.muted, height: 24),
                             Row(
                               children: [
-                                const Icon(Icons.calendar_month, color: Colors.grey, size: 18),
+                                Icon(Icons.calendar_month, color: AppColors.muted, size: 18),
                                 const SizedBox(width: 8),
-                                Text('$date  |  ${formatHour(startHour)} - ${formatHour(endHour)}', style: const TextStyle(color: Colors.white70)),
+                                Text('$date  |  ${formatHour(startHour)} - ${formatHour(endHour)}', style: TextStyle(color: AppColors.text70)),
                               ],
                             ),
                             const SizedBox(height: 8),
                             Row(
                               children: [
-                                const Icon(Icons.location_on_outlined, color: Colors.grey, size: 18),
+                                Icon(Icons.location_on_outlined, color: AppColors.muted, size: 18),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
                                     location,
-                                    style: const TextStyle(color: Colors.white70),
+                                    style: TextStyle(color: AppColors.text70),
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
@@ -884,11 +915,11 @@ class _HomeScreenState extends State<HomeScreen> {
                             if (joined.isNotEmpty) ...[
                               Row(
                                 children: [
-                                  const Icon(Icons.people_outline, color: Colors.grey, size: 18),
+                                  Icon(Icons.people_outline, color: AppColors.muted, size: 18),
                                   const SizedBox(width: 8),
                                   Text(
-                                    '${joined.length} jucători:',
-                                    style: const TextStyle(color: Colors.grey, fontSize: 12),
+                                    tr('home.players_count', {'count': '${joined.length}'}),
+                                    style: TextStyle(color: AppColors.muted, fontSize: 12),
                                   ),
                                   const SizedBox(width: 8),
                                   Expanded(
@@ -907,10 +938,10 @@ class _HomeScreenState extends State<HomeScreen> {
                                               margin: const EdgeInsets.only(right: 6),
                                               child: CircleAvatar(
                                                 radius: 12,
-                                                backgroundColor: const Color(0xFF1E293B),
+                                                backgroundColor: AppColors.card2,
                                                 backgroundImage: pAvatar != null && pAvatar.isNotEmpty ? _getAvatarProvider(pAvatar) : null,
                                                 child: pAvatar == null || pAvatar.isEmpty
-                                                    ? Text(pName.substring(0, 1).toUpperCase(), style: const TextStyle(fontSize: 8, color: Colors.white, fontWeight: FontWeight.bold))
+                                                    ? Text(pName.substring(0, 1).toUpperCase(), style: TextStyle(fontSize: 8, color: AppColors.text, fontWeight: FontWeight.bold))
                                                     : null,
                                               ),
                                             ),
@@ -928,22 +959,22 @@ class _HomeScreenState extends State<HomeScreen> {
                               spacing: 8,
                               runSpacing: 8,
                               children: [
-                                _buildBadge(Icons.table_restaurant, 'Masa $tableId', const Color(0xFF00E5FF)),
+                                _buildBadge(Icons.table_restaurant, 'Masa $tableId', AppColors.accent),
                                 _buildBadge(
                                   isPrivate ? Icons.lock_outline : Icons.public,
-                                  isPrivate ? 'Meci Privat' : 'Meci Public',
-                                  isPrivate ? const Color(0xFFFF0055) : const Color(0xFF00E5FF),
+                                  isPrivate ? tr('home.match_private') : tr('home.match_public'),
+                                  isPrivate ? AppColors.bad : AppColors.accent,
                                 ),
                                 _buildBadge(
                                   isFriendly ? Icons.favorite_border : Icons.emoji_events_outlined,
-                                  isFriendly ? 'Amical' : 'Competitiv',
-                                  isFriendly ? Colors.purpleAccent : const Color(0xFF00E5FF),
+                                  isFriendly ? tr('match.friendly') : tr('match.competitive'),
+                                  isFriendly ? Colors.purpleAccent : AppColors.accent,
                                 ),
                                 if (price > 0)
                                   _buildBadge(
                                     Icons.payments_outlined,
-                                    'De plată: ${price.toStringAsFixed(0)} RON',
-                                    const Color(0xFFFFD700),
+                                    tr('home.to_pay', {'amount': price.toStringAsFixed(0)}),
+                                    AppColors.gold,
                                   ),
                               ],
                             ),
@@ -966,7 +997,7 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: const Color(0xFF131A2A),
+          color: AppColors.card,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: color.withValues(alpha: 0.2), width: 1.2),
         ),
@@ -977,8 +1008,8 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 10),
             Text(
               value,
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: AppColors.text,
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
               ),
@@ -986,8 +1017,8 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 4),
             Text(
               label,
-              style: const TextStyle(
-                color: Colors.grey,
+              style: TextStyle(
+                color: AppColors.muted,
                 fontSize: 10,
                 fontWeight: FontWeight.w500,
               ),
@@ -1083,7 +1114,7 @@ class _HomeScreenState extends State<HomeScreen> {
         'subtitle': 'Pe Lună',
         'content': 'Golful este unul dintre cele două sporturi jucate pe Lună! Astronautul Alan Shepard a lovit două mingi de golf în 1971.',
         'icon': Icons.sports_golf,
-        'color': Colors.white70,
+        'color': AppColors.text70,
       }
     ];
 
@@ -1101,14 +1132,14 @@ class _HomeScreenState extends State<HomeScreen> {
             width: 280,
             margin: const EdgeInsets.only(right: 14, bottom: 4),
             decoration: BoxDecoration(
-              color: const Color(0xFF131A2A),
+              color: AppColors.card,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: color.withValues(alpha: 0.25), width: 1.2),
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  const Color(0xFF131A2A),
+                  AppColors.card,
                   color.withValues(alpha: 0.05),
                 ],
               ),
@@ -1139,8 +1170,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 6),
                   Text(
                     item['subtitle'].toString().toUpperCase(),
-                    style: const TextStyle(
-                      color: Colors.grey,
+                    style: TextStyle(
+                      color: AppColors.muted,
                       fontWeight: FontWeight.bold,
                       fontSize: 10,
                       letterSpacing: 1.0,
@@ -1150,8 +1181,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   Expanded(
                     child: Text(
                       item['content'],
-                      style: const TextStyle(
-                        color: Colors.white70,
+                      style: TextStyle(
+                        color: AppColors.text70,
                         fontSize: 12,
                         height: 1.35,
                       ),
@@ -1180,10 +1211,10 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           // Welcome Card
           Card(
-            color: const Color(0xFF131A2A),
+            color: AppColors.card,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
-              side: BorderSide(color: const Color(0xFF00E5FF).withValues(alpha: 0.3), width: 1.5),
+              side: BorderSide(color: AppColors.accent.withValues(alpha: 0.3), width: 1.5),
             ),
             child: Padding(
               padding: const EdgeInsets.all(20.0),
@@ -1199,11 +1230,11 @@ class _HomeScreenState extends State<HomeScreen> {
                           children: [
                             Text(
                               userData?['venueName'] ?? 'Club Tenis',
-                              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
+                              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.text),
                               overflow: TextOverflow.ellipsis,
                             ),
                             const SizedBox(height: 4),
-                            const Text('Cont de Sală / Partener', style: TextStyle(color: Color(0xFF00E5FF), fontSize: 14)),
+                            Text('Cont de Sală / Partener', style: TextStyle(color: AppColors.accent, fontSize: 14)),
                           ],
                         ),
                       ),
@@ -1263,18 +1294,18 @@ class _HomeScreenState extends State<HomeScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF00E5FF).withValues(alpha: 0.05),
+                        color: AppColors.accent.withValues(alpha: 0.05),
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.2)),
+                        border: Border.all(color: AppColors.accent.withValues(alpha: 0.2)),
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.sell_outlined, color: Color(0xFF00E5FF), size: 16),
+                          Icon(Icons.sell_outlined, color: AppColors.accent, size: 16),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               'Schemă tarifară: ${userData!['pricePerHourText']}',
-                              style: const TextStyle(color: Colors.white, fontSize: 13, height: 1.3),
+                              style: TextStyle(color: AppColors.text, fontSize: 13, height: 1.3),
                             ),
                           ),
                         ],
@@ -1297,9 +1328,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   icon: const Icon(Icons.block_outlined, size: 20),
                   label: const Text('Blochează Dată'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF131A2A),
-                    foregroundColor: Colors.white,
-                    side: BorderSide(color: const Color(0xFF00E5FF).withValues(alpha: 0.4)),
+                    backgroundColor: AppColors.card,
+                    foregroundColor: AppColors.text,
+                    side: BorderSide(color: AppColors.accent.withValues(alpha: 0.4)),
                     padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
                 ),
@@ -1316,7 +1347,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   icon: const Icon(Icons.emoji_events_outlined, size: 20),
                   label: const Text('Turneele Noastre'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF00E5FF),
+                    backgroundColor: AppColors.accent,
                     foregroundColor: Colors.black,
                     padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
@@ -1341,9 +1372,89 @@ class _HomeScreenState extends State<HomeScreen> {
               icon: const Icon(Icons.history_outlined, size: 20),
               label: const Text('Istoric Rezervări & Meciuri'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF131A2A),
-                foregroundColor: const Color(0xFF00E5FF),
-                side: const BorderSide(color: Color(0xFF00E5FF), width: 1.2),
+                backgroundColor: AppColors.card,
+                foregroundColor: AppColors.accent,
+                side: BorderSide(color: AppColors.accent, width: 1.2),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => VenueCalendarScreen(venueId: FirebaseAuth.instance.currentUser!.uid, venueName: userData?['venueName'] ?? '')),
+                    ).then((_) => _loadUserData());
+                  },
+                  icon: const Icon(Icons.calendar_view_day_outlined, size: 20),
+                  label: const Text('Calendar pe zile (mută rezervări)'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.card,
+                    foregroundColor: AppColors.accent,
+                    side: BorderSide(color: AppColors.accent.withValues(alpha: 0.6)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => VenueMassCancelScreen(venueId: FirebaseAuth.instance.currentUser!.uid, venueName: userData?['venueName'] ?? '')),
+                    ).then((_) => _loadUserData());
+                  },
+                  icon: const Icon(Icons.event_busy_outlined, size: 20),
+                  label: const Text('Anulare în masă'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.card,
+                    foregroundColor: AppColors.accent,
+                    side: BorderSide(color: AppColors.accent.withValues(alpha: 0.6)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                )),
+              const SizedBox(width: 12),
+              Expanded(child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => VenuePricingScreen(venueId: FirebaseAuth.instance.currentUser!.uid)),
+                    ).then((_) => _loadUserData());
+                  },
+                  icon: const Icon(Icons.sell_outlined, size: 20),
+                  label: const Text('Prețuri'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.card,
+                    foregroundColor: AppColors.accent,
+                    side: BorderSide(color: AppColors.accent.withValues(alpha: 0.6)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                )),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const VenueVouchersScreen()));
+              },
+              icon: const Icon(Icons.confirmation_number_outlined, size: 20),
+              label: const Text('Vouchere / coduri de reducere'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.card,
+                foregroundColor: AppColors.accent,
+                side: BorderSide(color: AppColors.accent.withValues(alpha: 0.6)),
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
@@ -1352,7 +1463,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
           if (blockedDates.isNotEmpty) ...[
             const SizedBox(height: 16),
-            const Text('Zile blocate pentru public:', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+            Text('Zile blocate pentru public:', style: TextStyle(color: AppColors.text, fontSize: 16, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             SizedBox(
               height: 40,
@@ -1410,7 +1521,7 @@ class _HomeScreenState extends State<HomeScreen> {
               }
 
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)));
+                return Center(child: CircularProgressIndicator(color: AppColors.accent));
               }
 
               final rawDocs = snapshot.data?.docs ?? [];
@@ -1494,10 +1605,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       );
                     },
                     child: Card(
-                      color: const Color(0xFF0D1424),
+                      color: AppColors.bgDeep,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
-                        side: const BorderSide(color: Color(0xFF00E5FF), width: 1.5),
+                        side: BorderSide(color: AppColors.accent, width: 1.5),
                       ),
                       child: Padding(
                         padding: const EdgeInsets.all(16.0),
@@ -1506,12 +1617,12 @@ class _HomeScreenState extends State<HomeScreen> {
                           children: [
                             Row(
                               children: [
-                                const Icon(Icons.today, color: Color(0xFF00E5FF), size: 24),
+                                Icon(Icons.today, color: AppColors.accent, size: 24),
                                 const SizedBox(width: 8),
-                                const Text(
+                                Text(
                                   'ASTĂZI LA CLUB',
                                   style: TextStyle(
-                                    color: Colors.white,
+                                    color: AppColors.text,
                                     fontSize: 16,
                                     fontWeight: FontWeight.bold,
                                     letterSpacing: 1.2,
@@ -1520,44 +1631,44 @@ class _HomeScreenState extends State<HomeScreen> {
                                 const Spacer(),
                                 Text(
                                   DateFormat('dd MMM yyyy').format(DateTime.now()),
-                                  style: const TextStyle(color: Colors.grey, fontSize: 13),
+                                  style: TextStyle(color: AppColors.muted, fontSize: 13),
                                 ),
                               ],
                             ),
-                            const Divider(color: Color(0xFF00E5FF), height: 24, thickness: 1),
+                            Divider(color: AppColors.accent, height: 24, thickness: 1),
                             Row(
                               children: [
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      const Text('Meciuri azi', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                                      Text('Meciuri azi', style: TextStyle(color: AppColors.muted, fontSize: 11)),
                                       const SizedBox(height: 4),
                                       Text(
                                         '$todayMatchesCount',
-                                        style: const TextStyle(
-                                          color: Color(0xFF00E5FF),
+                                        style: TextStyle(
+                                          color: AppColors.accent,
                                           fontSize: 28,
                                           fontWeight: FontWeight.bold,
                                           shadows: [
-                                            Shadow(color: Color(0xFF00E5FF), blurRadius: 8),
+                                            Shadow(color: AppColors.accent, blurRadius: 8),
                                           ],
                                         ),
                                       ),
                                     ],
                                   ),
                                 ),
-                                Container(width: 1, height: 40, color: Colors.grey[800]),
+                                Container(width: 1, height: 40, color: AppColors.border),
                                 const SizedBox(width: 16),
                                 Expanded(
                                   flex: 2,
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      const Text('Mese ocupate', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                                      Text('Mese ocupate', style: TextStyle(color: AppColors.muted, fontSize: 11)),
                                       const SizedBox(height: 6),
                                       todayReservedTables.isEmpty
-                                          ? const Text('Nicio masă ocupată', style: TextStyle(color: Colors.grey, fontSize: 13))
+                                          ? Text('Nicio masă ocupată', style: TextStyle(color: AppColors.muted, fontSize: 13))
                                           : Wrap(
                                               spacing: 6,
                                               runSpacing: 6,
@@ -1565,14 +1676,14 @@ class _HomeScreenState extends State<HomeScreen> {
                                                 return Container(
                                                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                                   decoration: BoxDecoration(
-                                                    color: const Color(0xFFFF0055).withValues(alpha: 0.15),
-                                                    border: Border.all(color: const Color(0xFFFF0055), width: 1),
+                                                    color: AppColors.bad.withValues(alpha: 0.15),
+                                                    border: Border.all(color: AppColors.bad, width: 1),
                                                     borderRadius: BorderRadius.circular(6),
                                                   ),
                                                   child: Text(
                                                     'Masa $t',
-                                                    style: const TextStyle(
-                                                      color: Color(0xFFFF0055),
+                                                    style: TextStyle(
+                                                      color: AppColors.bad,
                                                       fontSize: 10,
                                                       fontWeight: FontWeight.bold,
                                                     ),
@@ -1586,10 +1697,10 @@ class _HomeScreenState extends State<HomeScreen> {
                               ],
                             ),
                             const SizedBox(height: 16),
-                            const Text('Intervale active azi:', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                            Text('Intervale active azi:', style: TextStyle(color: AppColors.muted, fontSize: 11)),
                             const SizedBox(height: 6),
                             todayIntervals.isEmpty
-                                ? const Text('Niciun interval rezervat', style: TextStyle(color: Colors.grey, fontSize: 13))
+                                ? Text('Niciun interval rezervat', style: TextStyle(color: AppColors.muted, fontSize: 13))
                                 : Wrap(
                                     spacing: 6,
                                     runSpacing: 6,
@@ -1597,14 +1708,14 @@ class _HomeScreenState extends State<HomeScreen> {
                                       return Container(
                                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                         decoration: BoxDecoration(
-                                          color: const Color(0xFF00E5FF).withValues(alpha: 0.1),
-                                          border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.5), width: 1),
+                                          color: AppColors.accent.withValues(alpha: 0.1),
+                                          border: Border.all(color: AppColors.accent.withValues(alpha: 0.5), width: 1),
                                           borderRadius: BorderRadius.circular(6),
                                         ),
                                         child: Text(
                                           interval,
-                                          style: const TextStyle(
-                                            color: Colors.white70,
+                                          style: TextStyle(
+                                            color: AppColors.text70,
                                             fontSize: 11,
                                             fontWeight: FontWeight.bold,
                                           ),
@@ -1624,10 +1735,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Expanded(
+                      Expanded(
                         child: Text(
                           'Programări active / Rezervări mese',
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.text),
                         ),
                       ),
                       ElevatedButton.icon(
@@ -1635,7 +1746,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         icon: const Icon(Icons.qr_code_scanner, color: Colors.black, size: 18),
                         label: const Text('SCAN QR', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF00E5FF),
+                          backgroundColor: AppColors.accent,
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                         ),
@@ -1646,16 +1757,16 @@ class _HomeScreenState extends State<HomeScreen> {
 
                   if (docs.isEmpty)
                     Card(
-                      color: const Color(0xFF131A2A),
+                      color: AppColors.card,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      child: const Padding(
+                      child: Padding(
                         padding: EdgeInsets.symmetric(vertical: 40.0),
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.calendar_today_outlined, size: 48, color: Colors.grey),
+                            Icon(Icons.calendar_today_outlined, size: 48, color: AppColors.muted),
                             SizedBox(height: 12),
-                            Text('Nicio programare activă.', style: TextStyle(color: Colors.grey, fontSize: 15)),
+                            Text('Nicio programare activă.', style: TextStyle(color: AppColors.muted, fontSize: 15)),
                           ],
                         ),
                       ),
@@ -1690,7 +1801,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         
                         final bool canConfirmCash = !isPaid && !isCard && status != 'cancelled';
 
-                        Color statusColor = const Color(0xFF00E5FF);
+                        Color statusColor = AppColors.accent;
                         if (isCancelled) {
                           statusColor = Colors.redAccent;
                         } else if (status == 'matched') {
@@ -1706,11 +1817,11 @@ class _HomeScreenState extends State<HomeScreen> {
     ),
   ),
   child: Card(
-                          color: const Color(0xFF131A2A),
+                          color: AppColors.card,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16),
                             side: BorderSide(
-                              color: isCancelled ? Colors.redAccent.withValues(alpha: 0.3) : const Color(0xFF00E5FF).withValues(alpha: 0.15),
+                              color: isCancelled ? Colors.redAccent.withValues(alpha: 0.3) : AppColors.accent.withValues(alpha: 0.15),
                               width: 1.5,
                             ),
                           ),
@@ -1724,12 +1835,12 @@ class _HomeScreenState extends State<HomeScreen> {
                                   children: [
                                     CircleAvatar(
                                       radius: 18,
-                                      backgroundColor: const Color(0xFF1E293B),
+                                      backgroundColor: AppColors.card2,
                                       backgroundImage: data['hostAvatarUrl'] != null && (data['hostAvatarUrl'] as String).isNotEmpty
                                           ? _getAvatarProvider(data['hostAvatarUrl'])
                                           : null,
                                       child: data['hostAvatarUrl'] == null || (data['hostAvatarUrl'] as String).isEmpty
-                                          ? Text(hostName.substring(0, 1).toUpperCase(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))
+                                          ? Text(hostName.substring(0, 1).toUpperCase(), style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold))
                                           : null,
                                     ),
                                     const SizedBox(width: 10),
@@ -1739,7 +1850,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                         children: [
                                           Text(
                                             hostName,
-                                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
+                                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.text),
                                             overflow: TextOverflow.ellipsis,
                                           ),
                                           if (!((data['hostUid'] ?? '').toString().startsWith('offline_') ||
@@ -1748,7 +1859,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                               data['hostLevel'] == '-'))
                                             Text(
                                               data['hostLevel'] ?? 'Jucător',
-                                              style: const TextStyle(fontSize: 12, color: Color(0xFF00E5FF)),
+                                              style: TextStyle(fontSize: 12, color: AppColors.accent),
                                               overflow: TextOverflow.ellipsis,
                                             ),
                                         ],
@@ -1768,13 +1879,13 @@ class _HomeScreenState extends State<HomeScreen> {
                                     ),
                                   ],
                                 ),
-                                const Divider(color: Colors.grey, height: 24),
+                                Divider(color: AppColors.muted, height: 24),
                                 // Data si orele
                                 Row(
                                   children: [
-                                    const Icon(Icons.calendar_month, color: Colors.grey, size: 18),
+                                    Icon(Icons.calendar_month, color: AppColors.muted, size: 18),
                                     const SizedBox(width: 8),
-                                    Text('$date  |  ${formatHour(startHour)} - ${formatHour(endHour)}', style: const TextStyle(color: Colors.white70)),
+                                    Text('$date  |  ${formatHour(startHour)} - ${formatHour(endHour)}', style: TextStyle(color: AppColors.text70)),
                                   ],
                                 ),
                                 const SizedBox(height: 12),
@@ -1783,9 +1894,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                   Row(
                                     crossAxisAlignment: CrossAxisAlignment.center,
                                     children: [
-                                      const Icon(Icons.people_outline, color: Colors.grey, size: 18),
+                                      Icon(Icons.people_outline, color: AppColors.muted, size: 18),
                                       const SizedBox(width: 8),
-                                      Text('${joined.length} jucători înscriși:', style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                                      Text('${joined.length} jucători înscriși:', style: TextStyle(color: AppColors.muted, fontSize: 13)),
                                     ],
                                   ),
                                   const SizedBox(height: 8),
@@ -1804,10 +1915,10 @@ class _HomeScreenState extends State<HomeScreen> {
                                             margin: const EdgeInsets.only(right: 6),
                                             child: CircleAvatar(
                                               radius: 14,
-                                              backgroundColor: const Color(0xFF1E293B),
+                                              backgroundColor: AppColors.card2,
                                               backgroundImage: pAvatar != null && pAvatar.isNotEmpty ? _getAvatarProvider(pAvatar) : null,
                                               child: pAvatar == null || pAvatar.isEmpty
-                                                  ? Text(pName.substring(0, 1).toUpperCase(), style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold))
+                                                  ? Text(pName.substring(0, 1).toUpperCase(), style: TextStyle(fontSize: 10, color: AppColors.text, fontWeight: FontWeight.bold))
                                                   : null,
                                             ),
                                           ),
@@ -1822,29 +1933,29 @@ class _HomeScreenState extends State<HomeScreen> {
                                   spacing: 8,
                                   runSpacing: 8,
                                   children: [
-                                    _buildBadge(Icons.table_restaurant, 'Masa $tableId', const Color(0xFF00E5FF)),
+                                    _buildBadge(Icons.table_restaurant, 'Masa $tableId', AppColors.accent),
                                     _buildBadge(
                                       isPrivate ? Icons.lock_outline : Icons.public,
-                                      isPrivate ? 'Meci Privat' : 'Meci Public',
-                                      isPrivate ? const Color(0xFFFF0055) : const Color(0xFF00E5FF),
+                                      isPrivate ? tr('home.match_private') : tr('home.match_public'),
+                                      isPrivate ? AppColors.bad : AppColors.accent,
                                     ),
                                     _buildBadge(
                                       isFriendly ? Icons.favorite_border : Icons.emoji_events_outlined,
-                                      isFriendly ? 'Amical' : 'Competitiv',
-                                      isFriendly ? Colors.purpleAccent : const Color(0xFF00E5FF),
+                                      isFriendly ? tr('match.friendly') : tr('match.competitive'),
+                                      isFriendly ? Colors.purpleAccent : AppColors.accent,
                                     ),
                                     _buildBadge(
                                       isPaid ? (isCard ? Icons.credit_card : Icons.check_circle_outline) : Icons.payments_outlined,
                                       isPaid
                                           ? (isCard ? 'Card (Achitat)' : 'Cash (Achitat)')
                                           : 'Cash (Neachitat)',
-                                      isPaid ? const Color(0xFF00FF66) : Colors.orangeAccent,
+                                      isPaid ? AppColors.good : Colors.orangeAccent,
                                     ),
                                     if (price > 0)
                                       _buildBadge(
                                         Icons.payments_outlined,
-                                        'De plată: ${price.toStringAsFixed(0)} RON',
-                                        const Color(0xFFFFD700),
+                                        tr('home.to_pay', {'amount': price.toStringAsFixed(0)}),
+                                        AppColors.gold,
                                       ),
                                   ],
                                 ),
@@ -1860,7 +1971,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                           icon: const Icon(Icons.check, size: 16),
                                           label: const Text('CONFIRMĂ PLATĂ CASH', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                                           style: ElevatedButton.styleFrom(
-                                            backgroundColor: const Color(0xFF00FF66),
+                                            backgroundColor: AppColors.good,
                                             foregroundColor: Colors.black,
                                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                           ),
@@ -1878,7 +1989,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                             style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
                                           ),
                                           style: ElevatedButton.styleFrom(
-                                            backgroundColor: const Color(0xFF00E5FF),
+                                            backgroundColor: AppColors.accent,
                                             foregroundColor: Colors.black,
                                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                           ),
@@ -1953,15 +2064,15 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: const Color(0xFF0A0E17),
+          color: AppColors.bg,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: const Color(0xFF1E293B)),
+          border: Border.all(color: AppColors.card2),
         ),
         child: Column(
           children: [
-            Text(label, style: const TextStyle(color: Colors.grey, fontSize: 11), textAlign: TextAlign.center),
+            Text(label, style: TextStyle(color: AppColors.muted, fontSize: 11), textAlign: TextAlign.center),
             const SizedBox(height: 6),
-            Text(value, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+            Text(value, style: TextStyle(color: AppColors.text, fontSize: 14, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
           ],
         ),
       ),

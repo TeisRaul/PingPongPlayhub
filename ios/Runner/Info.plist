@@ -66,6 +66,8 @@
         <string>vivapay</string>
         <string>sumupmerchant</string>
     </array>
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>Playhub folosește locația ta pentru a-ți arăta cele mai apropiate săli.</string>
     <key>NSCameraUsageDescription</key>
     <string>Playhub necesită acces la cameră pentru scanarea codurilor QR de Check-in la sală.</string>
     <key>NSPhotoLibraryUsageDescription</key>

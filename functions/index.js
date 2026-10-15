@@ -134,3 +134,29 @@ exports.createStripeAccountLink = onRequest(options, async (req, res) => {
     res.status(500).json({error: "Could not create link"});
   }
 });
+
+// Email pentru fiecare notificare (vezi email.js)
+exports.sendNotificationEmail = require("./email").sendNotificationEmail;
+
+// Abonamentul lunar al sălilor (vezi billing.js)
+const billing = require("./billing");
+exports.createVenueSubscriptionCheckout = billing.createVenueSubscriptionCheckout;
+exports.createVenueBillingPortal = billing.createVenueBillingPortal;
+exports.stripeWebhook = billing.stripeWebhook;
+
+// Export de date și ștergere de cont (vezi account.js)
+const account = require("./account");
+exports.exportMyData = account.exportMyData;
+exports.deleteMyAccount = account.deleteMyAccount;
+
+// Notificări push pe telefon / browser (vezi push.js)
+exports.sendPushNotification = require("./push").sendPushNotification;
+
+// Lista de așteptare pentru mese (vezi waitlist.js)
+exports.notifyWaitlist = require("./waitlist").notifyWaitlist;
+
+// Vouchere / coduri de reducere (vezi vouchers.js)
+const vouchers = require("./vouchers");
+exports.checkVoucher = vouchers.checkVoucher;
+exports.redeemVoucher = vouchers.redeemVoucher;
+exports.releaseVoucher = vouchers.releaseVoucher;

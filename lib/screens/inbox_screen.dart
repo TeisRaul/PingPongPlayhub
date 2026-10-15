@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'chat_screen.dart';
+import '../theme/app_theme.dart';
 
 class InboxScreen extends StatefulWidget {
   const InboxScreen({super.key});
@@ -31,7 +32,7 @@ class _InboxScreenState extends State<InboxScreen> {
       return Scaffold(
         appBar: AppBar(
           title: const Text('Mesaje'),
-          backgroundColor: const Color(0xFF131A2A),
+          backgroundColor: AppColors.card,
         ),
         body: const Center(child: Text('Trebuie să fii autentificat!')),
       );
@@ -40,7 +41,7 @@ class _InboxScreenState extends State<InboxScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Mesaje'),
-        backgroundColor: const Color(0xFF131A2A),
+        backgroundColor: AppColors.card,
         elevation: 0,
       ),
       body: StreamBuilder<QuerySnapshot>(
@@ -66,7 +67,7 @@ class _InboxScreenState extends State<InboxScreen> {
           }
 
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)));
+            return Center(child: CircularProgressIndicator(color: AppColors.accent));
           }
 
           final rawDocs = snapshot.data?.docs ?? [];
@@ -85,15 +86,15 @@ class _InboxScreenState extends State<InboxScreen> {
           });
 
           if (docs.isEmpty) {
-            return const Center(
+            return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.chat_bubble_outline, size: 64, color: Colors.grey),
+                  Icon(Icons.chat_bubble_outline, size: 64, color: AppColors.muted),
                   SizedBox(height: 16),
-                  Text('Nicio conversație activă.', style: TextStyle(color: Colors.grey, fontSize: 16)),
+                  Text('Nicio conversație activă.', style: TextStyle(color: AppColors.muted, fontSize: 16)),
                   SizedBox(height: 8),
-                  Text('Trimite un mesaj prietenilor din lista de prieteni!', style: TextStyle(color: Colors.grey, fontSize: 12), textAlign: TextAlign.center),
+                  Text('Trimite un mesaj prietenilor din lista de prieteni!', style: TextStyle(color: AppColors.muted, fontSize: 12), textAlign: TextAlign.center),
                 ],
               ),
             );
@@ -117,11 +118,11 @@ class _InboxScreenState extends State<InboxScreen> {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF00E5FF).withValues(alpha: 0.1),
+                    color: AppColors.accent.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
-                    border: Border.all(color: const Color(0xFF00E5FF), width: 1.5),
+                    border: Border.all(color: AppColors.accent, width: 1.5),
                   ),
-                  child: const Icon(Icons.emoji_events_outlined, color: Color(0xFF00E5FF), size: 20),
+                  child: Icon(Icons.emoji_events_outlined, color: AppColors.accent, size: 20),
                 );
               } else {
                 // Find other participant's data
@@ -137,13 +138,13 @@ class _InboxScreenState extends State<InboxScreen> {
 
                 chatTitle = otherUsername;
                 leadingWidget = CircleAvatar(
-                  backgroundColor: const Color(0xFF1E293B),
+                  backgroundColor: AppColors.card2,
                   backgroundImage: otherAvatarUrl != null && otherAvatarUrl.isNotEmpty
                       ? NetworkImage(otherAvatarUrl)
                       : null,
                   child: otherAvatarUrl == null || otherAvatarUrl.isEmpty
                       ? Text(otherUsername.substring(0, 1).toUpperCase(),
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))
+                          style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold))
                       : null,
                 );
               }
@@ -152,10 +153,10 @@ class _InboxScreenState extends State<InboxScreen> {
               final Timestamp? lastTime = data['lastMessageTime'];
 
               return Card(
-                color: const Color(0xFF131A2A),
+                color: AppColors.card,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
-                  side: BorderSide(color: const Color(0xFF00E5FF).withValues(alpha: 0.2)),
+                  side: BorderSide(color: AppColors.accent.withValues(alpha: 0.2)),
                 ),
                 child: ListTile(
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -171,7 +172,7 @@ class _InboxScreenState extends State<InboxScreen> {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      Text(_formatTime(lastTime), style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                      Text(_formatTime(lastTime), style: TextStyle(color: AppColors.muted, fontSize: 12)),
                     ],
                   ),
                   subtitle: Padding(
@@ -180,7 +181,7 @@ class _InboxScreenState extends State<InboxScreen> {
                       lastMsg,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: Colors.grey, fontSize: 14),
+                      style: TextStyle(color: AppColors.muted, fontSize: 14),
                     ),
                   ),
                   onTap: () {

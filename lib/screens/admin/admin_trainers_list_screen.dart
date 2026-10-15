@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'admin_trainer_detail_screen.dart';
+import '../../theme/app_theme.dart';
 
 class AdminTrainersListScreen extends StatefulWidget {
   const AdminTrainersListScreen({super.key});
@@ -15,24 +16,24 @@ class _AdminTrainersListScreenState extends State<AdminTrainersListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0E17),
+      backgroundColor: AppColors.bg,
       appBar: AppBar(
-        title: const Text('Gestiune Antrenori', style: TextStyle(color: Colors.white, fontSize: 18)),
-        backgroundColor: const Color(0xFF131A2A),
-        iconTheme: const IconThemeData(color: Color(0xFF00E5FF)),
+        title: Text('Gestiune Antrenori', style: TextStyle(color: AppColors.text, fontSize: 18)),
+        backgroundColor: AppColors.card,
+        iconTheme: IconThemeData(color: AppColors.accent),
       ),
       body: Column(
         children: [
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: TextField(
-              style: const TextStyle(color: Colors.white),
+              style: TextStyle(color: AppColors.text),
               decoration: InputDecoration(
                 hintText: 'Caută antrenor după nume...',
-                hintStyle: const TextStyle(color: Colors.grey),
-                prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                hintStyle: TextStyle(color: AppColors.muted),
+                prefixIcon: Icon(Icons.search, color: AppColors.muted),
                 filled: true,
-                fillColor: const Color(0xFF131A2A),
+                fillColor: AppColors.card,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide.none,
@@ -50,12 +51,12 @@ class _AdminTrainersListScreenState extends State<AdminTrainersListScreen> {
               stream: FirebaseFirestore.instance.collection('users').where('isTrainer', isEqualTo: true).snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)));
+                  return Center(child: CircularProgressIndicator(color: AppColors.accent));
                 }
 
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return const Center(
-                    child: Text('Niciun antrenor găsit.', style: TextStyle(color: Colors.grey)),
+                  return Center(
+                    child: Text('Niciun antrenor găsit.', style: TextStyle(color: AppColors.muted)),
                   );
                 }
 
@@ -69,8 +70,8 @@ class _AdminTrainersListScreenState extends State<AdminTrainersListScreen> {
                 }).toList();
 
                 if (trainers.isEmpty) {
-                  return const Center(
-                    child: Text('Niciun antrenor găsit cu acest nume.', style: TextStyle(color: Colors.grey)),
+                  return Center(
+                    child: Text('Niciun antrenor găsit cu acest nume.', style: TextStyle(color: AppColors.muted)),
                   );
                 }
 
@@ -93,19 +94,19 @@ class _AdminTrainersListScreenState extends State<AdminTrainersListScreen> {
                     if (priceText.isEmpty) priceText = 'Fără preț setat';
 
                     return Card(
-                      color: const Color(0xFF131A2A),
+                      color: AppColors.card,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
-                        side: BorderSide(color: const Color(0xFFFFD700).withOpacity(0.3)),
+                        side: BorderSide(color: AppColors.gold.withOpacity(0.3)),
                       ),
                       child: ListTile(
-                        leading: const Icon(
+                        leading: Icon(
                           Icons.sports_kabaddi,
-                          color: Color(0xFFFFD700),
+                          color: AppColors.gold,
                         ),
-                        title: Text(fullName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                        subtitle: Text(priceText, style: const TextStyle(color: Colors.grey, fontSize: 12)),
-                        trailing: const Icon(Icons.arrow_forward_ios, color: Colors.grey, size: 16),
+                        title: Text(fullName, style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold)),
+                        subtitle: Text(priceText, style: TextStyle(color: AppColors.muted, fontSize: 12)),
+                        trailing: Icon(Icons.arrow_forward_ios, color: AppColors.muted, size: 16),
                         onTap: () {
                           Navigator.push(
                             context,

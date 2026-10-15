@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../theme/app_theme.dart';
 
 class CreatePostScreen extends StatefulWidget {
   const CreatePostScreen({super.key});
@@ -85,17 +86,17 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0D1424),
+      backgroundColor: AppColors.bgDeep,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF131A2A),
-        title: const Text('Creează o postare', style: TextStyle(color: Colors.white)),
-        iconTheme: const IconThemeData(color: Colors.white),
+        backgroundColor: AppColors.card,
+        title: Text('Creează o postare', style: TextStyle(color: AppColors.text)),
+        iconTheme: IconThemeData(color: AppColors.text),
         actions: [
           _isPosting
-              ? const Center(child: Padding(padding: EdgeInsets.symmetric(horizontal: 16.0), child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Color(0xFF00E5FF), strokeWidth: 2))))
+              ? Center(child: Padding(padding: EdgeInsets.symmetric(horizontal: 16.0), child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: AppColors.accent, strokeWidth: 2))))
               : TextButton(
                   onPressed: _publishPost,
-                  child: const Text('POSTEAZĂ', style: TextStyle(color: Color(0xFF00E5FF), fontWeight: FontWeight.bold)),
+                  child: Text('POSTEAZĂ', style: TextStyle(color: AppColors.accent, fontWeight: FontWeight.bold)),
                 ),
         ],
       ),
@@ -108,20 +109,20 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 CircleAvatar(
-                  backgroundColor: const Color(0xFF1E293B),
+                  backgroundColor: AppColors.card2,
                   radius: 20,
-                  child: const Icon(Icons.person, color: Colors.white),
+                  child: Icon(Icons.person, color: AppColors.text),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: TextField(
                     controller: _contentController,
-                    style: const TextStyle(color: Colors.white),
+                    style: TextStyle(color: AppColors.text),
                     maxLines: null,
                     minLines: 4,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       hintText: 'La ce te gândești, campionule?',
-                      hintStyle: TextStyle(color: Colors.grey),
+                      hintStyle: TextStyle(color: AppColors.muted),
                       border: InputBorder.none,
                     ),
                   ),
@@ -129,7 +130,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
               ],
             ),
             const SizedBox(height: 16),
-            const Text('Cine poate vedea postarea?', style: TextStyle(color: Colors.white70, fontSize: 14)),
+            Text('Cine poate vedea postarea?', style: TextStyle(color: AppColors.text70, fontSize: 14)),
             const SizedBox(height: 8),
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
@@ -158,7 +159,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.cancel, color: Colors.white, size: 30),
+                    icon: Icon(Icons.cancel, color: AppColors.text, size: 30),
                     onPressed: () {
                       setState(() => _imageBase64 = null);
                     },
@@ -169,10 +170,10 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
             ],
             OutlinedButton.icon(
               onPressed: _pickImage,
-              icon: const Icon(Icons.image, color: Colors.white),
-              label: const Text('Adaugă o fotografie', style: TextStyle(color: Colors.white)),
+              icon: Icon(Icons.image, color: AppColors.text),
+              label: Text('Adaugă o fotografie', style: TextStyle(color: AppColors.text)),
               style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Colors.grey),
+                side: BorderSide(color: AppColors.muted),
                 padding: const EdgeInsets.symmetric(vertical: 16),
               ),
             ),
@@ -193,16 +194,16 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF00E5FF).withValues(alpha: 0.2) : const Color(0xFF1E293B),
-          border: Border.all(color: isSelected ? const Color(0xFF00E5FF) : Colors.transparent),
+          color: isSelected ? AppColors.accent.withValues(alpha: 0.2) : AppColors.card2,
+          border: Border.all(color: isSelected ? AppColors.accent : Colors.transparent),
           borderRadius: BorderRadius.circular(20),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 16, color: isSelected ? const Color(0xFF00E5FF) : Colors.grey),
+            Icon(icon, size: 16, color: isSelected ? AppColors.accent : AppColors.muted),
             const SizedBox(width: 6),
-            Text(label, style: TextStyle(color: isSelected ? const Color(0xFF00E5FF) : Colors.grey, fontSize: 13, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+            Text(label, style: TextStyle(color: isSelected ? AppColors.accent : AppColors.muted, fontSize: 13, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
           ],
         ),
       ),

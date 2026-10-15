@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'home_screen.dart';
+import '../theme/app_theme.dart';
 
 class AvatarScreen extends StatefulWidget {
   const AvatarScreen({super.key});
@@ -114,20 +115,20 @@ class _AvatarScreenState extends State<AvatarScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text(
+              Text(
                 'Alege-ți Avatarul',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.bold,
-                  color: Colors.white,
+                  color: AppColors.text,
                 ),
               ),
               const SizedBox(height: 8),
-              const Text(
+              Text(
                 'Selectează o imagine din telefon sau alege un avatar prestabilit.',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 16, color: Colors.grey),
+                style: TextStyle(fontSize: 16, color: AppColors.muted),
               ),
               const SizedBox(height: 24),
               
@@ -137,8 +138,8 @@ class _AvatarScreenState extends State<AvatarScreen> {
                 label: const Text('Selectează din Galerie'),
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
-                  side: const BorderSide(color: Color(0xFF00E5FF)),
-                  foregroundColor: const Color(0xFF00E5FF),
+                  side: BorderSide(color: AppColors.accent),
+                  foregroundColor: AppColors.accent,
                 ),
               ),
               
@@ -148,10 +149,10 @@ class _AvatarScreenState extends State<AvatarScreen> {
                   child: Container(
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      border: Border.all(color: const Color(0xFF00E5FF), width: 3),
+                      border: Border.all(color: AppColors.accent, width: 3),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF00E5FF).withValues(alpha: 0.4),
+                          color: AppColors.accent.withValues(alpha: 0.4),
                           blurRadius: 15,
                           spreadRadius: 2,
                         ),
@@ -166,7 +167,7 @@ class _AvatarScreenState extends State<AvatarScreen> {
               ],
               
               const SizedBox(height: 24),
-              const Text('SAU alege un avatar prestabilit:', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
+              Text('SAU alege un avatar prestabilit:', textAlign: TextAlign.center, style: TextStyle(color: AppColors.muted)),
               const SizedBox(height: 16),
               
               Expanded(
@@ -190,16 +191,16 @@ class _AvatarScreenState extends State<AvatarScreen> {
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 300),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF131A2A),
+                          color: AppColors.card,
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
-                            color: isSelected ? const Color(0xFF00E5FF) : Colors.transparent,
+                            color: isSelected ? AppColors.accent : Colors.transparent,
                             width: 3,
                           ),
                           boxShadow: isSelected
                               ? [
                                   BoxShadow(
-                                    color: const Color(0xFF00E5FF).withValues(alpha: 0.4),
+                                    color: AppColors.accent.withValues(alpha: 0.4),
                                     blurRadius: 15,
                                     spreadRadius: 2,
                                   )
@@ -211,7 +212,7 @@ class _AvatarScreenState extends State<AvatarScreen> {
                           children: [
                             CircleAvatar(
                               radius: 50,
-                              backgroundColor: const Color(0xFF1E293B),
+                              backgroundColor: AppColors.card2,
                               backgroundImage: AssetImage(_avatarPaths[index]),
                             ),
                             const SizedBox(height: 16),
@@ -219,7 +220,7 @@ class _AvatarScreenState extends State<AvatarScreen> {
                               _avatarNames[index],
                               style: TextStyle(
                                 fontWeight: FontWeight.bold,
-                                color: isSelected ? Colors.white : Colors.grey,
+                                color: isSelected ? AppColors.text : AppColors.muted,
                               ),
                             ),
                           ],
@@ -239,7 +240,7 @@ class _AvatarScreenState extends State<AvatarScreen> {
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
                 child: _isLoading 
-                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) 
+                    ? SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: AppColors.text, strokeWidth: 2)) 
                     : const Text('SALVEAZĂ'),
               ),
               const SizedBox(height: 24),

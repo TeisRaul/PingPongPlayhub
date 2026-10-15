@@ -1,3 +1,5 @@
+import 'price_rules.dart';
+
 class LevelUtils {
   static const int pointsPerLevel = 250;
   static const List<String> tiers = ['Iron', 'Bronze', 'Silver', 'Gold', 'Platinum'];
@@ -225,9 +227,11 @@ class LevelUtils {
     required Map<String, dynamic> venueData,
     required num startHour,
     required num endHour,
+    DateTime? date,
   }) {
     if (startHour >= endHour) return 0.0;
 
+    final rules = VenuePriceRule.parseList(venueData['priceRules']);
     final String priceType = venueData['priceType'] ?? 'flat';
     final double flatHalf = (venueData['flatPriceHalf'] as num?)?.toDouble() ?? 15.0;
 
@@ -239,15 +243,13 @@ class LevelUtils {
     num current = startHour;
 
     while (current < endHour) {
+      double slot;
       if (priceType == 'dynamic') {
-        if (current < limitHour) {
-          total += dynHalfBefore;
-        } else {
-          total += dynHalfAfter;
-        }
+        slot = current < limitHour ? dynHalfBefore : dynHalfAfter;
       } else {
-        total += flatHalf;
+        slot = flatHalf;
       }
+      total += VenuePriceRule.slotPrice(rules, date, current.toDouble(), slot);
       current += 0.5;
     }
 

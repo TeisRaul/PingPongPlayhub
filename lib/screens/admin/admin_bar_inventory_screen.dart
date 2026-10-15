@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../theme/app_theme.dart';
 
 class AdminBarInventoryScreen extends StatefulWidget {
   final String venueId;
@@ -69,24 +70,24 @@ class _AdminBarInventoryScreenState extends State<AdminBarInventoryScreen> {
         return StatefulBuilder(
           builder: (context, setStateDialog) {
             return AlertDialog(
-              backgroundColor: const Color(0xFF131A2A),
-              title: const Text('Adaugă Produs Nou', style: TextStyle(color: Colors.white)),
+              backgroundColor: AppColors.card,
+              title: Text('Adaugă Produs Nou', style: TextStyle(color: AppColors.text)),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   TextField(
                     controller: nameController,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: const InputDecoration(
+                    style: TextStyle(color: AppColors.text),
+                    decoration: InputDecoration(
                       labelText: 'Nume Produs',
-                      labelStyle: TextStyle(color: Colors.grey),
+                      labelStyle: TextStyle(color: AppColors.muted),
                     ),
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
                     value: selectedCategory,
-                    dropdownColor: const Color(0xFF131A2A),
-                    style: const TextStyle(color: Colors.white),
+                    dropdownColor: AppColors.card,
+                    style: TextStyle(color: AppColors.text),
                     items: categories.map((cat) {
                       return DropdownMenuItem(value: cat, child: Text(cat));
                     }).toList(),
@@ -95,19 +96,19 @@ class _AdminBarInventoryScreenState extends State<AdminBarInventoryScreen> {
                         setStateDialog(() => selectedCategory = val);
                       }
                     },
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Categorie',
-                      labelStyle: TextStyle(color: Colors.grey),
+                      labelStyle: TextStyle(color: AppColors.muted),
                     ),
                   ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: priceController,
                     keyboardType: TextInputType.number,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: const InputDecoration(
+                    style: TextStyle(color: AppColors.text),
+                    decoration: InputDecoration(
                       labelText: 'Preț (RON)',
-                      labelStyle: TextStyle(color: Colors.grey),
+                      labelStyle: TextStyle(color: AppColors.muted),
                     ),
                   ),
                 ],
@@ -115,7 +116,7 @@ class _AdminBarInventoryScreenState extends State<AdminBarInventoryScreen> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('Anulează', style: TextStyle(color: Colors.grey)),
+                  child: Text('Anulează', style: TextStyle(color: AppColors.muted)),
                 ),
                 ElevatedButton(
                   onPressed: () async {
@@ -137,7 +138,7 @@ class _AdminBarInventoryScreenState extends State<AdminBarInventoryScreen> {
                     }
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF00E5FF),
+                    backgroundColor: AppColors.accent,
                     foregroundColor: Colors.black,
                   ),
                   child: const Text('Adaugă'),
@@ -153,7 +154,7 @@ class _AdminBarInventoryScreenState extends State<AdminBarInventoryScreen> {
   void _showTemplatesDialog() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF131A2A),
+      backgroundColor: AppColors.card,
       builder: (context) {
         return ListView.builder(
           padding: const EdgeInsets.all(16),
@@ -161,10 +162,10 @@ class _AdminBarInventoryScreenState extends State<AdminBarInventoryScreen> {
           itemBuilder: (context, index) {
             final t = _templates[index];
             return ListTile(
-              title: Text(t['name'], style: const TextStyle(color: Colors.white)),
-              subtitle: Text('${t['category']} - ${t['price']} RON', style: const TextStyle(color: Colors.grey)),
+              title: Text(t['name'], style: TextStyle(color: AppColors.text)),
+              subtitle: Text('${t['category']} - ${t['price']} RON', style: TextStyle(color: AppColors.muted)),
               trailing: IconButton(
-                icon: const Icon(Icons.add_circle, color: Color(0xFF00E5FF)),
+                icon: Icon(Icons.add_circle, color: AppColors.accent),
                 onPressed: () {
                   _addTemplateItem(t);
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -182,11 +183,11 @@ class _AdminBarInventoryScreenState extends State<AdminBarInventoryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0E17),
+      backgroundColor: AppColors.bg,
       appBar: AppBar(
-        title: const Text('Inventar Bar / Snacks', style: TextStyle(color: Colors.white, fontSize: 18)),
-        backgroundColor: const Color(0xFF131A2A),
-        iconTheme: const IconThemeData(color: Color(0xFF00E5FF)),
+        title: Text('Inventar Bar / Snacks', style: TextStyle(color: AppColors.text, fontSize: 18)),
+        backgroundColor: AppColors.card,
+        iconTheme: IconThemeData(color: AppColors.accent),
       ),
       body: Column(
         children: [
@@ -200,9 +201,9 @@ class _AdminBarInventoryScreenState extends State<AdminBarInventoryScreen> {
                     icon: const Icon(Icons.list_alt),
                     label: const Text('Din Șabloane'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF131A2A),
-                      foregroundColor: Colors.white,
-                      side: const BorderSide(color: Colors.grey),
+                      backgroundColor: AppColors.card,
+                      foregroundColor: AppColors.text,
+                      side: BorderSide(color: AppColors.muted),
                     ),
                   ),
                 ),
@@ -213,7 +214,7 @@ class _AdminBarInventoryScreenState extends State<AdminBarInventoryScreen> {
                     icon: const Icon(Icons.add),
                     label: const Text('Custom'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF00E5FF),
+                      backgroundColor: AppColors.accent,
                       foregroundColor: Colors.black,
                     ),
                   ),
@@ -221,7 +222,7 @@ class _AdminBarInventoryScreenState extends State<AdminBarInventoryScreen> {
               ],
             ),
           ),
-          const Divider(color: Colors.grey),
+          Divider(color: AppColors.muted),
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
@@ -232,13 +233,13 @@ class _AdminBarInventoryScreenState extends State<AdminBarInventoryScreen> {
                   .snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)));
+                  return Center(child: CircularProgressIndicator(color: AppColors.accent));
                 }
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return const Center(
+                  return Center(
                     child: Text('Niciun produs în inventar.\nAdaugă produse pentru a fi disponibile jucătorilor.',
                         textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.grey)),
+                        style: TextStyle(color: AppColors.muted)),
                   );
                 }
 
@@ -257,23 +258,23 @@ class _AdminBarInventoryScreenState extends State<AdminBarInventoryScreen> {
                     final isActive = data['isActive'] ?? true;
 
                     return Card(
-                      color: const Color(0xFF131A2A),
+                      color: AppColors.card,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       child: ListTile(
                         leading: Icon(
                           category == 'Apă' ? Icons.water_drop :
                           category == 'Cafea' ? Icons.local_cafe :
                           category == 'Snack' ? Icons.fastfood : Icons.local_drink,
-                          color: isActive ? const Color(0xFF00E5FF) : Colors.grey,
+                          color: isActive ? AppColors.accent : AppColors.muted,
                         ),
-                        title: Text(name, style: TextStyle(color: isActive ? Colors.white : Colors.grey, decoration: isActive ? null : TextDecoration.lineThrough)),
-                        subtitle: Text('$category | $price RON', style: const TextStyle(color: Colors.grey)),
+                        title: Text(name, style: TextStyle(color: isActive ? AppColors.text : AppColors.muted, decoration: isActive ? null : TextDecoration.lineThrough)),
+                        subtitle: Text('$category | $price RON', style: TextStyle(color: AppColors.muted)),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Switch(
                               value: isActive,
-                              activeColor: const Color(0xFF00E5FF),
+                              activeColor: AppColors.accent,
                               onChanged: (val) => _toggleItemStatus(doc.id, isActive),
                             ),
                             IconButton(

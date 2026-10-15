@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import '../l10n/strings.dart';
+import '../services/notification_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'chat_screen.dart';
 import '../widgets/player_drawer.dart';
+import '../theme/app_theme.dart';
 
 class TournamentsScreen extends StatefulWidget {
   const TournamentsScreen({super.key});
@@ -83,30 +86,31 @@ class _TournamentsScreenState extends State<TournamentsScreen> with SingleTicker
   }
 
   void _showCreateTournamentDialog() {
-    if (!isVerifiedVenue) {
+    // Verificarea contului se cere doar sălilor; jucătorii pot doar PROPUNE turnee.
+    if (isVenue && !isVerifiedVenue) {
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
-          backgroundColor: const Color(0xFF131A2A),
+          backgroundColor: AppColors.card,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
             side: const BorderSide(color: Colors.orangeAccent, width: 1.5),
           ),
-          title: const Row(
+          title: Row(
             children: [
               Icon(Icons.warning_amber_rounded, color: Colors.orangeAccent, size: 28),
               SizedBox(width: 10),
-              Text('Cont Neverificat', style: TextStyle(color: Colors.white)),
+              Text(tr('tour.unverified_title'), style: TextStyle(color: AppColors.text)),
             ],
           ),
-          content: const Text(
-            'Doar cluburile verificate pot organiza turnee oficiale în platformă. Așteaptă aprobarea administratorului.',
-            style: TextStyle(color: Colors.white70),
+          content: Text(
+            tr('tour.unverified_body'),
+            style: TextStyle(color: AppColors.text70),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('ÎNCHIDE', style: TextStyle(color: Color(0xFF00E5FF))),
+              child: Text(tr('common.close').toUpperCase(), style: TextStyle(color: AppColors.accent)),
             ),
           ],
         ),
@@ -117,7 +121,7 @@ class _TournamentsScreenState extends State<TournamentsScreen> with SingleTicker
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: const Color(0xFF0A0E17),
+      backgroundColor: AppColors.bg,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -129,7 +133,7 @@ class _TournamentsScreenState extends State<TournamentsScreen> with SingleTicker
           Navigator.pop(context);
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(isVenue ? 'Turneul a fost creat cu succes!' : 'Propunerea a fost trimisă spre aprobare!'),
+              content: Text(isVenue ? tr('tour.created') : tr('tour.proposed_sent')),
               backgroundColor: Colors.green
             ),
           );
@@ -141,43 +145,43 @@ class _TournamentsScreenState extends State<TournamentsScreen> with SingleTicker
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0E17),
+      backgroundColor: AppColors.bg,
       drawer: const PlayerDrawer(activePage: 'tournaments'),
       appBar: AppBar(
         leading: Builder(
           builder: (context) => IconButton(
-            icon: const Icon(Icons.menu, color: Color(0xFF00E5FF)),
+            icon: Icon(Icons.menu, color: AppColors.accent),
             onPressed: () {
               Scaffold.of(context).openDrawer();
             },
           ),
         ),
-        title: const Text('Turnee Tenis de Masă'),
-        backgroundColor: const Color(0xFF131A2A),
+        title: Text(tr('tour.title')),
+        backgroundColor: AppColors.card,
         elevation: 0,
         bottom: TabBar(
           controller: _tabController,
-          indicatorColor: const Color(0xFF00E5FF),
-          labelColor: const Color(0xFF00E5FF),
-          unselectedLabelColor: Colors.grey,
+          indicatorColor: AppColors.accent,
+          labelColor: AppColors.accent,
+          unselectedLabelColor: AppColors.muted,
           tabs: [
-            const Tab(icon: Icon(Icons.emoji_events_outlined), text: 'Turnee Active'),
-            Tab(icon: const Icon(Icons.pending_actions), text: isVenue ? 'De Aprobat' : 'Propuse'),
-            const Tab(icon: Icon(Icons.history), text: 'Istoric Turnee'),
+            Tab(icon: const Icon(Icons.emoji_events_outlined), text: tr('tour.tab_active')),
+            Tab(icon: const Icon(Icons.pending_actions), text: isVenue ? tr('tour.tab_approve') : tr('tour.tab_proposed')),
+            Tab(icon: const Icon(Icons.history), text: tr('tour.tab_history')),
           ],
         ),
       ),
       floatingActionButton: (isVenue && isVerifiedVenue) || !isVenue
           ? FloatingActionButton.extended(
               onPressed: _showCreateTournamentDialog,
-              backgroundColor: const Color(0xFF00E5FF),
+              backgroundColor: AppColors.accent,
               foregroundColor: Colors.black,
               icon: Icon(isVenue ? Icons.add : Icons.campaign),
-              label: Text(isVenue ? 'CREEAZĂ TURNEU' : 'PROPUNE TURNEU', style: const TextStyle(fontWeight: FontWeight.bold)),
+              label: Text(isVenue ? tr('tour.create') : tr('tour.propose'), style: const TextStyle(fontWeight: FontWeight.bold)),
             )
           : null,
       body: _isLoadingUser
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)))
+          ? Center(child: CircularProgressIndicator(color: AppColors.accent))
           : TabBarView(
               controller: _tabController,
               children: [
@@ -189,6 +193,33 @@ class _TournamentsScreenState extends State<TournamentsScreen> with SingleTicker
     );
   }
 
+
+  /// Turneu încheiat după dată: data (yyyy-MM-dd) + ora de final (sau sfârșitul zilei).
+  bool _isExpired(Map<String, dynamic> data) {
+    final DateTime? d = DateTime.tryParse((data['date'] ?? '').toString());
+    if (d == null) return false;
+    final String end = (data['endTime'] ?? '').toString();
+    final m = RegExp(r'^(\d{1,2}):(\d{2})').firstMatch(end);
+    final DateTime endAt = m != null
+        ? DateTime(d.year, d.month, d.day, int.parse(m.group(1)!), int.parse(m.group(2)!))
+        : DateTime(d.year, d.month, d.day, 23, 59);
+    return endAt.isBefore(DateTime.now());
+  }
+
+  /// Căruia dintre cele trei liste îi aparține turneul.
+  bool _belongsTo(String listType, Map<String, dynamic> data) {
+    final String status = (data['status'] ?? 'open').toString();
+    final bool running = status == 'open' || status == 'active';
+    switch (listType) {
+      case 'active':
+        return running && !_isExpired(data);
+      case 'pending':
+        return status == 'pending_approval';
+      default:
+        return status == 'completed' || (running && _isExpired(data));
+    }
+  }
+
   Widget _buildTournamentsList(String listType) {
     final Query baseQuery = FirebaseFirestore.instance.collection('tournaments');
     Query query;
@@ -197,31 +228,34 @@ class _TournamentsScreenState extends State<TournamentsScreen> with SingleTicker
     } else if (listType == 'pending') {
       query = baseQuery.where('status', isEqualTo: 'pending_approval');
     } else {
-      query = baseQuery.where('status', isEqualTo: 'completed');
+      // Finalizate + cele deschise/active a căror dată a trecut (filtrate local în _belongsTo).
+      query = baseQuery.where('status', whereIn: ['completed', 'open', 'active']);
     }
 
     return StreamBuilder<QuerySnapshot>(
       stream: query.snapshots(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          return Center(child: Text('Eroare la încărcare: ${snapshot.error}', style: const TextStyle(color: Colors.redAccent)));
+          return Center(child: Text(tr('tour.load_error', {'error': '${snapshot.error}'}), style: const TextStyle(color: Colors.redAccent)));
         }
 
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)));
+          return Center(child: CircularProgressIndicator(color: AppColors.accent));
         }
 
-        final docs = snapshot.data?.docs ?? [];
+        final docs = (snapshot.data?.docs ?? [])
+            .where((d) => _belongsTo(listType, d.data() as Map<String, dynamic>))
+            .toList();
         if (docs.isEmpty) {
           return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.emoji_events_outlined, size: 64, color: Colors.grey[700]),
+                Icon(Icons.emoji_events_outlined, size: 64, color: AppColors.border700),
                 const SizedBox(height: 16),
                 Text(
-                  listType == 'active' ? 'Nu există turnee active în acest moment.' : 'Niciun turneu.',
-                  style: const TextStyle(color: Colors.grey, fontSize: 16),
+                  listType == 'active' ? tr('tour.none_active') : tr('tour.none'),
+                  style: TextStyle(color: AppColors.muted, fontSize: 16),
                 ),
               ],
             ),
@@ -236,8 +270,8 @@ class _TournamentsScreenState extends State<TournamentsScreen> with SingleTicker
             final data = doc.data() as Map<String, dynamic>;
             final String id = doc.id;
 
-            final String title = data['title'] ?? 'Turneu';
-            final String venueName = data['venueName'] ?? 'Sală';
+            final String title = data['title'] ?? tr('tour.default_title');
+            final String venueName = data['venueName'] ?? tr('tour.default_venue');
             final String date = data['date'] ?? '';
             final String time = data['time'] ?? '';
             final String endTime = data['endTime'] ?? '';
@@ -248,21 +282,25 @@ class _TournamentsScreenState extends State<TournamentsScreen> with SingleTicker
             final String minRank = data['minRank'] ?? 'Toate Rank-urile';
             final String maxRank = data['maxRank'] ?? 'Toate Rank-urile';
 
-            Color statusColor = const Color(0xFF00E5FF);
-            String statusText = 'Înscrieri deschise';
+            Color statusColor = AppColors.accent;
+            String statusText = tr('tour.st_open');
             if (status == 'active') {
               statusColor = Colors.orangeAccent;
-              statusText = 'În desfășurare';
+              statusText = tr('tour.st_active');
             } else if (status == 'completed') {
               statusColor = Colors.greenAccent;
-              statusText = 'Finalizat';
+              statusText = tr('tour.st_completed');
             } else if (status == 'pending_approval') {
               statusColor = Colors.yellowAccent;
-              statusText = 'În Așteptare Aprobare';
+              statusText = tr('tour.st_pending');
+            }
+            if (listType == 'history' && status != 'completed') {
+              statusColor = AppColors.muted;
+              statusText = tr('tour.st_ended');
             }
 
             return Card(
-              color: const Color(0xFF131A2A),
+              color: AppColors.card,
               margin: const EdgeInsets.only(bottom: 16),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
@@ -302,42 +340,42 @@ class _TournamentsScreenState extends State<TournamentsScreen> with SingleTicker
                             ),
                           ),
                           Text(
-                            entryFee == 0 ? 'GRATUIT' : '$entryFee RON Taxă',
-                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                            entryFee == 0 ? tr('tour.free') : tr('tour.fee', {'fee': '$entryFee'}),
+                            style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold, fontSize: 13),
                           ),
                         ],
                       ),
                       const SizedBox(height: 12),
                       Text(
                         title,
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.text),
                       ),
                       const SizedBox(height: 6),
                       Row(
                         children: [
-                          const Icon(Icons.storefront, size: 16, color: Colors.grey),
+                          Icon(Icons.storefront, size: 16, color: AppColors.muted),
                           const SizedBox(width: 6),
-                          Text(venueName, style: const TextStyle(color: Colors.grey, fontSize: 14)),
+                          Text(venueName, style: TextStyle(color: AppColors.muted, fontSize: 14)),
                         ],
                       ),
                       const SizedBox(height: 12),
-                      const Divider(color: Color(0xFF1E293B)),
+                      Divider(color: AppColors.card2),
                       const SizedBox(height: 8),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Row(
                             children: [
-                              const Icon(Icons.calendar_month_outlined, size: 18, color: Color(0xFF00E5FF)),
+                              Icon(Icons.calendar_month_outlined, size: 18, color: AppColors.accent),
                               const SizedBox(width: 6),
-                              Text('$date | $time${endTime.isNotEmpty ? " - $endTime" : ""}', style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                              Text('$date | $time${endTime.isNotEmpty ? " - $endTime" : ""}', style: TextStyle(color: AppColors.text70, fontSize: 13)),
                             ],
                           ),
                           Row(
                             children: [
-                              const Icon(Icons.people_outline, size: 18, color: Color(0xFF00E5FF)),
+                              Icon(Icons.people_outline, size: 18, color: AppColors.accent),
                               const SizedBox(width: 6),
-                              Text('${joinedUids.length} / $maxPlayers Jucători', style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                              Text(tr('tour.players_count', {'n': '${joinedUids.length}', 'max': '$maxPlayers'}), style: TextStyle(color: AppColors.text70, fontSize: 13)),
                             ],
                           ),
                         ],
@@ -346,18 +384,18 @@ class _TournamentsScreenState extends State<TournamentsScreen> with SingleTicker
                       Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF0A0E17),
+                          color: AppColors.bg,
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.military_tech_outlined, size: 18, color: Color(0xFF00E5FF)),
+                            Icon(Icons.military_tech_outlined, size: 18, color: AppColors.accent),
                             const SizedBox(width: 6),
                             Text(
                               minRank == 'Toate Rank-urile'
-                                  ? 'Nivel permis: Toate rank-urile'
-                                  : 'Nivel permis: $minRank - $maxRank',
-                              style: const TextStyle(color: Colors.grey, fontSize: 12),
+                                  ? tr('tour.level_all')
+                                  : tr('tour.level_range', {'min': minRank, 'max': maxRank}),
+                              style: TextStyle(color: AppColors.muted, fontSize: 12),
                             ),
                           ],
                         ),
@@ -467,11 +505,11 @@ class _CreateTournamentFormState extends State<CreateTournamentForm> {
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.dark(
-              primary: Color(0xFF00E5FF),
-              onPrimary: Colors.black,
-              surface: Color(0xFF131A2A),
-              onSurface: Colors.white,
+            colorScheme: AppColors.scheme(
+              primary: AppColors.accent,
+              onPrimary: AppColors.onAccent,
+              surface: AppColors.card,
+              onSurface: AppColors.text,
             ),
           ),
           child: child!,
@@ -490,11 +528,11 @@ class _CreateTournamentFormState extends State<CreateTournamentForm> {
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.dark(
-              primary: Color(0xFF00E5FF),
-              onPrimary: Colors.black,
-              surface: Color(0xFF131A2A),
-              onSurface: Colors.white,
+            colorScheme: AppColors.scheme(
+              primary: AppColors.accent,
+              onPrimary: AppColors.onAccent,
+              surface: AppColors.card,
+              onSurface: AppColors.text,
             ),
           ),
           child: child!,
@@ -513,11 +551,11 @@ class _CreateTournamentFormState extends State<CreateTournamentForm> {
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.dark(
-              primary: Color(0xFFFF0055),
-              onPrimary: Colors.black,
-              surface: Color(0xFF131A2A),
-              onSurface: Colors.white,
+            colorScheme: AppColors.scheme(
+              primary: AppColors.bad,
+              onPrimary: AppColors.onAccent,
+              surface: AppColors.card,
+              onSurface: AppColors.text,
             ),
           ),
           child: child!,
@@ -589,6 +627,28 @@ class _CreateTournamentFormState extends State<CreateTournamentForm> {
         if (widget.isPlayer) 'paymentMethod': _paymentMethod,
       });
 
+      // Notificări (popup + email): propunerea ajunge la sală, creatorul primește confirmarea.
+      try {
+        final String meUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+        final meDoc = await FirebaseFirestore.instance.collection('users').doc(meUid).get();
+        final String meName = (meDoc.data()?['username'] ?? '').toString();
+        final String targetVenueId = widget.isPlayer ? (_selectedVenueId ?? '') : widget.venueId;
+        final String targetVenueName = widget.isPlayer ? (_selectedVenueName ?? '') : widget.venueName;
+        final tArgs = {
+          'title': _titleController.text.trim(),
+          'date': dateStr,
+          'time': timeStr,
+          'venue': targetVenueName,
+          'player': meName,
+        };
+        if (widget.isPlayer) {
+          await NotificationService.send(toUid: targetVenueId, type: 'tournament_proposed', titleKey: 'n.tour_proposed_venue_title', bodyKey: 'n.tour_proposed_venue_body', args: tArgs);
+          await NotificationService.send(toUid: meUid, allowSelf: true, type: 'tournament_proposed', titleKey: 'n.tour_proposed_self_title', bodyKey: 'n.tour_proposed_self_body', args: tArgs);
+        } else {
+          await NotificationService.send(toUid: meUid, allowSelf: true, type: 'tournament_created', titleKey: 'n.tour_created_title', bodyKey: 'n.tour_created_body', args: tArgs);
+        }
+      } catch (_) {}
+
       // 2. Note: We no longer block the entire day in the venue's doc.
       // Tournament time blocks are validated dynamically during match reservation!
 
@@ -637,12 +697,12 @@ class _CreateTournamentFormState extends State<CreateTournamentForm> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
+                    Text(
                       'Organizează un Turneu',
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.text),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.close, color: Colors.grey),
+                      icon: Icon(Icons.close, color: AppColors.muted),
                       onPressed: () => Navigator.pop(context),
                     ),
                   ],
@@ -738,16 +798,16 @@ class _CreateTournamentFormState extends State<CreateTournamentForm> {
                 const SizedBox(height: 16),
                 OutlinedButton.icon(
                   onPressed: _pickDate,
-                  icon: const Icon(Icons.calendar_month, color: Color(0xFF00E5FF)),
+                  icon: Icon(Icons.calendar_month, color: AppColors.accent),
                   label: Text(
                     _selectedDate == null
                         ? 'Alege Data Turneului'
                         : DateFormat('dd MMMM yyyy').format(_selectedDate!),
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold),
                   ),
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                    side: BorderSide(color: const Color(0xFF00E5FF).withValues(alpha: 0.5)),
+                    side: BorderSide(color: AppColors.accent.withValues(alpha: 0.5)),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
@@ -757,16 +817,16 @@ class _CreateTournamentFormState extends State<CreateTournamentForm> {
                     Expanded(
                       child: OutlinedButton.icon(
                         onPressed: _pickTime,
-                        icon: const Icon(Icons.access_time, color: Color(0xFF00E5FF)),
+                        icon: Icon(Icons.access_time, color: AppColors.accent),
                         label: Text(
                           _selectedTime == null
                               ? 'Ora Start'
                               : '${_selectedTime!.hour.toString().padLeft(2, '0')}:${_selectedTime!.minute.toString().padLeft(2, '0')}',
-                          style: const TextStyle(color: Colors.white),
+                          style: TextStyle(color: AppColors.text),
                         ),
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 14),
-                          side: BorderSide(color: const Color(0xFF00E5FF).withValues(alpha: 0.3)),
+                          side: BorderSide(color: AppColors.accent.withValues(alpha: 0.3)),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                       ),
@@ -775,16 +835,16 @@ class _CreateTournamentFormState extends State<CreateTournamentForm> {
                     Expanded(
                       child: OutlinedButton.icon(
                         onPressed: _pickEndTime,
-                        icon: const Icon(Icons.lock_clock, color: Color(0xFFFF0055)),
+                        icon: Icon(Icons.lock_clock, color: AppColors.bad),
                         label: Text(
                           _selectedEndTime == null
                               ? 'Ora Sfârșit'
                               : '${_selectedEndTime!.hour.toString().padLeft(2, '0')}:${_selectedEndTime!.minute.toString().padLeft(2, '0')}',
-                          style: const TextStyle(color: Colors.white),
+                          style: TextStyle(color: AppColors.text),
                         ),
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 14),
-                          side: BorderSide(color: const Color(0xFFFF0055).withValues(alpha: 0.3)),
+                          side: BorderSide(color: AppColors.bad.withValues(alpha: 0.3)),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                       ),
@@ -816,7 +876,7 @@ class _CreateTournamentFormState extends State<CreateTournamentForm> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                const Text('Restricție Nivel Rank:', style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.bold)),
+                Text('Restricție Nivel Rank:', style: TextStyle(color: AppColors.text70, fontSize: 13, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
                 Row(
                   children: [
@@ -961,14 +1021,14 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> with 
         showDialog(
           context: context,
           builder: (context) => AlertDialog(
-            backgroundColor: const Color(0xFF131A2A),
+            backgroundColor: AppColors.card,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: Colors.redAccent, width: 1.5)),
-            title: const Text('Restricție de Nivel', style: TextStyle(color: Colors.white)),
+            title: Text('Restricție de Nivel', style: TextStyle(color: AppColors.text)),
             content: Text('Nivelul tău ($playerLevel) nu se încadrează în intervalul permis pentru acest turneu ($minRank - $maxRank).'),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text('OK', style: TextStyle(color: Color(0xFF00E5FF))),
+                child: Text('OK', style: TextStyle(color: AppColors.accent)),
               ),
             ],
           ),
@@ -994,6 +1054,16 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> with 
         'joinedUids': joinedUids,
         'joinedPlayers': joinedPlayers,
       });
+
+      final joinArgs = {
+        'title': (tourData['title'] ?? '').toString(),
+        'date': (tourData['date'] ?? '').toString(),
+        'time': (tourData['time'] ?? '').toString(),
+        'venue': (tourData['venueName'] ?? '').toString(),
+        'player': (myProfileData['username'] ?? '').toString(),
+      };
+      await NotificationService.send(toUid: (tourData['venueId'] ?? '').toString(), type: 'tournament_join', titleKey: 'n.tour_join_venue_title', bodyKey: 'n.tour_join_venue_body', args: joinArgs);
+      await NotificationService.send(toUid: user.uid, allowSelf: true, type: 'tournament_join', titleKey: 'n.tour_join_self_title', bodyKey: 'n.tour_join_self_body', args: joinArgs);
 
       // Synchronize in tournament chat room
       final chatRef = FirebaseFirestore.instance.collection('chats').doc('tournament_${widget.tournamentId}');
@@ -1043,6 +1113,10 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> with 
       final List<dynamic> joinedUids = List.from(tourData['joinedUids'] ?? []);
       final List<dynamic> joinedPlayers = List.from(tourData['joinedPlayers'] ?? []);
 
+      final String leavingName = joinedPlayers
+          .where((p) => p['uid'] == user.uid)
+          .map((p) => (p['username'] ?? '').toString())
+          .firstWhere((_) => true, orElse: () => '');
       joinedUids.remove(user.uid);
       joinedPlayers.removeWhere((p) => p['uid'] == user.uid);
 
@@ -1050,6 +1124,13 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> with 
         'joinedUids': joinedUids,
         'joinedPlayers': joinedPlayers,
       });
+      await NotificationService.send(
+        toUid: (tourData['venueId'] ?? '').toString(),
+        type: 'tournament_leave',
+        titleKey: 'n.tour_leave_venue_title',
+        bodyKey: 'n.tour_leave_venue_body',
+        args: {'title': (tourData['title'] ?? '').toString(), 'player': leavingName},
+      );
 
       // Synchronize in tournament chat room
       final chatRef = FirebaseFirestore.instance.collection('chats').doc('tournament_${widget.tournamentId}');
@@ -1079,9 +1160,18 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> with 
   Future<void> _approveTournament() async {
     setState(() => _isActionLoading = true);
     try {
-      await FirebaseFirestore.instance.collection('tournaments').doc(widget.tournamentId).update({
+      final tRef = FirebaseFirestore.instance.collection('tournaments').doc(widget.tournamentId);
+      final tData = (await tRef.get()).data() ?? {};
+      await tRef.update({
         'status': 'open',
       });
+      await NotificationService.send(
+        toUid: (tData['proposerUid'] ?? '').toString(),
+        type: 'tournament_approved',
+        titleKey: 'n.tour_approved_title',
+        bodyKey: 'n.tour_approved_body',
+        args: {'title': (tData['title'] ?? '').toString(), 'date': (tData['date'] ?? '').toString(), 'venue': (tData['venueName'] ?? '').toString()},
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Turneul a fost aprobat!'), backgroundColor: Colors.green),
@@ -1101,9 +1191,18 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> with 
   Future<void> _rejectTournament() async {
     setState(() => _isActionLoading = true);
     try {
-      await FirebaseFirestore.instance.collection('tournaments').doc(widget.tournamentId).update({
+      final tRef = FirebaseFirestore.instance.collection('tournaments').doc(widget.tournamentId);
+      final tData = (await tRef.get()).data() ?? {};
+      await tRef.update({
         'status': 'cancelled',
       });
+      await NotificationService.send(
+        toUid: (tData['proposerUid'] ?? '').toString(),
+        type: 'tournament_rejected',
+        titleKey: 'n.tour_rejected_title',
+        bodyKey: 'n.tour_rejected_body',
+        args: {'title': (tData['title'] ?? '').toString(), 'date': (tData['date'] ?? '').toString(), 'venue': (tData['venueName'] ?? '').toString()},
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Propunerea a fost respinsă.'), backgroundColor: Colors.orange),
@@ -1124,26 +1223,26 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> with 
     final bool? confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF131A2A),
+        backgroundColor: AppColors.card,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
           side: const BorderSide(color: Colors.redAccent, width: 1.5),
         ),
-        title: const Row(
+        title: Row(
           children: [
             Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 28),
             SizedBox(width: 10),
-            Text('Anulează Turneul', style: TextStyle(color: Colors.white)),
+            Text('Anulează Turneul', style: TextStyle(color: AppColors.text)),
           ],
         ),
-        content: const Text(
+        content: Text(
           'Sigur dorești să anulezi acest turneu? Această acțiune este ireversibilă, va notifica toți jucătorii înscriși și va debloca automat ziua respectivă în calendarul clubului.',
-          style: TextStyle(color: Colors.white70),
+          style: TextStyle(color: AppColors.text70),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('ÎNCHIDE', style: TextStyle(color: Colors.grey)),
+            child: Text('ÎNCHIDE', style: TextStyle(color: AppColors.muted)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
@@ -1559,42 +1658,42 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> with 
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              backgroundColor: const Color(0xFF131A2A),
+              backgroundColor: AppColors.card,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
-                side: const BorderSide(color: Color(0xFF00E5FF), width: 1.5),
+                side: BorderSide(color: AppColors.accent, width: 1.5),
               ),
-              title: const Text('Introdu Scorul Meciului', style: TextStyle(color: Colors.white)),
+              title: Text('Introdu Scorul Meciului', style: TextStyle(color: AppColors.text)),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text('Scor pentru ${p1['username']}:', style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                  Text('Scor pentru ${p1['username']}:', style: TextStyle(color: AppColors.muted, fontSize: 13)),
                   const SizedBox(height: 6),
                   TextFormField(
                     controller: score1Ctrl,
                     keyboardType: TextInputType.number,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                    style: TextStyle(color: AppColors.text, fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 16),
-                  Text('Scor pentru ${p2['username']}:', style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                  Text('Scor pentru ${p2['username']}:', style: TextStyle(color: AppColors.muted, fontSize: 13)),
                   const SizedBox(height: 6),
                   TextFormField(
                     controller: score2Ctrl,
                     keyboardType: TextInputType.number,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                    style: TextStyle(color: AppColors.text, fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 20),
-                  const Text('Alege Câștigătorul:', style: TextStyle(color: Colors.grey, fontSize: 13)),
+                  Text('Alege Câștigătorul:', style: TextStyle(color: AppColors.muted, fontSize: 13)),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
                     initialValue: winnerUid,
-                    dropdownColor: const Color(0xFF131A2A),
+                    dropdownColor: AppColors.card,
                     items: [
-                      DropdownMenuItem(value: p1['uid'], child: Text(p1['username'], style: const TextStyle(color: Colors.white))),
-                      DropdownMenuItem(value: p2['uid'], child: Text(p2['username'], style: const TextStyle(color: Colors.white))),
+                      DropdownMenuItem(value: p1['uid'], child: Text(p1['username'], style: TextStyle(color: AppColors.text))),
+                      DropdownMenuItem(value: p2['uid'], child: Text(p2['username'], style: TextStyle(color: AppColors.text))),
                     ],
                     onChanged: (val) {
                       if (val != null) {
@@ -1607,7 +1706,7 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> with 
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('ANULEAZĂ', style: TextStyle(color: Colors.grey)),
+                  child: Text('ANULEAZĂ', style: TextStyle(color: AppColors.muted)),
                 ),
                 TextButton(
                   onPressed: () {
@@ -1616,7 +1715,7 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> with 
                     final s2 = int.tryParse(score2Ctrl.text) ?? 0;
                     _recordMatchResult(matchId, s1, s2, winnerUid, bracketMatches, joinedPlayers);
                   },
-                  child: const Text('SALVEAZĂ REZULTAT', style: TextStyle(color: Color(0xFF00E5FF), fontWeight: FontWeight.bold)),
+                  child: Text('SALVEAZĂ REZULTAT', style: TextStyle(color: AppColors.accent, fontWeight: FontWeight.bold)),
                 ),
               ],
             );
@@ -1635,7 +1734,7 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> with 
           return Scaffold(body: Center(child: Text('Eroare: ${snapshot.error}')));
         }
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(body: Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF))));
+          return Scaffold(body: Center(child: CircularProgressIndicator(color: AppColors.accent)));
         }
 
         final tourDoc = snapshot.data;
@@ -1655,16 +1754,16 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> with 
         final bool isHost = user != null && user.uid == venueId;
 
         return Scaffold(
-          backgroundColor: const Color(0xFF0A0E17),
+          backgroundColor: AppColors.bg,
           appBar: AppBar(
             title: Text(title),
-            backgroundColor: const Color(0xFF131A2A),
+            backgroundColor: AppColors.card,
             elevation: 0,
             bottom: TabBar(
               controller: _detailTabController,
-              indicatorColor: const Color(0xFF00E5FF),
-              labelColor: const Color(0xFF00E5FF),
-              unselectedLabelColor: Colors.grey,
+              indicatorColor: AppColors.accent,
+              labelColor: AppColors.accent,
+              unselectedLabelColor: AppColors.muted,
               tabs: const [
                 Tab(text: 'Detalii'),
                 Tab(text: 'Jucători'),
@@ -1673,7 +1772,7 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> with 
             ),
           ),
           body: _isActionLoading
-              ? const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)))
+              ? Center(child: CircularProgressIndicator(color: AppColors.accent))
               : TabBarView(
                   controller: _detailTabController,
                   children: [
@@ -1752,18 +1851,18 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> with 
 
           // Detail Card
           Card(
-            color: const Color(0xFF131A2A),
+            color: AppColors.card,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             child: Padding(
               padding: const EdgeInsets.all(20.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Despre Turneu', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF00E5FF))),
+                  Text('Despre Turneu', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.accent)),
                   const SizedBox(height: 8),
-                  Text(desc, style: const TextStyle(color: Colors.white70, fontSize: 14, height: 1.4)),
+                  Text(desc, style: TextStyle(color: AppColors.text70, fontSize: 14, height: 1.4)),
                   const SizedBox(height: 20),
-                  const Divider(color: Color(0xFF1E293B)),
+                  Divider(color: AppColors.card2),
                   const SizedBox(height: 12),
                   _buildDetailRow(Icons.storefront, 'Locație', venueName),
                   _buildDetailRow(Icons.calendar_month, 'Data & Ora', '$date, $time${endTime.isNotEmpty ? " - $endTime" : ""}'),
@@ -1798,9 +1897,9 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> with 
               icon: const Icon(Icons.chat_bubble_outline),
               label: const Text('DESCHIDE CHAT TURNEU'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF131A2A),
-                foregroundColor: const Color(0xFF00E5FF),
-                side: const BorderSide(color: Color(0xFF00E5FF), width: 1.5),
+                backgroundColor: AppColors.card,
+                foregroundColor: AppColors.accent,
+                side: BorderSide(color: AppColors.accent, width: 1.5),
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
@@ -1828,7 +1927,7 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> with 
                   icon: const Icon(Icons.person_add),
                   label: const Text('ÎNSCRIE-TE ACUM'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF00E5FF),
+                    backgroundColor: AppColors.accent,
                     foregroundColor: Colors.black,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
@@ -1836,7 +1935,7 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> with 
             ] else if (status == 'pending_approval')
               Container(
                 padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(color: const Color(0xFF131A2A), borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(color: AppColors.card, borderRadius: BorderRadius.circular(12)),
                 child: const Text(
                   'Propunerea ta este în așteptarea aprobării clubului.',
                   textAlign: TextAlign.center,
@@ -1846,7 +1945,7 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> with 
             else if (status == 'cancelled')
               Container(
                 padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(color: const Color(0xFF131A2A), borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(color: AppColors.card, borderRadius: BorderRadius.circular(12)),
                 child: const Text(
                   'Acest turneu a fost anulat de organizator.',
                   textAlign: TextAlign.center,
@@ -1856,11 +1955,11 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> with 
             else
               Container(
                 padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(color: const Color(0xFF131A2A), borderRadius: BorderRadius.circular(12)),
-                child: const Text(
+                decoration: BoxDecoration(color: AppColors.card, borderRadius: BorderRadius.circular(12)),
+                child: Text(
                   'Înscrierile sunt închise pentru acest turneu.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey, fontSize: 14),
+                  style: TextStyle(color: AppColors.muted, fontSize: 14),
                 ),
               ),
           ] else if (isHost) ...[
@@ -1900,16 +1999,16 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> with 
                 icon: const Icon(Icons.grid_view_rounded),
                 label: const Text('GENEREAZĂ BRACKET'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF00E5FF),
+                  backgroundColor: AppColors.accent,
                   foregroundColor: Colors.black,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
               ),
               const SizedBox(height: 8),
-              const Text(
+              Text(
                 'Apasă pe butonul de mai sus când înscrierile sunt gata pentru a crea schema meciurilor.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey, fontSize: 12),
+                style: TextStyle(color: AppColors.muted, fontSize: 12),
               ),
             ],
             if (status == 'open' || status == 'active') ...[
@@ -1937,15 +2036,15 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> with 
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 20, color: const Color(0xFF00E5FF)),
+          Icon(icon, size: 20, color: AppColors.accent),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                Text(label, style: TextStyle(color: AppColors.muted, fontSize: 12)),
                 const SizedBox(height: 4),
-                Text(value, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
+                Text(value, style: TextStyle(color: AppColors.text, fontSize: 14, fontWeight: FontWeight.bold)),
               ],
             ),
           )
@@ -1956,7 +2055,7 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> with 
 
   Widget _buildPlayersTab(List<dynamic> joinedPlayers, int maxPlayers) {
     if (joinedPlayers.isEmpty) {
-      return const Center(child: Text('Niciun jucător înscris încă.', style: TextStyle(color: Colors.grey)));
+      return Center(child: Text('Niciun jucător înscris încă.', style: TextStyle(color: AppColors.muted)));
     }
 
     return ListView.builder(
@@ -1969,16 +2068,16 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> with 
         final String level = player['level'] ?? 'Iron I';
 
         return Card(
-          color: const Color(0xFF131A2A),
+          color: AppColors.card,
           margin: const EdgeInsets.only(bottom: 12),
           child: ListTile(
             leading: CircleAvatar(
-              backgroundColor: const Color(0xFF00E5FF).withValues(alpha: 0.1),
-              child: Text('${index + 1}', style: const TextStyle(color: Color(0xFF00E5FF), fontWeight: FontWeight.bold)),
+              backgroundColor: AppColors.accent.withValues(alpha: 0.1),
+              child: Text('${index + 1}', style: TextStyle(color: AppColors.accent, fontWeight: FontWeight.bold)),
             ),
-            title: Text(name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            subtitle: Text(level, style: const TextStyle(color: Colors.grey)),
-            trailing: Text('$rating PTS', style: const TextStyle(color: Color(0xFF00E5FF), fontWeight: FontWeight.bold)),
+            title: Text(name, style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold)),
+            subtitle: Text(level, style: TextStyle(color: AppColors.muted)),
+            trailing: Text('$rating PTS', style: TextStyle(color: AppColors.accent, fontWeight: FontWeight.bold)),
           ),
         );
       },
@@ -1988,18 +2087,18 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> with 
   Widget _buildBracketTab(Map<String, dynamic> tourData, bool isHost) {
     final String status = tourData['status'] ?? 'open';
     if (status == 'open') {
-      return const Center(
+      return Center(
         child: Padding(
           padding: EdgeInsets.all(24.0),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.grid_view_rounded, size: 64, color: Colors.grey),
+              Icon(Icons.grid_view_rounded, size: 64, color: AppColors.muted),
               SizedBox(height: 16),
               Text(
                 'Bracket-ul se va genera după încheierea înscrierilor de către organizatorul turneului.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey, fontSize: 15),
+                style: TextStyle(color: AppColors.muted, fontSize: 15),
               ),
             ],
           ),
@@ -2072,7 +2171,7 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> with 
                 Text(
                   roundName.toUpperCase(),
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: Color(0xFF00E5FF), fontWeight: FontWeight.bold, fontSize: 14, letterSpacing: 0.5),
+                  style: TextStyle(color: AppColors.accent, fontWeight: FontWeight.bold, fontSize: 14, letterSpacing: 0.5),
                 ),
                 const SizedBox(height: 16),
                 Expanded(
@@ -2100,9 +2199,9 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> with 
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             if (matchId == 'ThirdPlace')
-                              const Padding(
+                              Padding(
                                 padding: EdgeInsets.only(bottom: 6.0),
-                                child: Text('FINALA MICĂ (Locul 3-4)', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.bold)),
+                                child: Text('FINALA MICĂ (Locul 3-4)', textAlign: TextAlign.center, style: TextStyle(color: AppColors.muted, fontSize: 10, fontWeight: FontWeight.bold)),
                               ),
                             InkWell(
                               onTap: isClickable
@@ -2111,14 +2210,14 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> with 
                               borderRadius: BorderRadius.circular(12),
                               child: Container(
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF131A2A),
+                                  color: AppColors.card,
                                   borderRadius: BorderRadius.circular(12),
                                   border: Border.all(
                                     color: isClickable 
-                                        ? const Color(0xFF00E5FF).withValues(alpha: 0.6) 
+                                        ? AppColors.accent.withValues(alpha: 0.6) 
                                         : isCompleted 
                                             ? Colors.greenAccent.withValues(alpha: 0.3)
-                                            : const Color(0xFF1E293B),
+                                            : AppColors.card2,
                                     width: 1.5,
                                   ),
                                 ),
@@ -2126,7 +2225,7 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> with 
                                   children: [
                                     // Player 1
                                     _buildBracketPlayerRow(p1, s1, p1Won, p1 == null && p2 != null),
-                                    const Divider(color: Color(0xFF1E293B), height: 1),
+                                    Divider(color: AppColors.card2, height: 1),
                                     // Player 2
                                     _buildBracketPlayerRow(p2, s2, p2Won, p2 == null && p1 != null),
                                   ],
@@ -2175,7 +2274,7 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> with 
                 Text(
                   name,
                   style: TextStyle(
-                    color: isWinner ? Colors.greenAccent : Colors.white70,
+                    color: isWinner ? Colors.greenAccent : AppColors.text70,
                     fontWeight: isWinner ? FontWeight.bold : FontWeight.normal,
                     fontSize: 13,
                     decoration: (!isWinner && score != null) ? TextDecoration.lineThrough : null,
@@ -2184,7 +2283,7 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> with 
                 ),
                 Text(
                   level,
-                  style: TextStyle(color: Colors.grey[600], fontSize: 10),
+                  style: TextStyle(color: AppColors.muted2, fontSize: 10),
                 ),
               ],
             ),
@@ -2193,7 +2292,7 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> with 
             Text(
               '$score',
               style: TextStyle(
-                color: isWinner ? Colors.greenAccent : Colors.grey,
+                color: isWinner ? Colors.greenAccent : AppColors.muted,
                 fontWeight: FontWeight.bold,
                 fontSize: 15,
               ),

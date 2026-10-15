@@ -1,4 +1,9 @@
+import '../services/venue_tools.dart';
+import '../data/sport_specs.dart';
+import '../services/billing_service.dart';
+import '../widgets/sport_specs_card.dart';
 import 'package:flutter/material.dart';
+import '../data/sports.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/booking_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -8,6 +13,15 @@ import '../utils/hour_utils.dart';
 import 'payment_screen.dart';
 import '../utils/level_utils.dart';
 import '../widgets/city_selector.dart';
+import '../theme/app_theme.dart';
+import '../widgets/rating_badge.dart';
+import '../widgets/venue_filter_bar.dart';
+import '../utils/venue_filters.dart';
+import '../services/location_service.dart';
+import 'package:latlong2/latlong.dart' show LatLng;
+import '../widgets/voucher_field.dart';
+import '../services/voucher_service.dart';
+import '../l10n/strings.dart';
 
 class CreateMatchForFriendsScreen extends StatefulWidget {
   const CreateMatchForFriendsScreen({super.key});
@@ -38,6 +52,11 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
   int? _selectedTable;
   List<int> _reservedTables = [];
   bool _isDayBlockedFlag = false;
+  VoucherResult? _voucher; // cod de reducere aplicat (previzualizare)
+  VenueFilters _venueFilters = VenueFilters(); // filtre și sortare pentru lista de săli
+  LatLng? _userPos; // locația utilizatorului (doar după ce a cerut sortarea după distanță)
+  VoucherResult? _redeemedVoucher; // folosire rezervată pe server în timpul confirmării
+  bool _bookingCreated = false;
   String? _overlappingTournament;
 
   List<Map<String, dynamic>> _venueCustomTables = [];
@@ -112,10 +131,12 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
           .collection('venues')
           .get();
 
+      final bool subscriptionRequired = await BillingService.subscriptionRequired();
       final List<PingPongLocation> fetched = [];
       for (var doc in snapshot.docs) {
         final data = doc.data();
         if (data['isVerified'] == false) continue; // sală în așteptarea aprobării
+        if (!BillingService.venueVisible(data, subscriptionRequired)) continue; // fără abonament activ
         final String id = doc.id;
         final String name = data['venueName'] ?? '';
         final String city = data['city'] ?? '';
@@ -139,6 +160,14 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
         final List<String> supportedSports = List<String>.from(data['supportedSports'] ?? ['ping_pong']);
         final bool isPublic = data['isPublic'] as bool? ?? false;
 
+        final Map<String, dynamic> sportSpecs = {};
+        final rawSpecs = data['sportSpecs'];
+        if (rawSpecs is Map) {
+          rawSpecs.forEach((k, v) {
+            if (v is Map) sportSpecs[k.toString()] = Map<String, dynamic>.from(v);
+          });
+        }
+
         fetched.add(PingPongLocation(
           id: id,
           city: city,
@@ -153,6 +182,16 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
           allowHalfHour: allowHalfHour,
           supportedSports: supportedSports,
           isPublic: isPublic,
+          sportSpecs: sportSpecs,
+          venueRules: (data['venueRules'] ?? '').toString(),
+          rating: (data['rating'] as num?)?.toDouble(),
+          ratingCount: (data['ratingCount'] as num?)?.toInt() ?? 0,
+          latitude: (data['latitude'] as num?)?.toDouble(),
+          longitude: (data['longitude'] as num?)?.toDouble(),
+          schedule: {
+            if (schedule != null)
+              for (final e in schedule.entries) e.key.toString(): e.value.toString(),
+          },
         ));
       }
 
@@ -227,11 +266,21 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
     return sorted;
   }
 
+  Future<bool> _requestUserLocation() async {
+    final p = await LocationService.current();
+    if (mounted) setState(() => _userPos = p);
+    return p != null;
+  }
+
   List<PingPongLocation> get _filteredLocations {
     if (_selectedCity == null) return [];
-    return _allLocations
+    final base = _allLocations
         .where((loc) => loc.city.trim().toLowerCase() == _selectedCity!.trim().toLowerCase() && loc.supportedSports.contains(_selectedSport))
         .toList();
+    final result = applyVenueFilters(base, _venueFilters, _userPos);
+    final sel = _selectedLocation;
+    if (sel != null && base.contains(sel) && !result.contains(sel)) result.insert(0, sel);
+    return result;
   }
 
   List<num> get _availableHours {
@@ -350,6 +399,11 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
         }
       }
 
+      // 4. Intervale blocate de sală (mentenanță etc.)
+      final blk = VenueTools.blockFor(venueData, dateStr, _startHour!, _endHour!, sport: _selectedSport);
+      if (blk.allTables) isDayBlocked = true;
+      reserved.addAll(blk.tables);
+
       setState(() {
         _reservedTables = reserved;
         _isDayBlockedFlag = isDayBlocked;
@@ -410,6 +464,63 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
 
 
   // --- Step 4 (Save) ---
+  /// Prețul mesei pentru intervalul ales.
+  double _tablePrice() {
+    if (_selectedLocation == null || _startHour == null || _endHour == null) return 0;
+    if (_venueData != null) {
+      return LevelUtils.calculateVenueBookingPrice(
+        venueData: _venueData!,
+        startHour: _startHour!,
+        endHour: _endHour!,
+        date: _selectedDate,
+      );
+    }
+    return LevelUtils.calculateTotalBookingPrice(_selectedLocation!.pricePerHourText, _startHour!, _endHour!);
+  }
+
+  double get _voucherDiscount {
+    final v = _voucher;
+    if (v == null || !v.validFor(_tablePrice())) return 0;
+    return v.discount;
+  }
+
+  /// Consumă codul de reducere pe server. Întoarce false dacă rezervarea nu mai poate continua.
+  Future<bool> _redeemVoucherIfAny() async {
+    _redeemedVoucher = null;
+    _bookingCreated = false;
+    final v = _voucher;
+    if (v == null || _selectedLocation == null) return true;
+    final amount = _tablePrice();
+    if (!v.validFor(amount)) {
+      setState(() => _voucher = null);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tr('vc.stale')), backgroundColor: Colors.orange));
+      return false;
+    }
+    setState(() => _isLoading = true);
+    final res = await VoucherService.redeem(venueId: _selectedLocation!.id, code: v.code, amount: amount);
+    if (mounted) setState(() => _isLoading = false);
+    if (!res.ok) {
+      if (mounted) {
+        setState(() => _voucher = null);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res.errorMessage), backgroundColor: Colors.redAccent));
+      }
+      return false;
+    }
+    _redeemedVoucher = res;
+    return true;
+  }
+
+  /// După încercarea de rezervare: dacă nu s-a creat nimic, eliberează folosirea codului.
+  Future<void> _settleVoucher() async {
+    final r = _redeemedVoucher;
+    _redeemedVoucher = null;
+    if (_bookingCreated) {
+      if (mounted) setState(() => _voucher = null);
+    } else if (r != null) {
+      await VoucherService.release(r);
+    }
+  }
+
   Future<void> _createMatch() async {
     final user = _currentUser;
     if (user == null) return;
@@ -439,6 +550,7 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
             venueData: _venueData!,
             startHour: _startHour!,
             endHour: _endHour!,
+                date: _selectedDate,
           );
         } else {
           totalAmount = LevelUtils.calculateTotalBookingPrice(
@@ -447,6 +559,12 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
             _endHour!,
           );
         }
+      }
+
+      final double voucherDiscount = _redeemedVoucher?.discount ?? 0;
+      if (voucherDiscount > 0) {
+        totalAmount -= voucherDiscount;
+        if (totalAmount < 0) totalAmount = 0;
       }
 
       // Create the match document
@@ -476,6 +594,8 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
         'paymentStatus': _paymentMethod.contains('Card') ? 'confirmed' : 'pending',
         'status': 'open',
         'price': totalAmount,
+        if (_redeemedVoucher != null) 'voucherCode': _redeemedVoucher!.code,
+        if (_redeemedVoucher != null) 'voucherDiscount': _redeemedVoucher!.discount,
         'createdAt': FieldValue.serverTimestamp(),
       };
 
@@ -502,6 +622,7 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
         }
         return;
       }
+      _bookingCreated = true;
 
       // Dispatch invitations to each invited friend in a batch
       if (_invitedFriendUids.isNotEmpty) {
@@ -559,7 +680,7 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
     return Scaffold(
       appBar: AppBar(
         title: const Text('Creează Meci Privat'),
-        backgroundColor: const Color(0xFF131A2A),
+        backgroundColor: AppColors.card,
         elevation: 0,
       ),
       body: Stepper(
@@ -585,28 +706,29 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
             // astfel încât utilizatorul nu poate selecta o masă indisponibilă și nu poate continua.
           } else if (_currentStep == 4) {
             // Step 4 is Rezumat/Save
+            if (!await _redeemVoucherIfAny()) return;
             if (_paymentMethod.contains('Card')) {
-              double amount = LevelUtils.calculateTotalBookingPrice(
-                _selectedLocation?.pricePerHourText ?? '20 RON/oră',
-                _startHour ?? 0,
-                _endHour ?? 0,
-              );
+              final double amount = _tablePrice() - (_redeemedVoucher?.discount ?? 0);
 
-              final paymentSuccess = await Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => PaymentScreen(
-                  amount: amount,
-                  venueId: _selectedLocation?.id ?? 'unknown',
-                  destinationAccountId: _selectedLocation?.stripeAccountId,
-                )),
-              );
+              // O rezervare gratuită (cod de 100%) nu trece prin plata cu cardul.
+              final paymentSuccess = amount < 1
+                  ? true
+                  : await Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => PaymentScreen(
+                        amount: amount,
+                        venueId: _selectedLocation?.id ?? 'unknown',
+                        destinationAccountId: _selectedLocation?.stripeAccountId,
+                      )),
+                    );
 
               if (paymentSuccess == true) {
-                _createMatch();
+                await _createMatch();
               }
             } else {
-              _createMatch();
+              await _createMatch();
             }
+            await _settleVoucher();
             return;
           }
 
@@ -628,7 +750,7 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
                   child: ElevatedButton(
                     onPressed: _isLoading ? null : details.onStepContinue,
                     child: _isLoading
-                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                        ? SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: AppColors.text, strokeWidth: 2))
                         : Text(isLastStep ? 'TRIMITE INVITAȚIILE' : 'CONTINUĂ'),
                   ),
                 ),
@@ -668,10 +790,29 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
                   },
                 ),
                 const SizedBox(height: 16),
+                if (_selectedCity != null)
+                  VenueFilterBar(
+                    filters: _venueFilters,
+                    requestLocation: _requestUserLocation,
+                    onChanged: (f) => setState(() => _venueFilters = f),
+                  ),
                 DropdownButtonFormField<PingPongLocation>(
                   initialValue: _selectedLocation,
-                  decoration: const InputDecoration(labelText: 'Sală Ping Pong', prefixIcon: Icon(Icons.sports_tennis)),
-                  items: _filteredLocations.map((loc) => DropdownMenuItem(value: loc, child: Text(loc.name))).toList(),
+                  decoration: InputDecoration(labelText: venueFieldLabel(_selectedSport), prefixIcon: const Icon(Icons.sports_tennis)),
+                  items: _filteredLocations
+                      .map((loc) => DropdownMenuItem(
+                            value: loc,
+                            child: Row(mainAxisSize: MainAxisSize.min, children: [
+                              Flexible(child: Text(loc.name, overflow: TextOverflow.ellipsis)),
+                              if (venueDistanceLabel(loc, _userPos) != null) ...[
+                                const SizedBox(width: 8),
+                                Text(venueDistanceLabel(loc, _userPos)!, style: TextStyle(fontSize: 11, color: AppColors.muted)),
+                              ],
+                              const SizedBox(width: 10),
+                              RatingBadge(rating: loc.rating, count: loc.ratingCount),
+                            ]),
+                          ))
+                      .toList(),
                   onChanged: _selectedCity == null ? null : (val) {
                     setState(() {
                       _selectedLocation = val;
@@ -689,7 +830,7 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
                   const SizedBox(height: 4),
                   Text(
                     'Indoor: ${_selectedLocation!.indoorTables} mese  •  Outdoor: ${_selectedLocation!.outdoorTables} mese',
-                    style: const TextStyle(color: Colors.grey, fontSize: 12),
+                    style: TextStyle(color: AppColors.muted, fontSize: 12),
                   ),
                   const SizedBox(height: 10),
                   Row(
@@ -703,15 +844,15 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
                             duration: const Duration(milliseconds: 200),
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             decoration: BoxDecoration(
-                              color: _selectedTableType == 'indoor' ? const Color(0xFF00E5FF).withValues(alpha: 0.2) : _getIndoorCount() == 0 ? Colors.grey.withValues(alpha: 0.1) : const Color(0xFF1E293B),
+                              color: _selectedTableType == 'indoor' ? AppColors.accent.withValues(alpha: 0.2) : _getIndoorCount() == 0 ? Colors.grey.withValues(alpha: 0.1) : AppColors.card2,
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: _selectedTableType == 'indoor' ? const Color(0xFF00E5FF) : _getIndoorCount() == 0 ? Colors.grey.withValues(alpha: 0.3) : Colors.grey[700]!, width: _selectedTableType == 'indoor' ? 2 : 1),
+                              border: Border.all(color: _selectedTableType == 'indoor' ? AppColors.accent : _getIndoorCount() == 0 ? Colors.grey.withValues(alpha: 0.3) : AppColors.border700, width: _selectedTableType == 'indoor' ? 2 : 1),
                             ),
                             child: Column(children: [
-                              Icon(Icons.house_outlined, color: _selectedTableType == 'indoor' ? const Color(0xFF00E5FF) : _getIndoorCount() == 0 ? Colors.grey[600] : Colors.white70, size: 28),
+                              Icon(Icons.house_outlined, color: _selectedTableType == 'indoor' ? AppColors.accent : _getIndoorCount() == 0 ? AppColors.muted2 : AppColors.text70, size: 28),
                               const SizedBox(height: 6),
-                              Text('Indoor', style: TextStyle(fontWeight: FontWeight.bold, color: _selectedTableType == 'indoor' ? const Color(0xFF00E5FF) : _getIndoorCount() == 0 ? Colors.grey[600] : Colors.white)),
-                              Text('${_getIndoorCount()} mese', style: TextStyle(fontSize: 11, color: _getIndoorCount() == 0 ? Colors.grey[600] : Colors.grey)),
+                              Text('Indoor', style: TextStyle(fontWeight: FontWeight.bold, color: _selectedTableType == 'indoor' ? AppColors.accent : _getIndoorCount() == 0 ? AppColors.muted2 : AppColors.text)),
+                              Text('${_getIndoorCount()} mese', style: TextStyle(fontSize: 11, color: _getIndoorCount() == 0 ? AppColors.muted2 : AppColors.muted)),
                             ]),
                           ),
                         ),
@@ -726,15 +867,15 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
                             duration: const Duration(milliseconds: 200),
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             decoration: BoxDecoration(
-                              color: _selectedTableType == 'outdoor' ? const Color(0xFF00FF66).withValues(alpha: 0.2) : _getOutdoorCount() == 0 ? Colors.grey.withValues(alpha: 0.1) : const Color(0xFF1E293B),
+                              color: _selectedTableType == 'outdoor' ? AppColors.good.withValues(alpha: 0.2) : _getOutdoorCount() == 0 ? Colors.grey.withValues(alpha: 0.1) : AppColors.card2,
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: _selectedTableType == 'outdoor' ? const Color(0xFF00FF66) : _getOutdoorCount() == 0 ? Colors.grey.withValues(alpha: 0.3) : Colors.grey[700]!, width: _selectedTableType == 'outdoor' ? 2 : 1),
+                              border: Border.all(color: _selectedTableType == 'outdoor' ? AppColors.good : _getOutdoorCount() == 0 ? Colors.grey.withValues(alpha: 0.3) : AppColors.border700, width: _selectedTableType == 'outdoor' ? 2 : 1),
                             ),
                             child: Column(children: [
-                              Icon(Icons.park_outlined, color: _selectedTableType == 'outdoor' ? const Color(0xFF00FF66) : _getOutdoorCount() == 0 ? Colors.grey[600] : Colors.white70, size: 28),
+                              Icon(Icons.park_outlined, color: _selectedTableType == 'outdoor' ? AppColors.good : _getOutdoorCount() == 0 ? AppColors.muted2 : AppColors.text70, size: 28),
                               const SizedBox(height: 6),
-                              Text('Outdoor', style: TextStyle(fontWeight: FontWeight.bold, color: _selectedTableType == 'outdoor' ? const Color(0xFF00FF66) : _getOutdoorCount() == 0 ? Colors.grey[600] : Colors.white)),
-                              Text('${_getOutdoorCount()} mese', style: TextStyle(fontSize: 11, color: _getOutdoorCount() == 0 ? Colors.grey[600] : Colors.grey)),
+                              Text('Outdoor', style: TextStyle(fontWeight: FontWeight.bold, color: _selectedTableType == 'outdoor' ? AppColors.good : _getOutdoorCount() == 0 ? AppColors.muted2 : AppColors.text)),
+                              Text('${_getOutdoorCount()} mese', style: TextStyle(fontSize: 11, color: _getOutdoorCount() == 0 ? AppColors.muted2 : AppColors.muted)),
                             ]),
                           ),
                         ),
@@ -748,15 +889,34 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
                     ),
                 ],
                 const SizedBox(height: 16),
-                DropdownButtonFormField<int>(
-                  initialValue: _maxPlayers,
-                  decoration: const InputDecoration(labelText: 'Format Meci', prefixIcon: Icon(Icons.people)),
-                  items: const [
-                    DropdownMenuItem(value: 2, child: Text('1v1 (2 Jucători)')),
-                    DropdownMenuItem(value: 4, child: Text('2v2 (4 Jucători)')),
-                  ],
-                  onChanged: (val) => setState(() => _maxPlayers = val ?? 2),
-                ),
+                Builder(builder: (_) {
+                  final List<int> opts = SportSpecs.playerOptions(
+                    _selectedSport,
+                    _selectedLocation?.sportSpecs[_selectedSport] as Map<String, dynamic>?,
+                  );
+                  if (!opts.contains(_maxPlayers)) _maxPlayers = opts.first;
+                  return DropdownButtonFormField<int>(
+                    key: ValueKey('fmt_${_selectedSport}_${_selectedLocation?.id}_${opts.join(',')}'),
+                    initialValue: _maxPlayers,
+                    isExpanded: true,
+                    decoration: const InputDecoration(labelText: 'Format Meci', prefixIcon: Icon(Icons.people)),
+                    items: [
+                      for (final n in opts)
+                        DropdownMenuItem(value: n, child: Text(SportSpecs.playerOptionLabel(_selectedSport, n), overflow: TextOverflow.ellipsis)),
+                    ],
+                    onChanged: (val) => setState(() => _maxPlayers = val ?? opts.first),
+                  );
+                }),
+                if (_selectedLocation != null &&
+                    (_selectedLocation!.sportSpecs[_selectedSport] != null || _selectedLocation!.venueRules.trim().isNotEmpty)) ...[
+                  const SizedBox(height: 12),
+                  SportSpecsCard(
+                    sport: _selectedSport,
+                    specs: _selectedLocation!.sportSpecs[_selectedSport] as Map<String, dynamic>?,
+                    venueRules: _selectedLocation!.venueRules,
+                    showTitle: false,
+                  ),
+                ],
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
                   initialValue: _matchType,
@@ -782,7 +942,7 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
                 : Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Data rezervării', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                      Text('Data rezervării', style: TextStyle(color: AppColors.muted, fontSize: 12)),
                       const SizedBox(height: 8),
                       SizedBox(
                         width: double.infinity,
@@ -805,19 +965,19 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
                               _checkTableAvailability();
                             }
                           },
-                          icon: const Icon(Icons.calendar_month, color: Color(0xFF00E5FF)),
+                          icon: Icon(Icons.calendar_month, color: AppColors.accent),
                           label: Text(
                             DateFormat('dd MMM yyyy').format(_selectedDate),
-                            style: const TextStyle(color: Colors.white, fontSize: 16),
+                            style: TextStyle(color: AppColors.text, fontSize: 16),
                           ),
                           style: OutlinedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-                            side: BorderSide(color: const Color(0xFF00E5FF).withValues(alpha: 0.5)),
+                            side: BorderSide(color: AppColors.accent.withValues(alpha: 0.5)),
                           ),
                         ),
                       ),
                       const SizedBox(height: 24),
-                      const Text('Alege orele', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                      Text('Alege orele', style: TextStyle(color: AppColors.muted, fontSize: 12)),
                       const SizedBox(height: 8),
                       Wrap(
                         spacing: 8,
@@ -827,8 +987,8 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
                           return ChoiceChip(
                             label: Text(_formatHour(h)),
                             selected: isSelected,
-                            selectedColor: const Color(0xFF00E5FF),
-                            labelStyle: TextStyle(color: isSelected ? Colors.black : Colors.white),
+                            selectedColor: AppColors.accent,
+                            labelStyle: TextStyle(color: isSelected ? AppColors.onAccent : AppColors.text),
                             onSelected: (selected) {
                               setState(() {
                                 final double step = (_selectedLocation?.allowHalfHour ?? false) ? 0.5 : 1.0;
@@ -870,7 +1030,7 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
                       const SizedBox(height: 12),
                       if (_isLoading) const Center(child: CircularProgressIndicator())
                       else if (_startHour == null || _endHour == null)
-                        const Center(child: Text('Selectează intervalul orar mai întâi.', style: TextStyle(color: Colors.grey)))
+                        Center(child: Text('Selectează intervalul orar mai întâi.', style: TextStyle(color: AppColors.muted)))
                       else
                         Builder(
                           builder: (context) {
@@ -878,12 +1038,12 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
                               return Container(
                                 padding: const EdgeInsets.all(16),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF131A2A).withValues(alpha: 0.8),
+                                  color: AppColors.card.withValues(alpha: 0.8),
                                   borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(color: const Color(0xFF1E293B), width: 2),
+                                  border: Border.all(color: AppColors.card2, width: 2),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: const Color(0xFF00E5FF).withValues(alpha: 0.05),
+                                      color: AppColors.accent.withValues(alpha: 0.05),
                                       blurRadius: 20,
                                       spreadRadius: 2,
                                     )
@@ -892,9 +1052,9 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
                                 child: Column(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    const Text(
+                                    Text(
                                       'PLAN CAMERĂ CLUB',
-                                      style: TextStyle(color: Colors.white38, fontWeight: FontWeight.bold, fontSize: 10, letterSpacing: 2),
+                                      style: TextStyle(color: AppColors.text38, fontWeight: FontWeight.bold, fontSize: 10, letterSpacing: 2),
                                     ),
                                     const SizedBox(height: 12),
                                     // 2D Grid
@@ -914,9 +1074,9 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
                                     Row(
                                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                                       children: [
-                                        _buildLegendItem('Liberă', const Color(0xFF00FF66)),
-                                        _buildLegendItem('Selectată', const Color(0xFF00E5FF)),
-                                        _buildLegendItem('Ocupată/Antrenament', const Color(0xFFFF0055)),
+                                        _buildLegendItem('Liberă', AppColors.good),
+                                        _buildLegendItem('Selectată', AppColors.accent),
+                                        _buildLegendItem('Ocupată/Antrenament', AppColors.bad),
                                       ],
                                     ),
                                   ],
@@ -957,9 +1117,9 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
                                       decoration: BoxDecoration(
                                         color: isTableBlocked
                                             ? Colors.red.withValues(alpha: 0.15)
-                                            : (isSelected ? const Color(0xFF00E5FF).withValues(alpha: 0.2) : const Color(0xFF1E293B)),
+                                            : (isSelected ? AppColors.accent.withValues(alpha: 0.2) : AppColors.card2),
                                         border: Border.all(
-                                          color: isTableBlocked ? Colors.redAccent : (isSelected ? const Color(0xFF00E5FF) : Colors.grey[800]!),
+                                          color: isTableBlocked ? Colors.redAccent : (isSelected ? AppColors.accent : AppColors.border),
                                           width: 1.5,
                                         ),
                                         borderRadius: BorderRadius.circular(10),
@@ -968,11 +1128,11 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
                                         child: Column(
                                           mainAxisAlignment: MainAxisAlignment.center,
                                           children: [
-                                            Icon(Icons.table_restaurant, size: 18, color: isTableBlocked ? Colors.redAccent : (isSelected ? const Color(0xFF00E5FF) : Colors.grey)),
+                                            Icon(Icons.table_restaurant, size: 18, color: isTableBlocked ? Colors.redAccent : (isSelected ? AppColors.accent : AppColors.muted)),
                                             const SizedBox(height: 4),
-                                            Text('Masa $tableId', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isTableBlocked ? Colors.redAccent : Colors.white)),
+                                            Text('Masa $tableId', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isTableBlocked ? Colors.redAccent : AppColors.text)),
                                             const SizedBox(height: 2),
-                                            Text(statusText, style: TextStyle(fontSize: 9, color: isTableBlocked ? Colors.redAccent : Colors.grey)),
+                                            Text(statusText, style: TextStyle(fontSize: 9, color: isTableBlocked ? Colors.redAccent : AppColors.muted)),
                                           ],
                                         ),
                                       ),
@@ -996,14 +1156,14 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
             content: _friendsLoading
                 ? const Center(child: CircularProgressIndicator())
                 : _myFriends.isEmpty
-                    ? const Padding(
+                    ? Padding(
                         padding: EdgeInsets.symmetric(vertical: 16.0),
-                        child: Text('Nu ai niciun prieten în listă pe care să îl poți invita. Poți continua fără invitații.', style: TextStyle(color: Colors.grey)),
+                        child: Text('Nu ai niciun prieten în listă pe care să îl poți invita. Poți continua fără invitații.', style: TextStyle(color: AppColors.muted)),
                       )
                     : Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('Bifează prietenii pe care vrei să îi inviți:', style: TextStyle(color: Colors.grey, fontSize: 13)),
+                          Text('Bifează prietenii pe care vrei să îi inviți:', style: TextStyle(color: AppColors.muted, fontSize: 13)),
                           const SizedBox(height: 12),
                           ListView.builder(
                             shrinkWrap: true,
@@ -1017,20 +1177,20 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
                               final isSelected = _invitedFriendUids.contains(uid);
 
                               return CheckboxListTile(
-                                activeColor: const Color(0xFF00E5FF),
+                                activeColor: AppColors.accent,
                                 checkColor: Colors.black,
                                 title: Row(
                                   children: [
                                     CircleAvatar(
                                       radius: 16,
-                                      backgroundColor: const Color(0xFF1E293B),
+                                      backgroundColor: AppColors.card2,
                                       backgroundImage: avatar.isNotEmpty ? NetworkImage(avatar) : null,
                                       child: avatar.isEmpty
-                                          ? Text(name.substring(0, 1).toUpperCase(), style: const TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.bold))
+                                          ? Text(name.substring(0, 1).toUpperCase(), style: TextStyle(fontSize: 12, color: AppColors.text, fontWeight: FontWeight.bold))
                                           : null,
                                     ),
                                     const SizedBox(width: 12),
-                                    Text(name, style: const TextStyle(color: Colors.white)),
+                                    Text(name, style: TextStyle(color: AppColors.text)),
                                   ],
                                 ),
                                 value: isSelected,
@@ -1068,6 +1228,7 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
                           venueData: _venueData!,
                           startHour: _startHour!,
                           endHour: _endHour!,
+                date: _selectedDate,
                         );
                       } else {
                         totalAmount = LevelUtils.calculateTotalBookingPrice(
@@ -1078,22 +1239,24 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
                       }
                     }
                     String priceInfo = 'Tarif: ${_selectedLocation?.pricePerHourText ?? "20 RON/oră"}';
+                    totalAmount -= _voucherDiscount;
+                    if (totalAmount < 0) totalAmount = 0;
                     return Container(
                       padding: const EdgeInsets.all(12),
                       margin: const EdgeInsets.only(bottom: 16),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF1E293B),
+                        color: AppColors.card2,
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.3)),
+                        border: Border.all(color: AppColors.accent.withValues(alpha: 0.3)),
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.info_outline, color: Color(0xFF00E5FF), size: 20),
+                          Icon(Icons.info_outline, color: AppColors.accent, size: 20),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Text(
                               '$priceInfo\nTotal de plată: ${totalAmount.toStringAsFixed(0)} lei (achitat integral de Host)',
-                              style: const TextStyle(color: Colors.white, fontSize: 13, height: 1.4),
+                              style: TextStyle(color: AppColors.text, fontSize: 13, height: 1.4),
                             ),
                           ),
                         ],
@@ -1101,25 +1264,32 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
                     );
                   }
                 ),
-                const Text('Metoda de plată', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+                Text('Metoda de plată', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.muted)),
                 RadioListTile(
                   title: const Text('Cash la locație'),
-                  activeColor: const Color(0xFF00E5FF),
+                  activeColor: AppColors.accent,
                   value: 'Cash la locație',
                   groupValue: _paymentMethod,
                   onChanged: (val) => setState(() => _paymentMethod = val.toString()),
                 ),
                 RadioListTile(
                   title: const Text('Card în aplicație (Salvat ca preferință)'),
-                  activeColor: const Color(0xFF00E5FF),
+                  activeColor: AppColors.accent,
                   value: 'Card în aplicație',
                   groupValue: _paymentMethod,
                   onChanged: (val) => setState(() => _paymentMethod = val.toString()),
                 ),
+                if (_venueData != null && _selectedLocation != null && _selectedLocation!.isPublic != true)
+                  VoucherField(
+                    venueId: _selectedLocation!.id,
+                    amount: _tablePrice,
+                    applied: _voucher,
+                    onChanged: (v) => setState(() => _voucher = v),
+                  ),
                 const SizedBox(height: 16),
                 CheckboxListTile(
-                  title: const Text('Doresc factură pe firmă', style: TextStyle(color: Colors.white, fontSize: 14)),
-                  activeColor: const Color(0xFF00E5FF),
+                  title: Text('Doresc factură pe firmă', style: TextStyle(color: AppColors.text, fontSize: 14)),
+                  activeColor: AppColors.accent,
                   checkColor: Colors.black,
                   value: _wantsInvoice,
                   onChanged: (val) {
@@ -1138,40 +1308,40 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
                     margin: const EdgeInsets.only(top: 8, bottom: 16),
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF131A2A),
+                      color: AppColors.card,
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.grey[800]!),
+                      border: Border.all(color: AppColors.border),
                     ),
                     child: Column(
                       children: [
                         TextField(
                           controller: _invoiceCompanyController,
                           decoration: const InputDecoration(labelText: 'Nume Firmă', isDense: true),
-                          style: const TextStyle(fontSize: 13, color: Colors.white),
+                          style: TextStyle(fontSize: 13, color: AppColors.text),
                         ),
                         const SizedBox(height: 8),
                         TextField(
                           controller: _invoiceCuiController,
                           decoration: const InputDecoration(labelText: 'CUI / CIF', isDense: true),
-                          style: const TextStyle(fontSize: 13, color: Colors.white),
+                          style: TextStyle(fontSize: 13, color: AppColors.text),
                         ),
                         const SizedBox(height: 8),
                         TextField(
                           controller: _invoiceRegController,
                           decoration: const InputDecoration(labelText: 'Reg. Comerțului', isDense: true),
-                          style: const TextStyle(fontSize: 13, color: Colors.white),
+                          style: TextStyle(fontSize: 13, color: AppColors.text),
                         ),
                         const SizedBox(height: 8),
                         TextField(
                           controller: _invoiceAddressController,
                           decoration: const InputDecoration(labelText: 'Adresă Sediu', isDense: true),
-                          style: const TextStyle(fontSize: 13, color: Colors.white),
+                          style: TextStyle(fontSize: 13, color: AppColors.text),
                         ),
                         const SizedBox(height: 8),
                         TextField(
                           controller: _invoiceEmailController,
                           decoration: const InputDecoration(labelText: 'Email pentru factură', isDense: true),
-                          style: const TextStyle(fontSize: 13, color: Colors.white),
+                          style: TextStyle(fontSize: 13, color: AppColors.text),
                         ),
                       ],
                     ),
@@ -1194,6 +1364,7 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
                       venueData: _venueData!,
                       startHour: _startHour!,
                       endHour: _endHour!,
+                date: _selectedDate,
                     );
                   } else {
                     totalAmount = LevelUtils.calculateTotalBookingPrice(
@@ -1206,9 +1377,9 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
                 return Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF131A2A),
+                    color: AppColors.card,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.3)),
+                    border: Border.all(color: AppColors.accent.withValues(alpha: 0.3)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1221,10 +1392,16 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
                       _summaryRow(Icons.people, 'Invitați', _invitedFriendUids.isEmpty
                           ? 'Niciun prieten selectat'
                           : '${_invitedFriendUids.length} prieteni vor primi invitație'),
-                      const Divider(color: Colors.grey),
+                      Divider(color: AppColors.muted),
                       _summaryRow(Icons.emoji_events, 'Tip Meci', _matchType),
                       _summaryRow(Icons.payment, 'Plată', _paymentMethod),
-                      _summaryRow(Icons.monetization_on, 'Cost Total', '${totalAmount.toStringAsFixed(0)} lei'),
+                      if (_voucherDiscount > 0)
+                        _summaryRow(
+                          Icons.confirmation_number_outlined,
+                          tr('vc.sum', {'code': _voucher!.code}),
+                          '-${_voucherDiscount.toStringAsFixed(_voucherDiscount % 1 == 0 ? 0 : 2)} lei',
+                        ),
+                      _summaryRow(Icons.monetization_on, 'Cost Total', '${(totalAmount - _voucherDiscount).toStringAsFixed(0)} lei'),
                     ],
                   ),
                 );
@@ -1242,15 +1419,15 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: const Color(0xFF00E5FF), size: 18),
+          Icon(icon, color: AppColors.accent, size: 18),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                Text(label, style: TextStyle(fontSize: 11, color: AppColors.muted)),
                 const SizedBox(height: 2),
-                Text(value, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white)),
+                Text(value, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.text)),
               ],
             ),
           ),
@@ -1260,14 +1437,7 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
   }
 
   Widget _buildSportSelector() {
-    final sports = [
-      {'id': 'ping_pong', 'label': 'Ping Pong'},
-      {'id': 'padel', 'label': 'Padel'},
-      {'id': 'tenis', 'label': 'Tenis'},
-      {'id': 'fotbal', 'label': 'Fotbal'},
-      {'id': 'handbal', 'label': 'Handbal'},
-      {'id': 'baschet', 'label': 'Baschet'},
-    ];
+    final sports = sportOptions();
     return Container(
       width: double.infinity,
       alignment: Alignment.centerLeft,
@@ -1281,9 +1451,9 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
               child: ChoiceChip(
                 label: Text(s['label']!),
                 selected: isSelected,
-                selectedColor: const Color(0xFF00E5FF),
-                labelStyle: TextStyle(color: isSelected ? Colors.black : Colors.white),
-                backgroundColor: const Color(0xFF1E293B),
+                selectedColor: AppColors.accent,
+                labelStyle: TextStyle(color: isSelected ? AppColors.onAccent : AppColors.text),
+                backgroundColor: AppColors.card2,
                 onSelected: (val) {
                   if (val) {
                     setState(() {
@@ -1307,7 +1477,7 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
       children: [
         Container(width: 12, height: 12, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
         const SizedBox(width: 6),
-        Text(label, style: const TextStyle(color: Colors.white70, fontSize: 11)),
+        Text(label, style: TextStyle(color: AppColors.text70, fontSize: 11)),
       ],
     );
   }
@@ -1343,9 +1513,9 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
 
       final Color blockedColor = isTrainingBlocked ? Colors.purpleAccent : Colors.redAccent;
       final Color blockedBgColor = isTrainingBlocked ? Colors.purple.withValues(alpha: 0.15) : Colors.red.withValues(alpha: 0.15);
-      final Color activeBorderColor = isTableBlocked ? blockedColor : (isSelected ? const Color(0xFF00E5FF) : const Color(0xFF00FF66));
-      final Color activeBgColor = isTableBlocked ? blockedBgColor : (isSelected ? const Color(0xFF00E5FF).withValues(alpha: 0.3) : const Color(0xFF00FF66).withValues(alpha: 0.1));
-      final Color contentColor = isTableBlocked ? blockedColor : (isSelected ? const Color(0xFF00E5FF) : const Color(0xFF00FF66));
+      final Color activeBorderColor = isTableBlocked ? blockedColor : (isSelected ? AppColors.accent : AppColors.good);
+      final Color activeBgColor = isTableBlocked ? blockedBgColor : (isSelected ? AppColors.accent.withValues(alpha: 0.3) : AppColors.good.withValues(alpha: 0.1));
+      final Color contentColor = isTableBlocked ? blockedColor : (isSelected ? AppColors.accent : AppColors.good);
 
       final IconData tableIcon = type == 'training' 
           ? Icons.school 
@@ -1397,8 +1567,8 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
               children: [
                 Icon(tableIcon, size: 16, color: contentColor),
                 const SizedBox(height: 2),
-                Text(tableName, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isTableBlocked ? blockedColor : Colors.white), overflow: TextOverflow.ellipsis, textAlign: TextAlign.center),
-                Text(statusText, style: TextStyle(fontSize: 9, color: isTableBlocked ? blockedColor : Colors.grey)),
+                Text(tableName, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isTableBlocked ? blockedColor : AppColors.text), overflow: TextOverflow.ellipsis, textAlign: TextAlign.center),
+                Text(statusText, style: TextStyle(fontSize: 9, color: isTableBlocked ? blockedColor : AppColors.muted)),
               ],
             ),
           ),

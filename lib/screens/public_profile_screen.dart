@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
+import '../theme/app_theme.dart';
 
 class PublicProfileScreen extends StatefulWidget {
   final String uid;
@@ -145,17 +146,17 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(
-        backgroundColor: Color(0xFF0D1424),
-        body: Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF))),
+      return Scaffold(
+        backgroundColor: AppColors.bgDeep,
+        body: Center(child: CircularProgressIndicator(color: AppColors.accent)),
       );
     }
 
     if (userData == null) {
       return Scaffold(
-        backgroundColor: const Color(0xFF0D1424),
-        appBar: AppBar(backgroundColor: const Color(0xFF131A2A)),
-        body: const Center(child: Text('Utilizatorul nu a fost găsit.', style: TextStyle(color: Colors.white))),
+        backgroundColor: AppColors.bgDeep,
+        appBar: AppBar(backgroundColor: AppColors.card),
+        body: Center(child: Text('Utilizatorul nu a fost găsit.', style: TextStyle(color: AppColors.text))),
       );
     }
 
@@ -171,11 +172,11 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
     final bool isTrainer = userData!['isTrainer'] == true;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0D1424),
+      backgroundColor: AppColors.bgDeep,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF131A2A),
-        title: Text(username, style: const TextStyle(color: Colors.white)),
-        iconTheme: const IconThemeData(color: Colors.white),
+        backgroundColor: AppColors.card,
+        title: Text(username, style: TextStyle(color: AppColors.text)),
+        iconTheme: IconThemeData(color: AppColors.text),
       ),
       body: CustomScrollView(
         slivers: [
@@ -186,14 +187,14 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                 children: [
                   CircleAvatar(
                     radius: 50,
-                    backgroundColor: const Color(0xFF1E293B),
+                    backgroundColor: AppColors.card2,
                     backgroundImage: avatarUrl.isNotEmpty ? _getAvatarProvider(avatarUrl) : null,
-                    child: avatarUrl.isEmpty ? const Icon(Icons.person, size: 50, color: Colors.white) : null,
+                    child: avatarUrl.isEmpty ? Icon(Icons.person, size: 50, color: AppColors.text) : null,
                   ),
                   const SizedBox(height: 16),
                   Text(
                     username,
-                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.text),
                   ),
                   const SizedBox(height: 4),
                   if (isTrainer)
@@ -208,7 +209,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                   else
                     Text(
                       'Rating: $rating puncte',
-                      style: const TextStyle(color: Color(0xFF00E5FF), fontSize: 14),
+                      style: TextStyle(color: AppColors.accent, fontSize: 14),
                     ),
                   const SizedBox(height: 16),
                   
@@ -227,7 +228,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                   Text(
                     bio,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.white70, fontSize: 15),
+                    style: TextStyle(color: AppColors.text70, fontSize: 15),
                   ),
                   const SizedBox(height: 24),
 
@@ -255,8 +256,8 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                               child: ElevatedButton(
                                 onPressed: _toggleFollow,
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: btnInactive ? const Color(0xFF1E293B) : const Color(0xFF00E5FF),
-                                  foregroundColor: btnInactive ? Colors.white : Colors.black,
+                                  backgroundColor: btnInactive ? AppColors.card2 : AppColors.accent,
+                                  foregroundColor: btnInactive ? AppColors.text : Colors.black,
                                   padding: const EdgeInsets.symmetric(vertical: 12),
                                 ),
                                 child: Text(buttonText, style: const TextStyle(fontWeight: FontWeight.bold)),
@@ -272,7 +273,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                                 label: const Text('Mesaj'),
                                 style: OutlinedButton.styleFrom(
                                   foregroundColor: Colors.white,
-                                  side: const BorderSide(color: Colors.grey),
+                                  side: BorderSide(color: AppColors.muted),
                                   padding: const EdgeInsets.symmetric(vertical: 12),
                                 ),
                               ),
@@ -294,16 +295,16 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                  child: Column(
                    crossAxisAlignment: CrossAxisAlignment.start,
                    children: [
-                     const Text('Pachete Antrenament', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                     Text('Pachete Antrenament', style: TextStyle(color: AppColors.text, fontSize: 18, fontWeight: FontWeight.bold)),
                      const SizedBox(height: 12),
                      Card(
-                       color: const Color(0xFF131A2A),
+                       color: AppColors.card,
                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.orange.withValues(alpha: 0.3))),
                        child: ListTile(
                          leading: const Icon(Icons.star, color: Colors.orange),
-                         title: const Text('10 Ședințe', style: TextStyle(color: Colors.white)),
-                         subtitle: const Text('Pachet complet pentru începători', style: TextStyle(color: Colors.grey)),
-                         trailing: Text('${(userData!['trainerPricePerSession'] ?? userData!['trainerPrice'] ?? 0) * 10} RON', style: const TextStyle(color: Color(0xFF00E5FF), fontWeight: FontWeight.bold)),
+                         title: Text('10 Ședințe', style: TextStyle(color: AppColors.text)),
+                         subtitle: Text('Pachet complet pentru începători', style: TextStyle(color: AppColors.muted)),
+                         trailing: Text('${(userData!['trainerPricePerSession'] ?? userData!['trainerPrice'] ?? 0) * 10} RON', style: TextStyle(color: AppColors.accent, fontWeight: FontWeight.bold)),
                        ),
                      ),
                    ],
@@ -312,10 +313,10 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
              ),
 
           // User's Posts Feed
-          const SliverToBoxAdapter(
+          SliverToBoxAdapter(
             child: Padding(
               padding: EdgeInsets.all(20.0),
-              child: Text('Postări', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+              child: Text('Postări', style: TextStyle(color: AppColors.text, fontSize: 18, fontWeight: FontWeight.bold)),
             ),
           ),
           
@@ -326,22 +327,22 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
               bool isMe = widget.uid == currentUserUid;
 
               if (isPrivate && !isFollowing && !isMe) {
-                return const SliverToBoxAdapter(
+                return SliverToBoxAdapter(
                   child: Center(
                     child: Padding(
                       padding: EdgeInsets.all(40.0),
                       child: Column(
                         children: [
-                          Icon(Icons.lock_outline, size: 64, color: Colors.grey),
+                          Icon(Icons.lock_outline, size: 64, color: AppColors.muted),
                           SizedBox(height: 16),
                           Text(
                             'Acest cont este privat.',
-                            style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                            style: TextStyle(color: AppColors.text, fontSize: 18, fontWeight: FontWeight.bold),
                           ),
                           SizedBox(height: 8),
                           Text(
                             'Urmărește pentru a-i vedea postările.',
-                            style: TextStyle(color: Colors.grey, fontSize: 14),
+                            style: TextStyle(color: AppColors.muted, fontSize: 14),
                           ),
                         ],
                       ),
@@ -357,15 +358,15 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                 .snapshots(),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return const SliverToBoxAdapter(child: Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF))));
+                return SliverToBoxAdapter(child: Center(child: CircularProgressIndicator(color: AppColors.accent)));
               }
 
               if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                return const SliverToBoxAdapter(
+                return SliverToBoxAdapter(
                   child: Center(
                     child: Padding(
                       padding: EdgeInsets.all(32.0),
-                      child: Text('Nicio postare.', style: TextStyle(color: Colors.grey)),
+                      child: Text('Nicio postare.', style: TextStyle(color: AppColors.muted)),
                     ),
                   ),
                 );
@@ -396,11 +397,11 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
               }).toList();
 
               if (posts.isEmpty) {
-                return const SliverToBoxAdapter(
+                return SliverToBoxAdapter(
                   child: Center(
                     child: Padding(
                       padding: EdgeInsets.all(32.0),
-                      child: Text('Nicio postare vizibilă.', style: TextStyle(color: Colors.grey)),
+                      child: Text('Nicio postare vizibilă.', style: TextStyle(color: AppColors.muted)),
                     ),
                   ),
                 );
@@ -427,11 +428,11 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                       visibilityColor = Colors.greenAccent;
                     } else {
                       visibilityIcon = Icons.public;
-                      visibilityColor = Colors.grey;
+                      visibilityColor = AppColors.muted;
                     }
                     
                     return Card(
-                      color: const Color(0xFF131A2A),
+                      color: AppColors.card,
                       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
@@ -448,7 +449,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                               children: [
                                 Text(
                                   userData?['username'] ?? 'Utilizator',
-                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                                  style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold, fontSize: 16),
                                 ),
                                 const SizedBox(width: 8),
                                 Icon(visibilityIcon, size: 14, color: visibilityColor),
@@ -456,11 +457,11 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                             ),
                             Text(
                               _timeAgo(timestamp),
-                              style: const TextStyle(color: Colors.grey, fontSize: 12),
+                              style: TextStyle(color: AppColors.muted, fontSize: 12),
                             ),
                             const SizedBox(height: 8),
                             if (content.isNotEmpty)
-                              Text(content, style: const TextStyle(color: Colors.white, fontSize: 15)),
+                              Text(content, style: TextStyle(color: AppColors.text, fontSize: 15)),
                             if (imageBase64 != null) ...[
                               const SizedBox(height: 12),
                               Container(
@@ -499,8 +500,8 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
   Widget _buildStatColumn(String label, String value) {
     return Column(
       children: [
-        Text(value, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+        Text(value, style: TextStyle(color: AppColors.text, fontSize: 20, fontWeight: FontWeight.bold)),
+        Text(label, style: TextStyle(color: AppColors.muted, fontSize: 12)),
       ],
     );
   }

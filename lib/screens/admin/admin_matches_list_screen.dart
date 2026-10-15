@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import '../../services/notification_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../utils/hour_utils.dart';
 import '../check_in_flow.dart';
 import '../match_detail_screen.dart';
+import '../../theme/app_theme.dart';
 
 class AdminMatchesListScreen extends StatefulWidget {
   final String? initialSearchQuery;
@@ -41,11 +43,11 @@ class _AdminMatchesListScreenState extends State<AdminMatchesListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0E17),
+      backgroundColor: AppColors.bg,
       appBar: AppBar(
-        title: const Text('Gestiune Meciuri', style: TextStyle(color: Colors.white, fontSize: 18)),
-        backgroundColor: const Color(0xFF131A2A),
-        iconTheme: const IconThemeData(color: Color(0xFF00E5FF)),
+        title: Text('Gestiune Meciuri', style: TextStyle(color: AppColors.text, fontSize: 18)),
+        backgroundColor: AppColors.card,
+        iconTheme: IconThemeData(color: AppColors.accent),
       ),
       body: Column(
         children: [
@@ -53,13 +55,13 @@ class _AdminMatchesListScreenState extends State<AdminMatchesListScreen> {
             padding: const EdgeInsets.all(16.0),
             child: TextField(
               controller: _searchController,
-              style: const TextStyle(color: Colors.white),
+              style: TextStyle(color: AppColors.text),
               decoration: InputDecoration(
                 hintText: 'Caută după nume jucător, sală sau dată...',
-                hintStyle: const TextStyle(color: Colors.grey),
-                prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                hintStyle: TextStyle(color: AppColors.muted),
+                prefixIcon: Icon(Icons.search, color: AppColors.muted),
                 filled: true,
-                fillColor: const Color(0xFF1E293B),
+                fillColor: AppColors.card2,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide.none,
@@ -77,12 +79,12 @@ class _AdminMatchesListScreenState extends State<AdminMatchesListScreen> {
               stream: _getMatchesStream(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)));
+                  return Center(child: CircularProgressIndicator(color: AppColors.accent));
                 }
 
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return const Center(
-                    child: Text('Nu există meciuri.', style: TextStyle(color: Colors.grey)),
+                  return Center(
+                    child: Text('Nu există meciuri.', style: TextStyle(color: AppColors.muted)),
                   );
                 }
 
@@ -112,8 +114,8 @@ class _AdminMatchesListScreenState extends State<AdminMatchesListScreen> {
                 }).toList();
 
                 if (filteredMatches.isEmpty) {
-                  return const Center(
-                    child: Text('Nu am găsit meciuri pentru căutarea ta.', style: TextStyle(color: Colors.grey)),
+                  return Center(
+                    child: Text('Nu am găsit meciuri pentru căutarea ta.', style: TextStyle(color: AppColors.muted)),
                   );
                 }
 
@@ -132,33 +134,33 @@ class _AdminMatchesListScreenState extends State<AdminMatchesListScreen> {
                     final pCount = players.length;
                     final maxPlayers = data['maxPlayers'] ?? 2;
 
-                    Color statusColor = Colors.grey;
+                    Color statusColor = AppColors.muted;
                     if (status == 'completed') statusColor = Colors.green;
                     if (status == 'cancelled') statusColor = Colors.red;
                     if (status == 'scheduled') statusColor = Colors.amber;
 
                     return Card(
-                      color: const Color(0xFF131A2A),
+                      color: AppColors.card,
                       margin: const EdgeInsets.only(bottom: 12),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
-                        side: BorderSide(color: Colors.grey[800]!),
+                        side: BorderSide(color: AppColors.border),
                       ),
                       child: ListTile(
                         title: Text(
                           '$venueName ($date $time)',
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                          style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold),
                         ),
                         subtitle: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const SizedBox(height: 4),
-                            Text('Jucători: $pCount/$maxPlayers', style: const TextStyle(color: Colors.grey)),
+                            Text('Jucători: $pCount/$maxPlayers', style: TextStyle(color: AppColors.muted)),
                             const SizedBox(height: 4),
                             Text('Status: $status', style: TextStyle(color: statusColor, fontWeight: FontWeight.bold)),
                           ],
                         ),
-                        trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+                        trailing: Icon(Icons.chevron_right, color: AppColors.muted),
                         onTap: () {
                           // Show detail modal or screen
                           _showMatchDetails(context, filteredMatches[index].id, data);
@@ -178,7 +180,7 @@ class _AdminMatchesListScreenState extends State<AdminMatchesListScreen> {
   void _showMatchDetails(BuildContext context, String matchId, Map<String, dynamic> data) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF131A2A),
+      backgroundColor: AppColors.card,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       isScrollControlled: true,
       builder: (context) {
@@ -193,19 +195,19 @@ class _AdminMatchesListScreenState extends State<AdminMatchesListScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Detalii Meci', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+              Text('Detalii Meci', style: TextStyle(color: AppColors.text, fontSize: 20, fontWeight: FontWeight.bold)),
               const SizedBox(height: 16),
-              Text('Sală: ${data['locationName'] ?? 'N/A'}', style: const TextStyle(color: Colors.grey, fontSize: 16)),
-              Text('Dată: ${data['date'] ?? 'N/A'}, ${formatHour(data['startHour'])}-${formatHour(data['endHour'])}', style: const TextStyle(color: Colors.grey, fontSize: 16)),
-              Text('Sport: ${data['sport'] ?? 'N/A'}', style: const TextStyle(color: Colors.grey, fontSize: 16)),
-              Text('Check-in: ${data['checkedIn'] == true ? 'efectuat' : 'neefectuat'}', style: const TextStyle(color: Colors.grey, fontSize: 16)),
-              Text('Creat de: ${data['hostUsername'] ?? data['hostUid'] ?? 'N/A'}', style: const TextStyle(color: Colors.grey, fontSize: 14)),
-              const Divider(color: Colors.grey, height: 30),
-              const Text('Jucători:', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              Text('Sală: ${data['locationName'] ?? 'N/A'}', style: TextStyle(color: AppColors.muted, fontSize: 16)),
+              Text('Dată: ${data['date'] ?? 'N/A'}, ${formatHour(data['startHour'])}-${formatHour(data['endHour'])}', style: TextStyle(color: AppColors.muted, fontSize: 16)),
+              Text('Sport: ${data['sport'] ?? 'N/A'}', style: TextStyle(color: AppColors.muted, fontSize: 16)),
+              Text('Check-in: ${data['checkedIn'] == true ? 'efectuat' : 'neefectuat'}', style: TextStyle(color: AppColors.muted, fontSize: 16)),
+              Text('Creat de: ${data['hostUsername'] ?? data['hostUid'] ?? 'N/A'}', style: TextStyle(color: AppColors.muted, fontSize: 14)),
+              Divider(color: AppColors.muted, height: 30),
+              Text('Jucători:', style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
               ...(data['joinedPlayers'] as List? ?? []).map((p) {
                 final m = p is Map ? p : const {};
-                return Text('- ${m['username'] ?? p} (Nivel: ${m['level'] ?? '-'})', style: const TextStyle(color: Colors.grey));
+                return Text('- ${m['username'] ?? p} (Nivel: ${m['level'] ?? '-'})', style: TextStyle(color: AppColors.muted));
               }),
               
               const SizedBox(height: 32),
@@ -225,8 +227,8 @@ class _AdminMatchesListScreenState extends State<AdminMatchesListScreen> {
                   icon: const Icon(Icons.open_in_new, size: 18),
                   label: const Text('Deschide pagina meciului'),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF00E5FF),
-                    side: const BorderSide(color: Color(0xFF00E5FF)),
+                    foregroundColor: AppColors.accent,
+                    side: BorderSide(color: AppColors.accent),
                     padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
                 ),
@@ -244,7 +246,7 @@ class _AdminMatchesListScreenState extends State<AdminMatchesListScreen> {
                     icon: const Icon(Icons.how_to_reg, size: 18),
                     label: const Text('Check-in (Admin)'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF00FF66),
+                      backgroundColor: AppColors.good,
                       foregroundColor: Colors.black,
                       padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
@@ -277,7 +279,7 @@ class _AdminMatchesListScreenState extends State<AdminMatchesListScreen> {
                 child: ElevatedButton(
                   onPressed: () => Navigator.pop(context),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF00E5FF),
+                    backgroundColor: AppColors.accent,
                     foregroundColor: Colors.black,
                   ),
                   child: const Text('Închide'),
@@ -297,20 +299,20 @@ class _AdminMatchesListScreenState extends State<AdminMatchesListScreen> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          backgroundColor: const Color(0xFF131A2A),
-          title: const Text('Anulare Meci', style: TextStyle(color: Colors.white)),
+          backgroundColor: AppColors.card,
+          title: Text('Anulare Meci', style: TextStyle(color: AppColors.text)),
           content: TextField(
             controller: reasonController,
-            style: const TextStyle(color: Colors.white),
-            decoration: const InputDecoration(
+            style: TextStyle(color: AppColors.text),
+            decoration: InputDecoration(
               hintText: 'Motivul anulării (ex: Eroare de sistem)...',
-              hintStyle: TextStyle(color: Colors.grey),
+              hintStyle: TextStyle(color: AppColors.muted),
             ),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('ÎNAPOI', style: TextStyle(color: Colors.grey)),
+              child: Text('ÎNAPOI', style: TextStyle(color: AppColors.muted)),
             ),
             ElevatedButton(
               onPressed: () async {
@@ -320,10 +322,16 @@ class _AdminMatchesListScreenState extends State<AdminMatchesListScreen> {
                 }
                 
                 try {
-                  await FirebaseFirestore.instance.collection('matches').doc(matchId).update({
+                  final mRef = FirebaseFirestore.instance.collection('matches').doc(matchId);
+                  final mData = (await mRef.get()).data();
+                  await mRef.update({
                     'status': 'cancelled',
                     'cancellationReason': reasonController.text.trim(),
                   });
+                  if (mData != null) {
+                    // Jucătorii și sala află că meciul a fost anulat de administrator (popup + email).
+                    await NotificationService.matchCancelled(matchId, mData, byName: 'Playhub');
+                  }
                   if (mounted) {
                     Navigator.pop(context);
                     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Meci anulat cu succes!'), backgroundColor: Colors.green));
@@ -333,7 +341,7 @@ class _AdminMatchesListScreenState extends State<AdminMatchesListScreen> {
                 }
               },
               style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-              child: const Text('ANULEAZĂ MECI', style: TextStyle(color: Colors.white)),
+              child: Text('ANULEAZĂ MECI', style: TextStyle(color: AppColors.text)),
             ),
           ],
         );

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
 import 'package:http/http.dart' as http;
+import '../theme/app_theme.dart';
 
 class StripeService {
   StripeService._();
@@ -67,9 +68,9 @@ class StripeService {
       // Daca codul a ajuns aici fara eroare, plata este cu succes
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Text('Plata a fost procesată cu succes!'),
-            backgroundColor: Color(0xFF00FF66),
+            backgroundColor: AppColors.good,
           ),
         );
       }

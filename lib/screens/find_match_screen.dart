@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'find_match_tab.dart';
 import '../widgets/player_drawer.dart';
+import '../theme/app_theme.dart';
 
 class FindMatchScreen extends StatelessWidget {
   const FindMatchScreen({super.key});
@@ -8,21 +9,21 @@ class FindMatchScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0E17),
+      backgroundColor: AppColors.bg,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF131A2A),
+        backgroundColor: AppColors.card,
         elevation: 0,
         leading: Builder(
           builder: (context) => IconButton(
-            icon: const Icon(Icons.menu, color: Color(0xFF00E5FF)),
+            icon: Icon(Icons.menu, color: AppColors.accent),
             onPressed: () {
               Scaffold.of(context).openDrawer();
             },
           ),
         ),
-        title: const Text(
+        title: Text(
           'Descoperă Meciuri',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
       ),

@@ -4,6 +4,9 @@ import '../services/booking_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import '../utils/level_utils.dart';
+import '../l10n/strings.dart';
+import '../services/notification_actions.dart';
+import '../theme/app_theme.dart';
 
 class NotificationsDialog extends StatefulWidget {
   const NotificationsDialog({super.key});
@@ -139,7 +142,7 @@ class _NotificationsDialogState extends State<NotificationsDialog> {
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Invitație refuzată.'), backgroundColor: Colors.grey),
+            SnackBar(content: Text('Invitație refuzată.'), backgroundColor: AppColors.muted),
           );
         }
       }
@@ -149,6 +152,18 @@ class _NotificationsDialogState extends State<NotificationsDialog> {
           SnackBar(content: Text('Eroare: $e'), backgroundColor: Colors.redAccent),
         );
       }
+    }
+  }
+
+  Future<void> _decideAction(String id, Map<String, dynamic> data, bool accept) async {
+    String msg;
+    try {
+      msg = await NotificationActions.decide(id, data, accept: accept);
+    } catch (e) {
+      msg = tr('tr.error', {'error': '$e'});
+    }
+    if (mounted && msg.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
     }
   }
 
@@ -167,14 +182,14 @@ class _NotificationsDialogState extends State<NotificationsDialog> {
     final user = _currentUser;
     if (user == null) {
       return Dialog(
-        backgroundColor: const Color(0xFF0A0E17),
+        backgroundColor: AppColors.bg,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: const Color(0xFF00E5FF).withValues(alpha: 0.4), width: 1.5),
+          side: BorderSide(color: AppColors.accent.withValues(alpha: 0.4), width: 1.5),
         ),
-        child: const Padding(
+        child: Padding(
           padding: EdgeInsets.all(24.0),
-          child: Text('Trebuie să fii autentificat!', style: TextStyle(color: Colors.white)),
+          child: Text('Trebuie să fii autentificat!', style: TextStyle(color: AppColors.text)),
         ),
       );
     }
@@ -188,12 +203,12 @@ class _NotificationsDialogState extends State<NotificationsDialog> {
           maxHeight: MediaQuery.of(context).size.height * 0.8,
         ),
         decoration: BoxDecoration(
-          color: const Color(0xFF0A0E17),
+          color: AppColors.bg,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.4), width: 1.5),
+          border: Border.all(color: AppColors.accent.withValues(alpha: 0.4), width: 1.5),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF00E5FF).withValues(alpha: 0.1),
+              color: AppColors.accent.withValues(alpha: 0.1),
               blurRadius: 12,
               spreadRadius: 2,
             ),
@@ -208,28 +223,28 @@ class _NotificationsDialogState extends State<NotificationsDialog> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Row(
+                  Row(
                     children: [
-                      Icon(Icons.notifications_active_outlined, color: Color(0xFF00E5FF), size: 24),
+                      Icon(Icons.notifications_active_outlined, color: AppColors.accent, size: 24),
                       SizedBox(width: 10),
                       Text(
                         'Notificări Meciuri',
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          color: AppColors.text,
                         ),
                       ),
                     ],
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close, color: Colors.white70),
+                    icon: Icon(Icons.close, color: AppColors.text70),
                     onPressed: () => Navigator.pop(context),
                   ),
                 ],
               ),
             ),
-            const Divider(color: Color(0xFF1E293B), height: 1),
+            Divider(color: AppColors.card2, height: 1),
             // Body
             Flexible(
               child: StreamBuilder<QuerySnapshot>(
@@ -246,9 +261,9 @@ class _NotificationsDialogState extends State<NotificationsDialog> {
                   }
 
                   if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Padding(
+                    return Padding(
                       padding: EdgeInsets.all(40.0),
-                      child: Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF))),
+                      child: Center(child: CircularProgressIndicator(color: AppColors.accent)),
                     );
                   }
 
@@ -276,19 +291,19 @@ class _NotificationsDialogState extends State<NotificationsDialog> {
                   }).toList();
 
                   if (filteredDocs.isEmpty) {
-                    return const Padding(
+                    return Padding(
                       padding: EdgeInsets.symmetric(vertical: 48, horizontal: 24),
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.notifications_off_outlined, size: 64, color: Colors.grey),
+                          Icon(Icons.notifications_off_outlined, size: 64, color: AppColors.muted),
                           SizedBox(height: 16),
-                          Text('Nicio notificare nouă.', style: TextStyle(color: Colors.grey, fontSize: 16)),
+                          Text('Nicio notificare nouă.', style: TextStyle(color: AppColors.muted, fontSize: 16)),
                           SizedBox(height: 8),
                           Text(
                             'Aici vei primi invitații de meci, confirmări și alerte de la masa ta.',
-                            style: TextStyle(color: Colors.grey, fontSize: 12),
+                            style: TextStyle(color: AppColors.muted, fontSize: 12),
                             textAlign: TextAlign.center,
                           ),
                         ],
@@ -303,8 +318,11 @@ class _NotificationsDialogState extends State<NotificationsDialog> {
                     itemBuilder: (context, index) {
                       final docId = filteredDocs[index].id;
                       final data = filteredDocs[index].data() as Map<String, dynamic>;
-                      final title = data['title'] ?? 'Notificare';
-                      final body = data['body'] ?? '';
+                      final Map<String, String> nArgs = (data['args'] is Map)
+                          ? Map<String, dynamic>.from(data['args']).map((k, v) => MapEntry(k, '$v'))
+                          : <String, String>{};
+                      final String title = data['titleKey'] != null ? tr(data['titleKey'], nArgs) : (data['title'] ?? tr('notif.default'));
+                      final String body = data['bodyKey'] != null ? tr(data['bodyKey'], nArgs) : (data['body'] ?? '');
                       final type = data['type'] ?? '';
                       final matchId = data['matchId'] ?? '';
                       final Timestamp? timestamp = data['timestamp'];
@@ -316,11 +334,11 @@ class _NotificationsDialogState extends State<NotificationsDialog> {
                       final bool isInvite = type == 'match_invite';
 
                       return Card(
-                        color: const Color(0xFF131A2A),
+                        color: AppColors.card,
                         margin: const EdgeInsets.only(bottom: 12),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
-                          side: BorderSide(color: const Color(0xFF00E5FF).withValues(alpha: 0.3)),
+                          side: BorderSide(color: AppColors.accent.withValues(alpha: 0.3)),
                         ),
                         child: Padding(
                           padding: const EdgeInsets.all(16),
@@ -335,17 +353,17 @@ class _NotificationsDialogState extends State<NotificationsDialog> {
                                       children: [
                                         Icon(
                                           isInvite ? Icons.sports_tennis : Icons.info_outline,
-                                          color: const Color(0xFF00E5FF),
+                                          color: AppColors.accent,
                                           size: 20,
                                         ),
                                         const SizedBox(width: 8),
                                         Expanded(
                                           child: Text(
                                             title,
-                                            style: const TextStyle(
+                                            style: TextStyle(
                                               fontWeight: FontWeight.bold,
                                               fontSize: 15,
-                                              color: Colors.white,
+                                              color: AppColors.text,
                                             ),
                                             overflow: TextOverflow.ellipsis,
                                           ),
@@ -353,11 +371,11 @@ class _NotificationsDialogState extends State<NotificationsDialog> {
                                       ],
                                     ),
                                   ),
-                                  Text(timeStr, style: const TextStyle(color: Colors.grey, fontSize: 11)),
+                                  Text(timeStr, style: TextStyle(color: AppColors.muted, fontSize: 11)),
                                 ],
                               ),
                               const SizedBox(height: 8),
-                              Text(body, style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                              Text(body, style: TextStyle(color: AppColors.text70, fontSize: 13)),
                               const SizedBox(height: 12),
                               if (isInvite) ...[
                                 Row(
@@ -365,7 +383,7 @@ class _NotificationsDialogState extends State<NotificationsDialog> {
                                     Expanded(
                                       child: ElevatedButton(
                                         style: ElevatedButton.styleFrom(
-                                          backgroundColor: const Color(0xFF00E5FF),
+                                          backgroundColor: AppColors.accent,
                                           foregroundColor: Colors.black,
                                           padding: const EdgeInsets.symmetric(vertical: 6),
                                           textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
@@ -389,14 +407,44 @@ class _NotificationsDialogState extends State<NotificationsDialog> {
                                     ),
                                   ],
                                 )
+                              ] else if (NotificationActions.isActionable(type)) ...[
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: ElevatedButton(
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.green,
+                                          foregroundColor: Colors.white,
+                                          padding: const EdgeInsets.symmetric(vertical: 6),
+                                          textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                        ),
+                                        onPressed: () => _decideAction(docId, data, true),
+                                        child: Text(tr('n.accept').toUpperCase()),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: OutlinedButton(
+                                        style: OutlinedButton.styleFrom(
+                                          side: const BorderSide(color: Colors.redAccent),
+                                          foregroundColor: Colors.redAccent,
+                                          padding: const EdgeInsets.symmetric(vertical: 6),
+                                          textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                        ),
+                                        onPressed: () => _decideAction(docId, data, false),
+                                        child: Text(tr('n.decline').toUpperCase()),
+                                      ),
+                                    ),
+                                  ],
+                                )
                               ] else ...[
                                 Align(
                                   alignment: Alignment.centerRight,
                                   child: TextButton(
                                     onPressed: () => _dismissNotification(docId),
-                                    child: const Text(
-                                      'CONFIRMĂ',
-                                      style: TextStyle(color: Color(0xFF00E5FF), fontSize: 13, fontWeight: FontWeight.bold),
+                                    child: Text(
+                                      tr('n.ok').toUpperCase(),
+                                      style: TextStyle(color: AppColors.accent, fontSize: 13, fontWeight: FontWeight.bold),
                                     ),
                                   ),
                                 )

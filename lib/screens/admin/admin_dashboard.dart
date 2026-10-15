@@ -5,9 +5,12 @@ import 'admin_venues_list_screen.dart';
 import 'admin_users_list_screen.dart';
 import 'admin_matches_list_screen.dart';
 import 'admin_trainers_list_screen.dart';
+import 'admin_checkin_report_screen.dart';
+import 'admin_subscriptions_screen.dart';
 import '../venue_signup_screen.dart';
 import '../check_in_flow.dart';
 import '../../services/seed_data_service.dart';
+import '../../theme/app_theme.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -54,7 +57,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: const Color(0xFF131A2A),
+          color: AppColors.card,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: color.withValues(alpha: 0.3), width: 1.5),
         ),
@@ -65,12 +68,12 @@ class _AdminDashboardState extends State<AdminDashboard> {
             const SizedBox(height: 12),
             Text(
               value,
-              style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+              style: TextStyle(color: AppColors.text, fontSize: 24, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 4),
             Text(
               title,
-              style: const TextStyle(color: Colors.grey, fontSize: 12),
+              style: TextStyle(color: AppColors.muted, fontSize: 12),
             ),
           ],
         ),
@@ -87,19 +90,19 @@ class _AdminDashboardState extends State<AdminDashboard> {
         children: [
           Row(
             children: [
-              const Icon(Icons.admin_panel_settings, color: Color(0xFFFF0055), size: 32),
+              Icon(Icons.admin_panel_settings, color: AppColors.bad, size: 32),
               const SizedBox(width: 12),
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       'Super Admin',
-                      style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.white),
+                      style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: AppColors.text),
                     ),
                     Text(
                       'Ai control deplin asupra platformei.',
-                      style: TextStyle(color: Colors.grey, fontSize: 14),
+                      style: TextStyle(color: AppColors.muted, fontSize: 14),
                     ),
                   ],
                 ),
@@ -109,22 +112,22 @@ class _AdminDashboardState extends State<AdminDashboard> {
           const SizedBox(height: 24),
           
           if (_loadingStats)
-            const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)))
+            Center(child: CircularProgressIndicator(color: AppColors.accent))
           else
             Row(
               children: [
-                _buildStatCard('Utilizatori', '$_userCount', Icons.people, const Color(0xFF00E5FF)),
+                _buildStatCard('Utilizatori', '$_userCount', Icons.people, AppColors.accent),
                 const SizedBox(width: 12),
-                _buildStatCard('Săli', '$_venueCount', Icons.storefront, const Color(0xFF00FF66)),
+                _buildStatCard('Săli', '$_venueCount', Icons.storefront, AppColors.good),
                 const SizedBox(width: 12),
-                _buildStatCard('Meciuri', '$_matchCount', Icons.sports_tennis, const Color(0xFFFF0055)),
+                _buildStatCard('Meciuri', '$_matchCount', Icons.sports_tennis, AppColors.bad),
               ],
             ),
           
           const SizedBox(height: 32),
-          const Text(
+          Text(
             'Acțiuni Rapide',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.text),
           ),
           const SizedBox(height: 16),
           
@@ -134,7 +137,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
             icon: const Icon(Icons.qr_code_scanner, size: 22),
             label: const Text('Check-in (scanează bilet)', style: TextStyle(fontWeight: FontWeight.bold)),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF00E5FF),
+              backgroundColor: AppColors.accent,
               foregroundColor: Colors.black,
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -153,7 +156,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
             icon: const Icon(Icons.park, size: 22),
             label: const Text('Adaugă Locație Publică', style: TextStyle(fontWeight: FontWeight.bold)),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF00FF66),
+              backgroundColor: AppColors.good,
               foregroundColor: Colors.black,
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -167,7 +170,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
               showDialog(
                 context: context,
                 barrierDismissible: false,
-                builder: (context) => const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF))),
+                builder: (context) => Center(child: CircularProgressIndicator(color: AppColors.accent)),
               );
               try {
                 await SeedDataService.seedMassiveData(100);
@@ -193,7 +196,47 @@ class _AdminDashboardState extends State<AdminDashboard> {
             ),
           ),
           const SizedBox(height: 16),
+
+          // Abonamente săli (100 lei/lună) + perioade gratuite
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AdminSubscriptionsScreen()),
+              );
+            },
+            icon: const Icon(Icons.workspace_premium_outlined, size: 22),
+            label: const Text('Abonamente săli', style: TextStyle(fontWeight: FontWeight.bold)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.card,
+              foregroundColor: const Color(0xFFFFC107),
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              side: const BorderSide(color: Color(0xFFFFC107)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+          const SizedBox(height: 16),
           
+          // Raport check-in-uri pe sală (zi / săptămână / lună)
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AdminCheckinReportScreen()),
+              );
+            },
+            icon: const Icon(Icons.bar_chart, size: 22),
+            label: const Text('Raport Check-in-uri', style: TextStyle(fontWeight: FontWeight.bold)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.card,
+              foregroundColor: AppColors.good,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              side: BorderSide(color: AppColors.good),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+          const SizedBox(height: 16),
+
           // Manage Venues Button
           ElevatedButton.icon(
             onPressed: () {
@@ -205,10 +248,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
             icon: const Icon(Icons.storefront, size: 22),
             label: const Text('Gestiune Săli', style: TextStyle(fontWeight: FontWeight.bold)),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF131A2A),
-              foregroundColor: const Color(0xFF00E5FF),
+              backgroundColor: AppColors.card,
+              foregroundColor: AppColors.accent,
               padding: const EdgeInsets.symmetric(vertical: 16),
-              side: const BorderSide(color: Color(0xFF00E5FF)),
+              side: BorderSide(color: AppColors.accent),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
           ),
@@ -225,7 +268,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
             icon: const Icon(Icons.sports_kabaddi, size: 22),
             label: const Text('Gestiune Antrenori', style: TextStyle(fontWeight: FontWeight.bold)),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFFFD700),
+              backgroundColor: AppColors.gold,
               foregroundColor: Colors.black,
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -244,10 +287,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
             icon: const Icon(Icons.people, size: 22),
             label: const Text('Gestiune Utilizatori', style: TextStyle(fontWeight: FontWeight.bold)),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF131A2A),
-              foregroundColor: Colors.white,
+              backgroundColor: AppColors.card,
+              foregroundColor: AppColors.text,
               padding: const EdgeInsets.symmetric(vertical: 16),
-              side: const BorderSide(color: Colors.grey),
+              side: BorderSide(color: AppColors.muted),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
           ),
@@ -264,15 +307,15 @@ class _AdminDashboardState extends State<AdminDashboard> {
             icon: const Icon(Icons.sports_tennis, size: 22),
             label: const Text('Gestiune Meciuri', style: TextStyle(fontWeight: FontWeight.bold)),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF131A2A),
-              foregroundColor: const Color(0xFFFF0055),
+              backgroundColor: AppColors.card,
+              foregroundColor: AppColors.bad,
               padding: const EdgeInsets.symmetric(vertical: 16),
-              side: const BorderSide(color: Color(0xFFFF0055)),
+              side: BorderSide(color: AppColors.bad),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
           ),
           const SizedBox(height: 32),
-          const Divider(color: Colors.grey),
+          Divider(color: AppColors.muted),
           const SizedBox(height: 16),
           
             // Create Standard Venue Button (Admin)
@@ -288,7 +331,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
               icon: const Icon(Icons.add_business, size: 22),
               label: const Text('Crează Sală Standard', style: TextStyle(fontWeight: FontWeight.bold)),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF131A2A),
+                backgroundColor: AppColors.card,
                 foregroundColor: Colors.amberAccent,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 side: const BorderSide(color: Colors.amberAccent),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'create_match_tab.dart';
 import '../widgets/player_drawer.dart';
+import '../theme/app_theme.dart';
 
 class CreateMatchScreen extends StatelessWidget {
   final String? preselectedCity;
@@ -16,26 +17,26 @@ class CreateMatchScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final canPop = Navigator.canPop(context);
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0E17),
+      backgroundColor: AppColors.bg,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF131A2A),
+        backgroundColor: AppColors.card,
         elevation: 0,
         leading: canPop
             ? IconButton(
-                icon: const Icon(Icons.arrow_back, color: Color(0xFF00E5FF)),
+                icon: Icon(Icons.arrow_back, color: AppColors.accent),
                 onPressed: () => Navigator.pop(context),
               )
             : Builder(
                 builder: (context) => IconButton(
-                  icon: const Icon(Icons.menu, color: Color(0xFF00E5FF)),
+                  icon: Icon(Icons.menu, color: AppColors.accent),
                   onPressed: () {
                     Scaffold.of(context).openDrawer();
                   },
                 ),
               ),
-        title: const Text(
+        title: Text(
           'Creează un Meci',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
       ),

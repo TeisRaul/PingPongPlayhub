@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../services/stripe_service.dart';
+import '../theme/app_theme.dart';
 
 class PaymentScreen extends StatefulWidget {
   final double amount;
@@ -70,13 +71,13 @@ class _PaymentScreenState extends State<PaymentScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0E17),
+      backgroundColor: AppColors.bg,
       appBar: AppBar(
-        title: const Text('Plată Securizată', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        backgroundColor: const Color(0xFF131A2A),
+        title: Text('Plată Securizată', style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold)),
+        backgroundColor: AppColors.card,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF00E5FF)),
+          icon: Icon(Icons.arrow_back, color: AppColors.accent),
           onPressed: () => Navigator.pop(context, false),
         ),
       ),
@@ -93,18 +94,18 @@ class _PaymentScreenState extends State<PaymentScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 margin: const EdgeInsets.only(bottom: 24),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFD700).withValues(alpha: 0.08),
+                  color: AppColors.gold.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFFFD700).withValues(alpha: 0.4), width: 1.2),
+                  border: Border.all(color: AppColors.gold.withValues(alpha: 0.4), width: 1.2),
                 ),
-                child: const Row(
+                child: Row(
                   children: [
-                    Icon(Icons.security, color: Color(0xFFFFD700), size: 20),
+                    Icon(Icons.security, color: AppColors.gold, size: 20),
                     SizedBox(width: 12),
                     Expanded(
                       child: Text(
                         'Secure Sandbox: Datele de card de test au fost pre-completate automat pentru o testare rapidă și securizată.',
-                        style: TextStyle(color: Colors.white70, fontSize: 11, height: 1.3),
+                        style: TextStyle(color: AppColors.text70, fontSize: 11, height: 1.3),
                       ),
                     ),
                   ],
@@ -114,53 +115,53 @@ class _PaymentScreenState extends State<PaymentScreen> {
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF131A2A),
+                  color: AppColors.card,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.3)),
+                  border: Border.all(color: AppColors.accent.withValues(alpha: 0.3)),
                 ),
                 child: Column(
                   children: [
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('Rezervare Mese:', style: TextStyle(color: Colors.grey, fontSize: 14)),
-                        Text('${widget.amount.toStringAsFixed(2)} RON', style: const TextStyle(color: Colors.white, fontSize: 14)),
+                        Text('Rezervare Mese:', style: TextStyle(color: AppColors.muted, fontSize: 14)),
+                        Text('${widget.amount.toStringAsFixed(2)} RON', style: TextStyle(color: AppColors.text, fontSize: 14)),
                       ],
                     ),
                     const SizedBox(height: 8),
-                    const Row(
+                    Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('Taxă Platformă:', style: TextStyle(color: Colors.grey, fontSize: 14)),
-                        Text('5.00 RON', style: TextStyle(color: Colors.white, fontSize: 14)),
+                        Text('Taxă Platformă:', style: TextStyle(color: AppColors.muted, fontSize: 14)),
+                        Text('5.00 RON', style: TextStyle(color: AppColors.text, fontSize: 14)),
                       ],
                     ),
-                    const Padding(
+                    Padding(
                       padding: EdgeInsets.symmetric(vertical: 12),
-                      child: Divider(color: Colors.white24),
+                      child: Divider(color: AppColors.text24),
                     ),
-                    const Text('Total de Plată', style: TextStyle(color: Colors.grey, fontSize: 14)),
+                    Text('Total de Plată', style: TextStyle(color: AppColors.muted, fontSize: 14)),
                     const SizedBox(height: 8),
-                    Text('${(widget.amount + 5.0).toStringAsFixed(2)} RON', style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Color(0xFF00E5FF))),
+                    Text('${(widget.amount + 5.0).toStringAsFixed(2)} RON', style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: AppColors.accent)),
                   ],
                 ),
               ),
               const SizedBox(height: 24),
 
               // Wallet quick payments
-              const Text('Plătește rapid cu:', style: TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold)),
+              Text('Plătește rapid cu:', style: TextStyle(color: AppColors.muted, fontSize: 12, fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
               Row(
                 children: [
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: _isProcessing ? null : () => _processQuickWallet('Google Pay'),
-                      icon: const FaIcon(FontAwesomeIcons.googlePay, color: Colors.white, size: 24),
+                      icon: FaIcon(FontAwesomeIcons.googlePay, color: AppColors.text, size: 24),
                       label: const Text('Google Pay', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 14),
-                        side: const BorderSide(color: Colors.grey),
+                        side: BorderSide(color: AppColors.muted),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
                     ),
@@ -172,7 +173,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                       icon: const FaIcon(FontAwesomeIcons.apple, color: Colors.black, size: 18),
                       label: const Text('Apple Pay', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
+                        backgroundColor: AppColors.text,
                         foregroundColor: Colors.black,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -185,12 +186,12 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
               Row(
                 children: [
-                  Expanded(child: Divider(color: Colors.grey[850])),
-                  const Padding(
+                  Expanded(child: Divider(color: AppColors.border)),
+                  Padding(
                     padding: EdgeInsets.symmetric(horizontal: 16.0),
-                    child: Text('SAU INTRODU CARDUL', style: TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.bold)),
+                    child: Text('SAU INTRODU CARDUL', style: TextStyle(color: AppColors.muted, fontSize: 10, fontWeight: FontWeight.bold)),
                   ),
-                  Expanded(child: Divider(color: Colors.grey[850])),
+                  Expanded(child: Divider(color: AppColors.border)),
                 ],
               ),
               const SizedBox(height: 24),
@@ -199,9 +200,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
                 controller: _cardNumberController,
                 decoration: InputDecoration(
                   labelText: 'Număr Card',
-                  prefixIcon: const Icon(Icons.credit_card, color: Color(0xFF00E5FF)),
+                  prefixIcon: Icon(Icons.credit_card, color: AppColors.accent),
                   filled: true,
-                  fillColor: const Color(0xFF131A2A),
+                  fillColor: AppColors.card,
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                 ),
                 keyboardType: TextInputType.number,
@@ -215,9 +216,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
                       controller: _expiryController,
                       decoration: InputDecoration(
                         labelText: 'Expirare (LL/AA)',
-                        prefixIcon: const Icon(Icons.calendar_today, color: Color(0xFF00E5FF)),
+                        prefixIcon: Icon(Icons.calendar_today, color: AppColors.accent),
                         filled: true,
-                        fillColor: const Color(0xFF131A2A),
+                        fillColor: AppColors.card,
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                       ),
                       keyboardType: TextInputType.datetime,
@@ -230,9 +231,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
                       controller: _cvvController,
                       decoration: InputDecoration(
                         labelText: 'CVV',
-                        prefixIcon: const Icon(Icons.security, color: Color(0xFF00E5FF)),
+                        prefixIcon: Icon(Icons.security, color: AppColors.accent),
                         filled: true,
-                        fillColor: const Color(0xFF131A2A),
+                        fillColor: AppColors.card,
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                       ),
                       keyboardType: TextInputType.number,
@@ -247,9 +248,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
                 controller: _cardNameController,
                 decoration: InputDecoration(
                   labelText: 'Numele de pe card',
-                  prefixIcon: const Icon(Icons.person, color: Color(0xFF00E5FF)),
+                  prefixIcon: Icon(Icons.person, color: AppColors.accent),
                   filled: true,
-                  fillColor: const Color(0xFF131A2A),
+                  fillColor: AppColors.card,
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                 ),
                 validator: (val) => val != null && val.isNotEmpty ? null : 'Câmp obligatoriu',
@@ -259,7 +260,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                 onPressed: _isProcessing ? null : _processPayment,
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
-                  backgroundColor: const Color(0xFF00E5FF),
+                  backgroundColor: AppColors.accent,
                   foregroundColor: Colors.black,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),

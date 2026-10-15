@@ -2,6 +2,12 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../l10n/app_locales.dart';
+import '../l10n/strings.dart';
+import '../screens/language_screen.dart';
+import '../services/push_service.dart';
+import '../screens/privacy_data_screen.dart';
+import '../widgets/theme_picker.dart';
 import '../utils/level_utils.dart';
 import '../screens/home_screen.dart';
 import '../screens/my_profile_screen.dart';
@@ -15,10 +21,13 @@ import '../screens/login_screen.dart';
 import '../screens/venue_map_screen.dart';
 import '../screens/venue_tables_layout_screen.dart';
 import '../screens/venue_finances_screen.dart';
+import '../screens/venue_subscription_screen.dart';
 import '../screens/leaderboard_screen.dart';
+import '../screens/my_stats_screen.dart';
 import '../screens/trainer_dashboard.dart';
 import '../screens/client_sessions_screen.dart';
 import '../screens/feed_screen.dart';
+import '../theme/app_theme.dart';
 
 class PlayerDrawer extends StatefulWidget {
   final String activePage;
@@ -93,6 +102,7 @@ class _PlayerDrawerState extends State<PlayerDrawer> {
   }
 
   Future<void> _logout() async {
+    await PushService.instance.onLogout(); // înainte de signOut, cât timp ai încă acces
     await FirebaseAuth.instance.signOut();
     if (mounted) {
       Navigator.pushAndRemoveUntil(
@@ -132,16 +142,16 @@ class _PlayerDrawerState extends State<PlayerDrawer> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Drawer(
-        backgroundColor: Color(0xFF0A0E17),
+      return Drawer(
+        backgroundColor: AppColors.bg,
         child: Center(
-          child: CircularProgressIndicator(color: Color(0xFF00E5FF)),
+          child: CircularProgressIndicator(color: AppColors.accent),
         ),
       );
     }
 
     final rating = isVenue ? 0 : (userData?['rating'] ?? 0);
-    final username = isVenue ? (userData?['venueName'] ?? 'Sală') : (userData?['username'] ?? 'Jucător');
+    final username = isVenue ? (userData?['venueName'] ?? tr('drawer.fallback_venue')) : (userData?['username'] ?? tr('drawer.fallback_player'));
     final avatarUrl = isVenue ? null : userData?['avatarUrl'];
 
     final levelDetails = LevelUtils.getLevelDetails(rating);
@@ -149,16 +159,16 @@ class _PlayerDrawerState extends State<PlayerDrawer> {
     final double progress = levelDetails['progress'];
 
     return Drawer(
-      backgroundColor: const Color(0xFF0A0E17),
+      backgroundColor: AppColors.bg,
       child: Column(
         children: [
           // Drawer Header with User Profile details
           DrawerHeader(
-            decoration: const BoxDecoration(
-              color: Color(0xFF131A2A),
+            decoration: BoxDecoration(
+              color: AppColors.card,
               border: Border(
                 bottom: BorderSide(
-                  color: Color(0xFF00E5FF),
+                  color: AppColors.accent,
                   width: 1.5,
                 ),
               ),
@@ -173,17 +183,17 @@ class _PlayerDrawerState extends State<PlayerDrawer> {
                       height: 65,
                       child: CircularProgressIndicator(
                         value: isVenue ? 1.0 : progress,
-                        backgroundColor: Colors.grey[800],
-                        color: const Color(0xFF00E5FF),
+                        backgroundColor: AppColors.border,
+                        color: AppColors.accent,
                         strokeWidth: 4,
                       ),
                     ),
                     CircleAvatar(
                       radius: 28,
-                      backgroundColor: Colors.grey[700],
+                      backgroundColor: AppColors.border700,
                       backgroundImage: avatarUrl != null ? _getAvatarProvider(avatarUrl) : null,
                       child: avatarUrl == null
-                          ? Icon(isVenue ? Icons.storefront : Icons.person, color: Colors.white, size: 30)
+                          ? Icon(isVenue ? Icons.storefront : Icons.person, color: AppColors.text, size: 30)
                           : null,
                     ),
                   ],
@@ -196,19 +206,19 @@ class _PlayerDrawerState extends State<PlayerDrawer> {
                     children: [
                       Text(
                         username,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          color: AppColors.text,
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        isVenue ? 'Partener Club' : levelName,
-                        style: const TextStyle(
+                        isVenue ? tr('drawer.partner_club') : levelName,
+                        style: TextStyle(
                           fontSize: 14,
-                          color: Color(0xFF00E5FF),
+                          color: AppColors.accent,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -217,8 +227,8 @@ class _PlayerDrawerState extends State<PlayerDrawer> {
                         borderRadius: BorderRadius.circular(4),
                         child: LinearProgressIndicator(
                           value: isVenue ? 1.0 : progress,
-                          backgroundColor: Colors.grey[800],
-                          color: const Color(0xFF00E5FF),
+                          backgroundColor: AppColors.border,
+                          color: AppColors.accent,
                           minHeight: 6,
                         ),
                       ),
@@ -237,19 +247,25 @@ class _PlayerDrawerState extends State<PlayerDrawer> {
                 ? [
                     _buildDrawerItem(
                       icon: Icons.storefront_outlined,
-                      title: 'Dashboard Sală',
+                      title: tr('drawer.dashboard_venue'),
                       pageKey: 'dashboard',
                       onTap: () => _navigateTo('dashboard', const HomeScreen()),
                     ),
                     _buildDrawerItem(
+                      icon: Icons.workspace_premium_outlined,
+                      title: tr('drawer.subscription'),
+                      pageKey: 'subscription',
+                      onTap: () => _navigateTo('subscription', const VenueSubscriptionScreen()),
+                    ),
+                    _buildDrawerItem(
                       icon: Icons.forum_outlined,
-                      title: 'Comunitate (Feed)',
+                      title: tr('drawer.feed'),
                       pageKey: 'feed',
                       onTap: () => _navigateTo('feed', const FeedScreen()),
                     ),
                     _buildDrawerItem(
                       icon: Icons.calendar_month_outlined,
-                      title: 'Plan Cameră & Rezervări',
+                      title: tr('drawer.tables_layout'),
                       pageKey: 'tables_layout',
                       onTap: () => _navigateTo(
                         'tables_layout',
@@ -263,19 +279,19 @@ class _PlayerDrawerState extends State<PlayerDrawer> {
                     ),
                     _buildDrawerItem(
                       icon: Icons.business_outlined,
-                      title: 'Profilul Sălii',
+                      title: tr('drawer.venue_profile'),
                       pageKey: 'venue_profile',
                       onTap: () => _navigateTo('venue_profile', const VenueProfileScreen()),
                     ),
                     _buildDrawerItem(
                       icon: Icons.emoji_events_outlined,
-                      title: 'Turneele Noastre',
+                      title: tr('drawer.tournaments_venue'),
                       pageKey: 'tournaments',
                       onTap: () => _navigateTo('tournaments', const TournamentsScreen()),
                     ),
                     _buildDrawerItem(
                       icon: Icons.monetization_on_outlined,
-                      title: 'Panou Financiar',
+                      title: tr('drawer.finances'),
                       pageKey: 'venue_finances',
                       onTap: () => _navigateTo(
                         'venue_finances',
@@ -288,74 +304,80 @@ class _PlayerDrawerState extends State<PlayerDrawer> {
                 : [
                     _buildDrawerItem(
                       icon: Icons.dashboard_outlined,
-                      title: 'Dashboard',
+                      title: tr('drawer.dashboard'),
                       pageKey: 'dashboard',
                       onTap: () => _navigateTo('dashboard', const HomeScreen()),
                     ),
                     _buildDrawerItem(
                       icon: Icons.forum_outlined,
-                      title: 'Comunitate (Feed)',
+                      title: tr('drawer.feed'),
                       pageKey: 'feed',
                       onTap: () => _navigateTo('feed', const FeedScreen()),
                     ),
                     if (userData?['isTrainer'] == true)
                       _buildDrawerItem(
                         icon: Icons.sports,
-                        title: 'Panou Antrenor',
+                        title: tr('drawer.trainer_panel'),
                         pageKey: 'trainer_dashboard',
                         onTap: () => _navigateTo('trainer_dashboard', const TrainerDashboard()),
                       ),
                     _buildDrawerItem(
                       icon: Icons.leaderboard_outlined,
-                      title: 'Clasament Live',
+                      title: tr('drawer.leaderboard'),
                       pageKey: 'leaderboard',
                       onTap: () => _navigateTo('leaderboard', const LeaderboardScreen()),
                     ),
                     _buildDrawerItem(
+                      icon: Icons.insights_outlined,
+                      title: tr('drawer.stats'),
+                      pageKey: 'stats',
+                      onTap: () => _navigateTo('stats', const MyStatsScreen()),
+                    ),
+                    _buildDrawerItem(
                       icon: Icons.person_outline,
-                      title: 'Profilul Meu',
+                      title: tr('drawer.profile'),
                       pageKey: 'profile',
                       onTap: () => _navigateTo('profile', const MyProfileScreen()),
                     ),
                     _buildDrawerItem(
                       icon: Icons.sports_tennis,
-                      title: 'Găsește un Meci',
+                      title: tr('drawer.find_match'),
                       pageKey: 'find_match',
                       onTap: () => _navigateTo('find_match', const FindMatchScreen()),
                     ),
                     _buildDrawerItem(
                       icon: Icons.add_circle_outline,
-                      title: 'Creează un Meci',
+                      title: tr('drawer.create_match'),
                       pageKey: 'create_match',
                       onTap: () => _navigateTo('create_match', const CreateMatchScreen()),
                     ),
                     _buildDrawerItem(
                       icon: Icons.history,
-                      title: 'Meciurile Mele',
+                      title: tr('drawer.my_matches'),
                       pageKey: 'my_matches',
                       onTap: () => _navigateTo('my_matches', const MyMatchesScreen()),
                     ),
                     _buildDrawerItem(
                       icon: Icons.fitness_center_outlined,
-                      title: 'Sesiuni Antrenor',
+                      title: tr('drawer.trainer_sessions'),
                       pageKey: 'client_sessions',
                       onTap: () => _navigateTo('client_sessions', const ClientSessionsScreen()),
                     ),
                     _buildDrawerItem(
                       icon: Icons.group_add_outlined,
-                      title: 'Joacă cu un Prieten',
+                      title: tr('drawer.friends'),
                       pageKey: 'friends',
                       onTap: () => _navigateTo('friends', const FriendsScreen()),
                     ),
                     _buildDrawerItem(
                       icon: Icons.emoji_events_outlined,
-                      title: 'Turnee',
+                      title: tr('drawer.tournaments'),
                       pageKey: 'tournaments',
                       onTap: () => _navigateTo('tournaments', const TournamentsScreen()),
                     ),
                     _buildDrawerItem(
                       icon: Icons.map_outlined,
-                      title: 'Harta Sălilor',
+                      title: tr('drawer.venue_map'),
                       pageKey: 'venue_map',
                       onTap: () => _navigateTo('venue_map', const VenueMapScreen()),
                     ),
@@ -363,14 +385,55 @@ class _PlayerDrawerState extends State<PlayerDrawer> {
             ),
           ),
           
-          const Divider(color: Colors.grey, height: 1),
-          
+          Divider(color: AppColors.muted, height: 1),
+
           ListTile(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 2),
+            leading: Icon(Icons.language, color: AppColors.text70),
+            title: Text(tr('drawer.language'), style: TextStyle(color: AppColors.text, fontSize: 16)),
+            trailing: Text(
+              AppLocales.byCode(AppLocales.current.value).tag,
+              style: TextStyle(color: AppColors.accent, fontWeight: FontWeight.bold, fontSize: 13),
+            ),
+            onTap: () {
+              Navigator.pop(context); // închide meniul
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const LanguageScreen()));
+            },
+          ),
+
+          ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 2),
+            leading: Icon(Icons.shield_outlined, color: AppColors.text70),
+            title: Text(tr('drawer.account'), style: TextStyle(color: AppColors.text, fontSize: 16)),
+            onTap: () {
+              Navigator.pop(context); // închide meniul
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const PrivacyDataScreen()));
+            },
+          ),
+
+          ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 2),
+            leading: ValueListenableBuilder<ThemeMode>(
+              valueListenable: ThemeController.mode,
+              builder: (context, mode, _) => Icon(themeModeIcon(mode), color: AppColors.text70),
+            ),
+            title: Text(tr('drawer.theme'), style: TextStyle(color: AppColors.text, fontSize: 16)),
+            trailing: ValueListenableBuilder<ThemeMode>(
+              valueListenable: ThemeController.mode,
+              builder: (context, mode, _) => Text(
+                themeModeLabel(mode),
+                style: TextStyle(color: AppColors.accent, fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+            ),
+            onTap: () => showThemeSheet(context),
+          ),
+
+          ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 2),
             leading: const Icon(Icons.logout, color: Colors.redAccent),
-            title: const Text(
-              'Deconectare',
-              style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w600, fontSize: 16),
+            title: Text(
+              tr('drawer.logout'),
+              style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w600, fontSize: 16),
             ),
             onTap: () {
               Navigator.pop(context);
@@ -394,28 +457,31 @@ class _PlayerDrawerState extends State<PlayerDrawer> {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
-        color: isSelected ? const Color(0xFF00E5FF).withValues(alpha: 0.12) : Colors.transparent,
+        color: isSelected ? AppColors.accent.withValues(alpha: 0.12) : Colors.transparent,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: isSelected ? const Color(0xFF00E5FF).withValues(alpha: 0.3) : Colors.transparent,
+          color: isSelected ? AppColors.accent.withValues(alpha: 0.3) : Colors.transparent,
           width: 1.2,
         ),
       ),
-      child: ListTile(
+      child: Material(
+        color: Colors.transparent,
+        child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
         leading: Icon(
           icon,
-          color: isSelected ? const Color(0xFF00E5FF) : Colors.white70,
+          color: isSelected ? AppColors.accent : AppColors.text70,
         ),
         title: Text(
           title,
           style: TextStyle(
-            color: isSelected ? const Color(0xFF00E5FF) : Colors.white,
+            color: isSelected ? AppColors.accent : AppColors.text,
             fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
             fontSize: 16,
           ),
         ),
         onTap: onTap,
+        ),
       ),
     );
   }

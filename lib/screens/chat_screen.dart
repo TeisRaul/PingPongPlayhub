@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../l10n/strings.dart';
+import '../services/notification_service.dart';
+import '../theme/app_theme.dart';
 
 class ChatScreen extends StatefulWidget {
   final String? chatId;
@@ -8,6 +11,9 @@ class ChatScreen extends StatefulWidget {
   final String? otherUsername;
   final String? otherAvatarUrl;
   final bool isTournamentChat;
+  /// Chat-ul lobby-ului unui meci (chatId = `match_` + id-ul meciului).
+  final bool isMatchChat;
+  final String? matchTitle;
   final String? tournamentTitle;
   final String? adminUid;
 
@@ -18,6 +24,8 @@ class ChatScreen extends StatefulWidget {
     this.otherUsername,
     this.otherAvatarUrl,
     this.isTournamentChat = false,
+    this.isMatchChat = false,
+    this.matchTitle,
     this.tournamentTitle,
     this.adminUid,
   });
@@ -28,6 +36,12 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   User? get _currentUser => FirebaseAuth.instance.currentUser;
+  bool get _isGroup => widget.isTournamentChat || widget.isMatchChat;
+  String get _title => widget.isMatchChat
+      ? (widget.matchTitle ?? tr('chat.lobby_title'))
+      : widget.isTournamentChat
+          ? (widget.tournamentTitle ?? 'Chat Turneu')
+          : (widget.otherUsername ?? 'Utilizator');
   final _messageController = TextEditingController();
   final _scrollController = ScrollController();
   late final String _resolvedChatId;
@@ -37,7 +51,7 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     final user = _currentUser;
-    if (widget.isTournamentChat) {
+    if (_isGroup) {
       _resolvedChatId = widget.chatId ?? 'tournament_unknown';
     } else {
       _resolvedChatId = widget.chatId ?? _generateChatId(user!.uid, widget.otherUid!);
@@ -87,7 +101,7 @@ class _ChatScreenState extends State<ChatScreen> {
       final chatDocRef = FirebaseFirestore.instance.collection('chats').doc(_resolvedChatId);
       final batch = FirebaseFirestore.instance.batch();
 
-      if (widget.isTournamentChat) {
+      if (_isGroup) {
         batch.set(chatDocRef, {
           'lastMessage': text,
           'lastMessageTime': now,
@@ -115,11 +129,36 @@ class _ChatScreenState extends State<ChatScreen> {
       batch.set(newMessageRef, messageData);
 
       await batch.commit();
+      if (widget.isMatchChat) _notifyLobby(myUsername, text);
       _scrollToBottom();
     } catch (e) {
       debugPrint('Eroare la trimiterea mesajului: $e');
     } finally {
       if (mounted) setState(() => _isSending = false);
+    }
+  }
+
+  /// Anunță ceilalți jucători din lobby (fără popup, fără email: doar clopoțel și push).
+  Future<void> _notifyLobby(String myName, String text) async {
+    try {
+      final matchId = _resolvedChatId.replaceFirst('match_', '');
+      final snap = await FirebaseFirestore.instance.collection('matches').doc(matchId).get();
+      final m = snap.data();
+      if (m == null) return;
+      final preview = text.length > 120 ? '${text.substring(0, 120)}…' : text;
+      for (final uid in List<dynamic>.from(m['joinedUids'] ?? [])) {
+        await NotificationService.send(
+          toUid: uid.toString(),
+          type: 'lobby_chat',
+          titleKey: 'n.lobby_chat_title',
+          bodyKey: 'n.lobby_chat_body',
+          args: {'name': myName, 'text': preview, 'venue': (m['locationName'] ?? '').toString()},
+          matchId: matchId,
+          extra: {'silent': true, 'skipEmail': true},
+        );
+      }
+    } catch (_) {
+      // notificarea ratată nu strică mesajul
     }
   }
 
@@ -147,41 +186,41 @@ class _ChatScreenState extends State<ChatScreen> {
         final isAdmin = user != null && user.uid == adminUid;
 
         return Scaffold(
-          backgroundColor: const Color(0xFF0A0E17),
+          backgroundColor: AppColors.bg,
           appBar: AppBar(
-            backgroundColor: const Color(0xFF131A2A),
+            backgroundColor: AppColors.card,
             elevation: 0,
             leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
+              icon: Icon(Icons.arrow_back, color: AppColors.text),
               onPressed: () => Navigator.pop(context),
             ),
             titleSpacing: 0,
             title: Row(
               children: [
-                widget.isTournamentChat
+                _isGroup
                     ? Container(
                         padding: const EdgeInsets.all(6),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF00E5FF).withValues(alpha: 0.15),
-                          border: Border.all(color: const Color(0xFF00E5FF), width: 1.5),
+                          color: AppColors.accent.withValues(alpha: 0.15),
+                          border: Border.all(color: AppColors.accent, width: 1.5),
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(
-                          Icons.emoji_events_outlined,
-                          color: Color(0xFF00E5FF),
+                        child: Icon(
+                          widget.isMatchChat ? Icons.groups : Icons.emoji_events_outlined,
+                          color: AppColors.accent,
                           size: 20,
                         ),
                       )
                     : CircleAvatar(
                         radius: 18,
-                        backgroundColor: const Color(0xFF1E293B),
+                        backgroundColor: AppColors.card2,
                         backgroundImage: widget.otherAvatarUrl != null && widget.otherAvatarUrl!.isNotEmpty
                             ? NetworkImage(widget.otherAvatarUrl!)
                             : null,
                         child: widget.otherAvatarUrl == null || widget.otherAvatarUrl!.isEmpty
                             ? Text(
                                 (widget.otherUsername ?? 'U').substring(0, 1).toUpperCase(),
-                                style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                                style: TextStyle(color: AppColors.text, fontSize: 14, fontWeight: FontWeight.bold),
                               )
                             : null,
                       ),
@@ -192,16 +231,19 @@ class _ChatScreenState extends State<ChatScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        widget.isTournamentChat
-                            ? (widget.tournamentTitle ?? 'Chat Turneu')
-                            : (widget.otherUsername ?? 'Utilizator'),
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                        _title,
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.text),
                         overflow: TextOverflow.ellipsis,
                       ),
+                      if (widget.isMatchChat)
+                        Text(
+                          tr('chat.lobby_sub'),
+                          style: TextStyle(fontSize: 11, color: AppColors.accent, fontWeight: FontWeight.w500),
+                        ),
                       if (widget.isTournamentChat)
-                        const Text(
+                        Text(
                           'Grup Oficial Turneu',
-                          style: TextStyle(fontSize: 11, color: Color(0xFF00E5FF), fontWeight: FontWeight.w500),
+                          style: TextStyle(fontSize: 11, color: AppColors.accent, fontWeight: FontWeight.w500),
                         ),
                     ],
                   ),
@@ -212,18 +254,18 @@ class _ChatScreenState extends State<ChatScreen> {
               if (widget.isTournamentChat && isAdmin) ...[
                 Row(
                   children: [
-                    const Text(
+                    Text(
                       'Doar Admin',
-                      style: TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.w500),
+                      style: TextStyle(fontSize: 12, color: AppColors.muted, fontWeight: FontWeight.w500),
                     ),
                     Transform.scale(
                       scale: 0.8,
                       child: Switch(
                         value: onlyAdminCanSend,
-                        activeThumbColor: const Color(0xFF00E5FF),
-                        activeTrackColor: const Color(0xFF00E5FF).withValues(alpha: 0.3),
-                        inactiveThumbColor: Colors.grey[400],
-                        inactiveTrackColor: Colors.grey[800],
+                        activeThumbColor: AppColors.accent,
+                        activeTrackColor: AppColors.accent.withValues(alpha: 0.3),
+                        inactiveThumbColor: AppColors.muted,
+                        inactiveTrackColor: AppColors.border,
                         onChanged: (val) async {
                           try {
                             await FirebaseFirestore.instance
@@ -263,7 +305,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     }
 
                     if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)));
+                      return Center(child: CircularProgressIndicator(color: AppColors.accent));
                     }
 
                     final messages = snapshot.data?.docs ?? [];
@@ -271,10 +313,12 @@ class _ChatScreenState extends State<ChatScreen> {
                     if (messages.isEmpty) {
                       return Center(
                         child: Text(
-                          widget.isTournamentChat
-                              ? 'Bun venit în chat-ul oficial al turneului!'
-                              : 'Spune-i salut lui ${widget.otherUsername ?? 'Utilizator'}!',
-                          style: const TextStyle(color: Colors.grey),
+                          widget.isMatchChat
+                              ? tr('chat.lobby_hello')
+                              : widget.isTournamentChat
+                                  ? 'Bun venit în chat-ul oficial al turneului!'
+                                  : 'Spune-i salut lui ${widget.otherUsername ?? 'Utilizator'}!',
+                          style: TextStyle(color: AppColors.muted),
                         ),
                       );
                     }
@@ -300,15 +344,15 @@ class _ChatScreenState extends State<ChatScreen> {
                               margin: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
                               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF1E293B).withValues(alpha: 0.4),
+                                color: AppColors.card2.withValues(alpha: 0.4),
                                 borderRadius: BorderRadius.circular(20),
-                                border: Border.all(color: const Color(0xFF1E293B), width: 0.8),
+                                border: Border.all(color: AppColors.card2, width: 0.8),
                               ),
                               child: Text(
                                 text,
                                 textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  color: Colors.grey,
+                                style: TextStyle(
+                                  color: AppColors.muted,
                                   fontSize: 13,
                                   fontStyle: FontStyle.italic,
                                 ),
@@ -322,13 +366,13 @@ class _ChatScreenState extends State<ChatScreen> {
                           child: Column(
                             crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
                             children: [
-                              if (!isMe && widget.isTournamentChat) ...[
+                              if (!isMe && _isGroup) ...[
                                 Padding(
                                   padding: const EdgeInsets.only(left: 4, bottom: 4),
                                   child: Text(
                                     isMsgAdmin ? '[Organizator] $senderName' : senderName,
                                     style: TextStyle(
-                                      color: isMsgAdmin ? const Color(0xFF00E5FF) : Colors.grey[400],
+                                      color: isMsgAdmin ? AppColors.accent : AppColors.muted,
                                       fontSize: 12,
                                       fontWeight: isMsgAdmin ? FontWeight.bold : FontWeight.normal,
                                     ),
@@ -340,12 +384,12 @@ class _ChatScreenState extends State<ChatScreen> {
                                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                                 decoration: BoxDecoration(
                                   color: isMe
-                                      ? const Color(0xFF00E5FF)
+                                      ? AppColors.accent
                                       : (isMsgAdmin && widget.isTournamentChat)
-                                          ? const Color(0xFF1E293B).withValues(alpha: 0.8)
-                                          : const Color(0xFF1E293B),
+                                          ? AppColors.card2.withValues(alpha: 0.8)
+                                          : AppColors.card2,
                                   border: (!isMe && widget.isTournamentChat && isMsgAdmin)
-                                      ? Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.3), width: 1)
+                                      ? Border.all(color: AppColors.accent.withValues(alpha: 0.3), width: 1)
                                       : null,
                                   borderRadius: BorderRadius.only(
                                     topLeft: const Radius.circular(16),
@@ -360,7 +404,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                 child: Text(
                                   text,
                                   style: TextStyle(
-                                    color: isMe ? Colors.black : Colors.white,
+                                    color: isMe ? AppColors.onAccent : AppColors.text,
                                     fontSize: 15,
                                     fontWeight: isMe ? FontWeight.w500 : FontWeight.normal,
                                   ),
@@ -378,9 +422,9 @@ class _ChatScreenState extends State<ChatScreen> {
                   ? Container(
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF131A2A),
-                        border: Border(top: BorderSide(color: Color(0xFF1E293B), width: 1)),
+                      decoration: BoxDecoration(
+                        color: AppColors.card,
+                        border: Border(top: BorderSide(color: AppColors.card2, width: 1)),
                       ),
                       child: SafeArea(
                         child: Column(
@@ -389,15 +433,15 @@ class _ChatScreenState extends State<ChatScreen> {
                             Container(
                               padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFFF0055).withValues(alpha: 0.08),
-                                border: Border.all(color: const Color(0xFFFF0055).withValues(alpha: 0.3), width: 1),
+                                color: AppColors.bad.withValues(alpha: 0.08),
+                                border: Border.all(color: AppColors.bad.withValues(alpha: 0.3), width: 1),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Row(
                                 children: [
-                                  const Icon(
+                                  Icon(
                                     Icons.lock_outline,
-                                    color: Color(0xFFFF0055),
+                                    color: AppColors.bad,
                                     size: 20,
                                   ),
                                   const SizedBox(width: 12),
@@ -405,7 +449,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                     child: Text(
                                       'Doar administratorul turneului poate trimite mesaje în acest chat.',
                                       style: TextStyle(
-                                        color: const Color(0xFFFF0055).withValues(alpha: 0.9),
+                                        color: AppColors.bad.withValues(alpha: 0.9),
                                         fontSize: 13,
                                         fontWeight: FontWeight.w500,
                                       ),
@@ -420,9 +464,9 @@ class _ChatScreenState extends State<ChatScreen> {
                     )
                   : Container(
                       padding: const EdgeInsets.all(12),
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF131A2A),
-                        border: Border(top: BorderSide(color: Color(0xFF1E293B), width: 1)),
+                      decoration: BoxDecoration(
+                        color: AppColors.card,
+                        border: Border(top: BorderSide(color: AppColors.card2, width: 1)),
                       ),
                       child: SafeArea(
                         child: Row(
@@ -432,18 +476,18 @@ class _ChatScreenState extends State<ChatScreen> {
                                 controller: _messageController,
                                 textCapitalization: TextCapitalization.sentences,
                                 maxLines: null,
-                                decoration: const InputDecoration(
+                                decoration: InputDecoration(
                                   hintText: 'Scrie un mesaj...',
-                                  hintStyle: TextStyle(color: Colors.grey),
+                                  hintStyle: TextStyle(color: AppColors.muted),
                                   contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                                   filled: true,
-                                  fillColor: Color(0xFF0A0E17),
+                                  fillColor: AppColors.bg,
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.all(Radius.circular(24)),
                                     borderSide: BorderSide.none,
                                   ),
                                 ),
-                                style: const TextStyle(color: Colors.white),
+                                style: TextStyle(color: AppColors.text),
                               ),
                             ),
                             const SizedBox(width: 8),
@@ -451,8 +495,8 @@ class _ChatScreenState extends State<ChatScreen> {
                               onTap: _sendMessage,
                               child: Container(
                                 padding: const EdgeInsets.all(12),
-                                decoration: const BoxDecoration(
-                                  color: Color(0xFF00E5FF),
+                                decoration: BoxDecoration(
+                                  color: AppColors.accent,
                                   shape: BoxShape.circle,
                                 ),
                                 child: const Icon(Icons.send, color: Colors.black, size: 20),

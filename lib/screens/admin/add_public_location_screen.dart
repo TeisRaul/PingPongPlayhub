@@ -7,6 +7,7 @@ import 'dart:convert';
 import 'dart:async';
 import '../../data/mock_locations.dart';
 import '../../widgets/city_selector.dart';
+import '../../theme/app_theme.dart';
 
 class AddPublicLocationScreen extends StatefulWidget {
   final bool isEditMode;
@@ -208,11 +209,11 @@ class _AddPublicLocationScreenState extends State<AddPublicLocationScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0E17),
+      backgroundColor: AppColors.bg,
       appBar: AppBar(
-        title: Text(widget.isEditMode ? 'Editare Sală' : 'Adaugă Locație Publică', style: const TextStyle(color: Colors.white, fontSize: 18)),
-        backgroundColor: const Color(0xFF131A2A),
-        iconTheme: const IconThemeData(color: Color(0xFF00FF66)),
+        title: Text(widget.isEditMode ? 'Editare Sală' : 'Adaugă Locație Publică', style: TextStyle(color: AppColors.text, fontSize: 18)),
+        backgroundColor: AppColors.card,
+        iconTheme: IconThemeData(color: AppColors.good),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
@@ -221,23 +222,23 @@ class _AddPublicLocationScreenState extends State<AddPublicLocationScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Icon(Icons.park, size: 64, color: Color(0xFF00FF66)),
+              Icon(Icons.park, size: 64, color: AppColors.good),
               const SizedBox(height: 16),
-              const Text(
+              Text(
                 'Această locație va apărea gratuită pentru toți jucătorii pe hartă.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey, fontSize: 14),
+                style: TextStyle(color: AppColors.muted, fontSize: 14),
               ),
               const SizedBox(height: 32),
               
               TextFormField(
                 controller: _nameController,
-                style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(
+                style: TextStyle(color: AppColors.text),
+                decoration: InputDecoration(
                   labelText: 'Nume Locație (ex: Parc IOR)',
-                  labelStyle: TextStyle(color: Colors.grey),
-                  enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.grey)),
-                  focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF00FF66))),
+                  labelStyle: TextStyle(color: AppColors.muted),
+                  enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: AppColors.muted)),
+                  focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: AppColors.good)),
                 ),
                 validator: (v) => v!.isEmpty ? 'Necesar' : null,
               ),
@@ -257,22 +258,22 @@ class _AddPublicLocationScreenState extends State<AddPublicLocationScreen> {
                 children: [
                   TextFormField(
                     controller: _addressController,
-                    style: const TextStyle(color: Colors.white),
+                    style: TextStyle(color: AppColors.text),
                     onChanged: _onAddressChanged,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Caută Adresă',
-                      labelStyle: TextStyle(color: Colors.grey),
-                      enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.grey)),
-                      focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF00FF66))),
+                      labelStyle: TextStyle(color: AppColors.muted),
+                      enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: AppColors.muted)),
+                      focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: AppColors.good)),
                     ),
                   ),
                   if (_isVerifying)
-                    const Padding(
+                    Padding(
                       padding: EdgeInsets.only(right: 16.0),
                       child: SizedBox(
                         width: 16,
                         height: 16,
-                        child: CircularProgressIndicator(color: Color(0xFF00FF66), strokeWidth: 2),
+                        child: CircularProgressIndicator(color: AppColors.good, strokeWidth: 2),
                       ),
                     ),
                 ],
@@ -281,9 +282,9 @@ class _AddPublicLocationScreenState extends State<AddPublicLocationScreen> {
                 Container(
                   margin: const EdgeInsets.only(top: 4),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF1E293B),
+                    color: AppColors.card2,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.grey[800]!),
+                    border: Border.all(color: AppColors.border),
                   ),
                   child: ListView.separated(
                     shrinkWrap: true,
@@ -293,8 +294,8 @@ class _AddPublicLocationScreenState extends State<AddPublicLocationScreen> {
                     itemBuilder: (context, index) {
                       final option = _addressSuggestions[index];
                       return ListTile(
-                        leading: const Icon(Icons.location_on, color: Colors.grey),
-                        title: Text(option['display_name'] ?? '', style: const TextStyle(color: Colors.white, fontSize: 13)),
+                        leading: Icon(Icons.location_on, color: AppColors.muted),
+                        title: Text(option['display_name'] ?? '', style: TextStyle(color: AppColors.text, fontSize: 13)),
                         onTap: () => _selectAddress(option),
                       );
                     },
@@ -308,7 +309,7 @@ class _AddPublicLocationScreenState extends State<AddPublicLocationScreen> {
                   margin: const EdgeInsets.only(bottom: 16),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFF00FF66)),
+                    border: Border.all(color: AppColors.good),
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(12),
@@ -338,7 +339,7 @@ class _AddPublicLocationScreenState extends State<AddPublicLocationScreen> {
                 ),
               const SizedBox(height: 16),
               
-              const Text('Selectează Sporturile Practicate:', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+              Text('Selectează Sporturile Practicate:', style: TextStyle(color: AppColors.text, fontSize: 16, fontWeight: FontWeight.bold)),
               const SizedBox(height: 16),
               
               Wrap(
@@ -357,10 +358,10 @@ class _AddPublicLocationScreenState extends State<AddPublicLocationScreen> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                       decoration: BoxDecoration(
-                        color: isActive ? const Color(0xFF00FF66).withValues(alpha: 0.2) : const Color(0xFF1E293B),
+                        color: isActive ? AppColors.good.withValues(alpha: 0.2) : AppColors.card2,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: isActive ? const Color(0xFF00FF66) : Colors.grey[800]!,
+                          color: isActive ? AppColors.good : AppColors.border,
                         ),
                       ),
                       child: Row(
@@ -368,14 +369,14 @@ class _AddPublicLocationScreenState extends State<AddPublicLocationScreen> {
                         children: [
                           Icon(
                             isActive ? Icons.check_circle : Icons.circle_outlined,
-                            color: isActive ? const Color(0xFF00FF66) : Colors.grey,
+                            color: isActive ? AppColors.good : AppColors.muted,
                             size: 20,
                           ),
                           const SizedBox(width: 8),
                           Text(
                             sport.toUpperCase(),
                             style: TextStyle(
-                              color: isActive ? Colors.white : Colors.grey,
+                              color: isActive ? AppColors.text : AppColors.muted,
                               fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
                             ),
                           ),
@@ -392,16 +393,16 @@ class _AddPublicLocationScreenState extends State<AddPublicLocationScreen> {
                   margin: const EdgeInsets.only(bottom: 12),
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF131A2A),
+                    color: AppColors.card,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFF00FF66).withValues(alpha: 0.3)),
+                    border: Border.all(color: AppColors.good.withValues(alpha: 0.3)),
                   ),
                   child: Row(
                     children: [
                       Expanded(
                         child: Text(
                           'Mese / Terenuri de ${sport.toUpperCase()}',
-                          style: const TextStyle(color: Colors.white, fontSize: 14),
+                          style: TextStyle(color: AppColors.text, fontSize: 14),
                         ),
                       ),
                       SizedBox(
@@ -410,11 +411,11 @@ class _AddPublicLocationScreenState extends State<AddPublicLocationScreen> {
                           initialValue: (_resources[sport] ?? 1).toString(),
                           keyboardType: TextInputType.number,
                           textAlign: TextAlign.center,
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                          style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold),
                           decoration: InputDecoration(
                             contentPadding: const EdgeInsets.symmetric(vertical: 8),
-                            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.grey)),
-                            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFF00FF66))),
+                            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: AppColors.muted)),
+                            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: AppColors.good)),
                           ),
                           onChanged: (v) => _resources[sport] = int.tryParse(v) ?? 1,
                         ),
@@ -429,7 +430,7 @@ class _AddPublicLocationScreenState extends State<AddPublicLocationScreen> {
               ElevatedButton(
                 onPressed: _isLoading ? null : _saveLocation,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF00FF66),
+                  backgroundColor: AppColors.good,
                   foregroundColor: Colors.black,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),

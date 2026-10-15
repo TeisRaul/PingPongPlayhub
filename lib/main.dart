@@ -1,13 +1,25 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:intl/date_symbol_data_local.dart';
+import 'l10n/app_locales.dart';
+import 'theme/app_theme.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'screens/login_screen.dart';
 import 'firebase_options.dart';
 
 import 'services/stripe_service.dart';
 import 'services/deep_link_service.dart';
+import 'widgets/notification_popups.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Limba implicită până se loghează utilizatorul = limba telefonului (dacă e suportată).
+  await initializeDateFormatting();
+  AppLocales.apply(AppLocales.deviceDefault());
+  await AppLocales.loadLocal(); // limba aleasă data trecută pe acest dispozitiv
+  await ThemeController.load(); // tema aleasă data trecută (luminoasă / întunecată / sistem)
   
   // NOTE: You must have Firebase configured (firebase_options.dart / google-services.json).
   // I am disabling this temporarily so you can see the UI without white screens!
@@ -19,13 +31,17 @@ void main() async {
     print("Eroare Firebase: $e");
   }
   
-  try {
-    await StripeService.instance.init();
-  } catch (e) {
-    print("Eroare Stripe init: $e");
+  // Plata cu cardul (Stripe) funcționează doar pe mobil; pe web plugin-ul nu există.
+  if (!kIsWeb) {
+    try {
+      await StripeService.instance.init();
+    } catch (e) {
+      print("Eroare Stripe init: $e");
+    }
   }
   
   DeepLinkService.instance.init();
+  NotificationPopups.instance.init(); // popup în timp real pentru notificări noi
   
   runApp(const PingPongPlayhubApp());
 }
@@ -35,51 +51,29 @@ class PingPongPlayhubApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: ThemeController.mode,
+      builder: (context, themeMode, _) => ValueListenableBuilder<String>(
+      valueListenable: AppLocales.current,
+      builder: (context, languageCode, _) => MaterialApp(
       title: 'Playhub',
+      navigatorKey: appNavigatorKey,
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        brightness: Brightness.dark,
-        primaryColor: const Color(0xFF00E5FF),
-        scaffoldBackgroundColor: const Color(0xFF0A0E17),
-        colorScheme: const ColorScheme.dark(
-          primary: Color(0xFF00E5FF),
-          secondary: Color(0xFF00B8D4),
-          surface: Color(0xFF131A2A),
-        ),
-        fontFamily: 'Inter', // Assuming standard font
-        useMaterial3: true,
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF00E5FF),
-            foregroundColor: Colors.black, // Text on primary button
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            textStyle: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 1.1,
-            ),
-          ),
-        ),
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: const Color(0xFF131A2A),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Color(0xFF00E5FF), width: 2),
-          ),
-          labelStyle: const TextStyle(color: Colors.grey),
-          prefixIconColor: Colors.grey,
-        ),
-      ),
+      locale: AppLocales.locale,
+      supportedLocales: [for (final l in AppLocales.languages) l.locale],
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      theme: AppTheme.light(),
+      darkTheme: AppTheme.dark(),
+      themeMode: themeMode,
+      themeAnimationDuration: Duration.zero,
+      builder: (context, child) => ThemeSync(child: child ?? const SizedBox.shrink()),
       home: const LoginScreen(),
+      ),
+      ),
     );
   }
 }

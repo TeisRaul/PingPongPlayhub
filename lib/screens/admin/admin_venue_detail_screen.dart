@@ -6,6 +6,7 @@ import '../venue_signup_screen.dart';
 import 'add_public_location_screen.dart';
 import 'admin_bar_inventory_screen.dart';
 import 'admin_reports_screen.dart';
+import '../../theme/app_theme.dart';
 
 class AdminVenueDetailScreen extends StatefulWidget {
   final String venueId;
@@ -109,13 +110,13 @@ class _AdminVenueDetailScreenState extends State<AdminVenueDetailScreen> {
     final bool confirm = await showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF131A2A),
-        title: const Text('Ștergere Sală', style: TextStyle(color: Colors.white)),
-        content: const Text('Ești sigur că vrei să ștergi această locație? Acțiunea este ireversibilă.', style: TextStyle(color: Colors.grey)),
+        backgroundColor: AppColors.card,
+        title: Text('Ștergere Sală', style: TextStyle(color: AppColors.text)),
+        content: Text('Ești sigur că vrei să ștergi această locație? Acțiunea este ireversibilă.', style: TextStyle(color: AppColors.muted)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Anulează', style: TextStyle(color: Colors.grey)),
+            child: Text('Anulează', style: TextStyle(color: AppColors.muted)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
@@ -150,11 +151,11 @@ class _AdminVenueDetailScreenState extends State<AdminVenueDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0E17),
+      backgroundColor: AppColors.bg,
       appBar: AppBar(
-        title: const Text('Detalii Sală', style: TextStyle(color: Colors.white, fontSize: 18)),
-        backgroundColor: const Color(0xFF131A2A),
-        iconTheme: const IconThemeData(color: Color(0xFF00E5FF)),
+        title: Text('Detalii Sală', style: TextStyle(color: AppColors.text, fontSize: 18)),
+        backgroundColor: AppColors.card,
+        iconTheme: IconThemeData(color: AppColors.accent),
         actions: [
           IconButton(
             icon: const Icon(Icons.delete_outline, color: Colors.red),
@@ -169,23 +170,23 @@ class _AdminVenueDetailScreenState extends State<AdminVenueDetailScreen> {
           children: [
             TextFormField(
               controller: _nameController,
-              style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(
+              style: TextStyle(color: AppColors.text),
+              decoration: InputDecoration(
                 labelText: 'Nume Sală',
-                labelStyle: TextStyle(color: Colors.grey),
-                enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.grey)),
-                focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF00E5FF))),
+                labelStyle: TextStyle(color: AppColors.muted),
+                enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: AppColors.muted)),
+                focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: AppColors.accent)),
               ),
             ),
             const SizedBox(height: 16),
             TextFormField(
               controller: _cityController,
-              style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(
+              style: TextStyle(color: AppColors.text),
+              decoration: InputDecoration(
                 labelText: 'Oraș',
-                labelStyle: TextStyle(color: Colors.grey),
-                enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.grey)),
-                focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF00E5FF))),
+                labelStyle: TextStyle(color: AppColors.muted),
+                enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: AppColors.muted)),
+                focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: AppColors.accent)),
               ),
             ),
             const SizedBox(height: 16),
@@ -193,9 +194,9 @@ class _AdminVenueDetailScreenState extends State<AdminVenueDetailScreen> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: (_isVerified ? const Color(0xFF00E5FF) : Colors.orangeAccent).withValues(alpha: 0.08),
+                  color: (_isVerified ? AppColors.accent : Colors.orangeAccent).withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: _isVerified ? const Color(0xFF00E5FF) : Colors.orangeAccent),
+                  border: Border.all(color: _isVerified ? AppColors.accent : Colors.orangeAccent),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -204,13 +205,13 @@ class _AdminVenueDetailScreenState extends State<AdminVenueDetailScreen> {
                       children: [
                         Icon(
                           _isVerified ? Icons.verified : Icons.hourglass_empty,
-                          color: _isVerified ? const Color(0xFF00E5FF) : Colors.orangeAccent,
+                          color: _isVerified ? AppColors.accent : Colors.orangeAccent,
                         ),
                         const SizedBox(width: 8),
                         Text(
                           _isVerified ? 'Sală verificată' : 'În așteptarea aprobării',
                           style: TextStyle(
-                            color: _isVerified ? const Color(0xFF00E5FF) : Colors.orangeAccent,
+                            color: _isVerified ? AppColors.accent : Colors.orangeAccent,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -221,7 +222,7 @@ class _AdminVenueDetailScreenState extends State<AdminVenueDetailScreen> {
                       _isVerified
                           ? 'Sala apare jucătorilor și poate organiza turnee.'
                           : 'Sala nu apare jucătorilor până nu o aprobi.',
-                      style: const TextStyle(color: Colors.grey, fontSize: 13),
+                      style: TextStyle(color: AppColors.muted, fontSize: 13),
                     ),
                     const SizedBox(height: 12),
                     ElevatedButton.icon(
@@ -229,7 +230,7 @@ class _AdminVenueDetailScreenState extends State<AdminVenueDetailScreen> {
                       icon: Icon(_isVerified ? Icons.block : Icons.check_circle, size: 18),
                       label: Text(_isVerified ? 'Retrage verificarea' : 'Aprobă sala'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: _isVerified ? Colors.redAccent : const Color(0xFF00FF66),
+                        backgroundColor: _isVerified ? Colors.redAccent : AppColors.good,
                         foregroundColor: Colors.black,
                       ),
                     ),
@@ -241,28 +242,28 @@ class _AdminVenueDetailScreenState extends State<AdminVenueDetailScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: const Color(0xFF131A2A),
+                color: AppColors.card,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey[800]!),
+                border: Border.all(color: AppColors.border),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Detalii Terenuri', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                  Text('Detalii Terenuri', style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold, fontSize: 16)),
                   const SizedBox(height: 12),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Mese/Terenuri Indoor:', style: TextStyle(color: Colors.grey)),
-                      Text('${widget.venueData['indoorTables'] ?? widget.venueData['totalTables'] ?? 0}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      Text('Mese/Terenuri Indoor:', style: TextStyle(color: AppColors.muted)),
+                      Text('${widget.venueData['indoorTables'] ?? widget.venueData['totalTables'] ?? 0}', style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold)),
                     ],
                   ),
                   const SizedBox(height: 8),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Mese/Terenuri Outdoor:', style: TextStyle(color: Colors.grey)),
-                      Text('${widget.venueData['outdoorTables'] ?? 0}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      Text('Mese/Terenuri Outdoor:', style: TextStyle(color: AppColors.muted)),
+                      Text('${widget.venueData['outdoorTables'] ?? 0}', style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold)),
                     ],
                   ),
                 ],
@@ -272,7 +273,7 @@ class _AdminVenueDetailScreenState extends State<AdminVenueDetailScreen> {
             ElevatedButton(
               onPressed: _isLoading ? null : _updateVenueDetails,
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF00E5FF),
+                backgroundColor: AppColors.accent,
                 foregroundColor: Colors.black,
                 padding: const EdgeInsets.symmetric(vertical: 16),
               ),
@@ -310,14 +311,14 @@ class _AdminVenueDetailScreenState extends State<AdminVenueDetailScreen> {
               icon: const Icon(Icons.edit_document),
               label: const Text('Editează Sală Complet (Formular)'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF131A2A),
+                backgroundColor: AppColors.card,
                 foregroundColor: Colors.amberAccent,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 side: const BorderSide(color: Colors.amberAccent),
               ),
             ),
             const SizedBox(height: 32),
-            const Divider(color: Colors.grey),
+            Divider(color: AppColors.muted),
             const SizedBox(height: 16),
             ElevatedButton.icon(
               onPressed: () {
@@ -331,10 +332,10 @@ class _AdminVenueDetailScreenState extends State<AdminVenueDetailScreen> {
               icon: const Icon(Icons.local_cafe),
               label: const Text('Gestionează Bar / Consumație', style: TextStyle(fontWeight: FontWeight.bold)),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF131A2A),
-                foregroundColor: Colors.white,
+                backgroundColor: AppColors.card,
+                foregroundColor: AppColors.text,
                 padding: const EdgeInsets.symmetric(vertical: 16),
-                side: const BorderSide(color: Colors.grey),
+                side: BorderSide(color: AppColors.muted),
               ),
             ),
             const SizedBox(height: 16),
@@ -343,10 +344,10 @@ class _AdminVenueDetailScreenState extends State<AdminVenueDetailScreen> {
               icon: const Icon(Icons.list_alt),
               label: const Text('Gestionează Meciuri (Plăți)'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF131A2A),
-                foregroundColor: Colors.white,
+                backgroundColor: AppColors.card,
+                foregroundColor: AppColors.text,
                 padding: const EdgeInsets.symmetric(vertical: 16),
-                side: const BorderSide(color: Colors.grey),
+                side: BorderSide(color: AppColors.muted),
               ),
             ),
             const SizedBox(height: 16),
@@ -362,10 +363,10 @@ class _AdminVenueDetailScreenState extends State<AdminVenueDetailScreen> {
               icon: const Icon(Icons.point_of_sale),
               label: const Text('Rapoarte și Casierie (Z, X)'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF131A2A),
-                foregroundColor: const Color(0xFF00FF66),
+                backgroundColor: AppColors.card,
+                foregroundColor: AppColors.good,
                 padding: const EdgeInsets.symmetric(vertical: 16),
-                side: const BorderSide(color: Color(0xFF00FF66)),
+                side: BorderSide(color: AppColors.good),
               ),
             ),
             const SizedBox(height: 16),
@@ -376,7 +377,7 @@ class _AdminVenueDetailScreenState extends State<AdminVenueDetailScreen> {
               icon: const Icon(Icons.settings_cell),
               label: const Text('Configurare Smart POS'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF131A2A),
+                backgroundColor: AppColors.card,
                 foregroundColor: Colors.blueAccent,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 side: const BorderSide(color: Colors.blueAccent),
@@ -409,30 +410,30 @@ class _AdminVenueDetailScreenState extends State<AdminVenueDetailScreen> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              backgroundColor: const Color(0xFF1E293B),
-              title: const Text('Configurare Smart POS', style: TextStyle(color: Colors.white)),
+              backgroundColor: AppColors.card2,
+              title: Text('Configurare Smart POS', style: TextStyle(color: AppColors.text)),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('Selectează sistemul POS folosit în locație pentru App-to-App integration:', style: TextStyle(color: Colors.grey, fontSize: 13)),
+                  Text('Selectează sistemul POS folosit în locație pentru App-to-App integration:', style: TextStyle(color: AppColors.muted, fontSize: 13)),
                   const SizedBox(height: 16),
                   RadioListTile<String>(
-                    title: const Text('Niciunul (POS Tradițional)', style: TextStyle(color: Colors.white)),
-                    activeColor: const Color(0xFF00E5FF),
+                    title: Text('Niciunul (POS Tradițional)', style: TextStyle(color: AppColors.text)),
+                    activeColor: AppColors.accent,
                     value: 'none',
                     groupValue: currentPOS,
                     onChanged: (val) => setDialogState(() => currentPOS = val!),
                   ),
                   RadioListTile<String>(
-                    title: const Text('Viva Wallet', style: TextStyle(color: Colors.white)),
-                    activeColor: const Color(0xFF00E5FF),
+                    title: Text('Viva Wallet', style: TextStyle(color: AppColors.text)),
+                    activeColor: AppColors.accent,
                     value: 'viva',
                     groupValue: currentPOS,
                     onChanged: (val) => setDialogState(() => currentPOS = val!),
                   ),
                   RadioListTile<String>(
-                    title: const Text('SumUp', style: TextStyle(color: Colors.white)),
-                    activeColor: const Color(0xFF00E5FF),
+                    title: Text('SumUp', style: TextStyle(color: AppColors.text)),
+                    activeColor: AppColors.accent,
                     value: 'sumup',
                     groupValue: currentPOS,
                     onChanged: (val) => setDialogState(() => currentPOS = val!),
@@ -442,7 +443,7 @@ class _AdminVenueDetailScreenState extends State<AdminVenueDetailScreen> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('Anulează', style: TextStyle(color: Colors.grey)),
+                  child: Text('Anulează', style: TextStyle(color: AppColors.muted)),
                 ),
                 ElevatedButton(
                   onPressed: () async {
@@ -458,7 +459,7 @@ class _AdminVenueDetailScreenState extends State<AdminVenueDetailScreen> {
                       });
                     }
                   },
-                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00E5FF), foregroundColor: Colors.black),
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.accent, foregroundColor: Colors.black),
                   child: const Text('Salvează'),
                 ),
               ],
@@ -483,11 +484,11 @@ class AdminVenueMatchesScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0E17),
+      backgroundColor: AppColors.bg,
       appBar: AppBar(
-        title: const Text('Meciuri Sală', style: TextStyle(color: Colors.white, fontSize: 18)),
-        backgroundColor: const Color(0xFF131A2A),
-        iconTheme: const IconThemeData(color: Color(0xFF00E5FF)),
+        title: Text('Meciuri Sală', style: TextStyle(color: AppColors.text, fontSize: 18)),
+        backgroundColor: AppColors.card,
+        iconTheme: IconThemeData(color: AppColors.accent),
       ),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
@@ -496,12 +497,12 @@ class AdminVenueMatchesScreen extends StatelessWidget {
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)));
+            return Center(child: CircularProgressIndicator(color: AppColors.accent));
           }
 
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return const Center(
-              child: Text('Niciun meci înregistrat la această sală.', style: TextStyle(color: Colors.grey)),
+            return Center(
+              child: Text('Niciun meci înregistrat la această sală.', style: TextStyle(color: AppColors.muted)),
             );
           }
 
@@ -520,17 +521,17 @@ class AdminVenueMatchesScreen extends StatelessWidget {
               final paymentStatus = data['paymentStatus'] ?? 'none';
 
               return Card(
-                color: const Color(0xFF131A2A),
+                color: AppColors.card,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 child: ListTile(
-                  title: Text('$date | Ora ${formatHour(startHour)}', style: const TextStyle(color: Colors.white)),
-                  subtitle: Text('Status: $status | Plată: $paymentStatus', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                  title: Text('$date | Ora ${formatHour(startHour)}', style: TextStyle(color: AppColors.text)),
+                  subtitle: Text('Status: $status | Plată: $paymentStatus', style: TextStyle(color: AppColors.muted, fontSize: 12)),
                   trailing: ElevatedButton(
                     onPressed: () {
                       _showMatchAdminOptions(context, doc.id, data, posProvider);
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF00E5FF),
+                      backgroundColor: AppColors.accent,
                       foregroundColor: Colors.black,
                     ),
                     child: const Text('Administrează'),
@@ -549,7 +550,7 @@ class AdminVenueMatchesScreen extends StatelessWidget {
     
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF131A2A),
+      backgroundColor: AppColors.card,
       isScrollControlled: true,
       builder: (context) => Padding(
         padding: const EdgeInsets.all(24.0),
@@ -557,11 +558,11 @@ class AdminVenueMatchesScreen extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text('Opțiuni Admin Meci', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+            Text('Opțiuni Admin Meci', style: TextStyle(color: AppColors.text, fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
             if (barItems.isNotEmpty) ...[
-              const Text('Consumație Bar Curentă:', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold)),
-              ...barItems.map((item) => Text('- ${item['name']} (x${item['quantity']}) - ${item['price']} RON', style: const TextStyle(color: Colors.grey))),
+              Text('Consumație Bar Curentă:', style: TextStyle(color: AppColors.text70, fontWeight: FontWeight.bold)),
+              ...barItems.map((item) => Text('- ${item['name']} (x${item['quantity']}) - ${item['price']} RON', style: TextStyle(color: AppColors.muted))),
               const SizedBox(height: 16),
             ],
             ElevatedButton(
@@ -569,7 +570,7 @@ class AdminVenueMatchesScreen extends StatelessWidget {
                 Navigator.pop(context);
                 _showAddBarItemDialog(context, matchId, data);
               },
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00E5FF), foregroundColor: Colors.black),
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.accent, foregroundColor: Colors.black),
               child: const Text('Adaugă Consumație Bar (Tab)'),
             ),
             const SizedBox(height: 24),
@@ -587,7 +588,7 @@ class AdminVenueMatchesScreen extends StatelessWidget {
                         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Încasat Cash!'), backgroundColor: Colors.green));
                       }
                     },
-                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00FF66), foregroundColor: Colors.black),
+                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.good, foregroundColor: Colors.black),
                     child: const Text('Încasează Cash', textAlign: TextAlign.center),
                   ),
                 ),
@@ -620,9 +621,9 @@ class AdminVenueMatchesScreen extends StatelessWidget {
                 icon: const Icon(Icons.contactless),
                 label: Text('Trimite către Smart POS ($posProvider)'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF1E293B),
-                  foregroundColor: const Color(0xFF00E5FF),
-                  side: const BorderSide(color: Color(0xFF00E5FF)),
+                  backgroundColor: AppColors.card2,
+                  foregroundColor: AppColors.accent,
+                  side: BorderSide(color: AppColors.accent),
                 ),
               ),
             ],
@@ -679,7 +680,7 @@ class AdminVenueMatchesScreen extends StatelessWidget {
   void _showAddBarItemDialog(BuildContext context, String matchId, Map<String, dynamic> matchData) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF131A2A),
+      backgroundColor: AppColors.card,
       isScrollControlled: true,
       builder: (context) {
         return DraggableScrollableSheet(
@@ -688,9 +689,9 @@ class AdminVenueMatchesScreen extends StatelessWidget {
           builder: (context, scrollController) {
             return Column(
               children: [
-                const Padding(
+                Padding(
                   padding: EdgeInsets.all(16.0),
-                  child: Text('Meniu Bar', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                  child: Text('Meniu Bar', style: TextStyle(color: AppColors.text, fontSize: 18, fontWeight: FontWeight.bold)),
                 ),
                 Expanded(
                   child: StreamBuilder<QuerySnapshot>(
@@ -698,7 +699,7 @@ class AdminVenueMatchesScreen extends StatelessWidget {
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
                       if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                        return const Center(child: Text('Nu există produse în bar.', style: TextStyle(color: Colors.grey)));
+                        return Center(child: Text('Nu există produse în bar.', style: TextStyle(color: AppColors.muted)));
                       }
                       
                       final items = snapshot.data!.docs;
@@ -709,10 +710,10 @@ class AdminVenueMatchesScreen extends StatelessWidget {
                           final doc = items[index];
                           final data = doc.data() as Map<String, dynamic>;
                           return ListTile(
-                            title: Text(data['name'] ?? '', style: const TextStyle(color: Colors.white)),
-                            subtitle: Text('${data['price']} RON', style: const TextStyle(color: Colors.grey)),
+                            title: Text(data['name'] ?? '', style: TextStyle(color: AppColors.text)),
+                            subtitle: Text('${data['price']} RON', style: TextStyle(color: AppColors.muted)),
                             trailing: IconButton(
-                              icon: const Icon(Icons.add_circle, color: Color(0xFF00E5FF)),
+                              icon: Icon(Icons.add_circle, color: AppColors.accent),
                               onPressed: () async {
                                 // Add to match
                                 List<dynamic> currentItems = List.from(matchData['barOrderItems'] ?? []);

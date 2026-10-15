@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'create_post_screen.dart';
 import 'public_profile_screen.dart';
 import 'post_comments_screen.dart';
+import '../theme/app_theme.dart';
 
 class FeedScreen extends StatefulWidget {
   const FeedScreen({super.key});
@@ -123,11 +124,11 @@ class _FeedScreenState extends State<FeedScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0D1424),
+      backgroundColor: AppColors.bgDeep,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF131A2A),
-        title: const Text('Comunitate', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        iconTheme: const IconThemeData(color: Colors.white),
+        backgroundColor: AppColors.card,
+        title: Text('Comunitate', style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold)),
+        iconTheme: IconThemeData(color: AppColors.text),
       ),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
@@ -136,14 +137,14 @@ class _FeedScreenState extends State<FeedScreen> {
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting || _isLoadingFriends) {
-            return const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)));
+            return Center(child: CircularProgressIndicator(color: AppColors.accent));
           }
 
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return const Center(
+            return Center(
               child: Text(
                 'Nicio postare în comunitate încă.\nFii primul care postează ceva!',
-                style: TextStyle(color: Colors.grey),
+                style: TextStyle(color: AppColors.muted),
                 textAlign: TextAlign.center,
               ),
             );
@@ -168,10 +169,10 @@ class _FeedScreenState extends State<FeedScreen> {
           }).toList();
 
           if (posts.isEmpty) {
-            return const Center(
+            return Center(
               child: Text(
                 'Nicio postare vizibilă încă.\nFii primul care postează ceva!',
-                style: TextStyle(color: Colors.grey),
+                style: TextStyle(color: AppColors.muted),
                 textAlign: TextAlign.center,
               ),
             );
@@ -182,13 +183,13 @@ class _FeedScreenState extends State<FeedScreen> {
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                color: const Color(0xFF131A2A),
+                color: AppColors.card,
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<String>(
-                    dropdownColor: const Color(0xFF1E293B),
+                    dropdownColor: AppColors.card2,
                     value: _selectedCity,
-                    icon: const Icon(Icons.location_on, color: Color(0xFF00E5FF), size: 20),
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    icon: Icon(Icons.location_on, color: AppColors.accent, size: 20),
+                    style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold),
                     items: _cities.map((String city) {
                       return DropdownMenuItem<String>(
                         value: city,
@@ -236,11 +237,11 @@ class _FeedScreenState extends State<FeedScreen> {
                 visibilityColor = Colors.greenAccent;
               } else {
                 visibilityIcon = Icons.public;
-                visibilityColor = Colors.grey;
+                visibilityColor = AppColors.muted;
               }
 
               return Card(
-                color: const Color(0xFF131A2A),
+                color: AppColors.card,
                 margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
@@ -269,12 +270,12 @@ class _FeedScreenState extends State<FeedScreen> {
                           },
                           child: CircleAvatar(
                             radius: 20,
-                            backgroundColor: const Color(0xFF1E293B),
+                            backgroundColor: AppColors.card2,
                             backgroundImage: authorAvatarUrl != null && authorAvatarUrl.isNotEmpty
                                 ? _getAvatarProvider(authorAvatarUrl)
                                 : null,
                             child: authorAvatarUrl == null || authorAvatarUrl.isEmpty
-                                ? const Icon(Icons.person, color: Colors.white)
+                                ? Icon(Icons.person, color: AppColors.text)
                                 : null,
                           ),
                         ),
@@ -298,7 +299,7 @@ class _FeedScreenState extends State<FeedScreen> {
                                   children: [
                                     Text(
                                       authorUsername,
-                                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                                      style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold, fontSize: 16),
                                     ),
                                     const SizedBox(width: 8),
                                     Icon(visibilityIcon, size: 14, color: visibilityColor),
@@ -306,7 +307,7 @@ class _FeedScreenState extends State<FeedScreen> {
                                 ),
                                 Text(
                                   _timeAgo(timestamp),
-                                  style: const TextStyle(color: Colors.grey, fontSize: 12),
+                                  style: TextStyle(color: AppColors.muted, fontSize: 12),
                                 ),
                               ],
                             ),
@@ -320,7 +321,7 @@ class _FeedScreenState extends State<FeedScreen> {
                     if (content.isNotEmpty)
                       Text(
                         content,
-                        style: const TextStyle(color: Colors.white, fontSize: 15),
+                        style: TextStyle(color: AppColors.text, fontSize: 15),
                       ),
                     
                     if (content.isNotEmpty && imageBase64 != null)
@@ -337,13 +338,13 @@ class _FeedScreenState extends State<FeedScreen> {
                           child: Image.memory(
                             base64Decode(imageBase64.split(',').last),
                             fit: BoxFit.contain,
-                            errorBuilder: (context, error, stackTrace) => const Icon(Icons.broken_image, color: Colors.grey, size: 50),
+                            errorBuilder: (context, error, stackTrace) => Icon(Icons.broken_image, color: AppColors.muted, size: 50),
                           ),
                         ),
                       ),
                       
                     const SizedBox(height: 12),
-                    const Divider(color: Color(0xFF1E293B)),
+                    Divider(color: AppColors.card2),
                     
                     // Actions: Like, Comment
                     Row(
@@ -358,13 +359,13 @@ class _FeedScreenState extends State<FeedScreen> {
                                 children: [
                                   Icon(
                                     isLiked ? Icons.favorite : Icons.favorite_border,
-                                    color: isLiked ? Colors.redAccent : Colors.grey,
+                                    color: isLiked ? Colors.redAccent : AppColors.muted,
                                     size: 20,
                                   ),
                                   const SizedBox(width: 8),
                                   Text(
                                     likesCount > 0 ? '$likesCount' : 'Îmi place',
-                                    style: TextStyle(color: isLiked ? Colors.redAccent : Colors.grey),
+                                    style: TextStyle(color: isLiked ? Colors.redAccent : AppColors.muted),
                                   ),
                                 ],
                               ),
@@ -386,11 +387,11 @@ class _FeedScreenState extends State<FeedScreen> {
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  const Icon(Icons.chat_bubble_outline, color: Colors.grey, size: 20),
+                                  Icon(Icons.chat_bubble_outline, color: AppColors.muted, size: 20),
                                   const SizedBox(width: 8),
                                   Text(
                                     commentsCount > 0 ? '$commentsCount' : 'Comentează',
-                                    style: const TextStyle(color: Colors.grey),
+                                    style: TextStyle(color: AppColors.muted),
                                   ),
                                 ],
                               ),
@@ -411,7 +412,7 @@ class _FeedScreenState extends State<FeedScreen> {
   },
 ),
       floatingActionButton: FloatingActionButton(
-        backgroundColor: const Color(0xFF00E5FF),
+        backgroundColor: AppColors.accent,
         child: const Icon(Icons.edit, color: Colors.black),
         onPressed: () {
           Navigator.push(

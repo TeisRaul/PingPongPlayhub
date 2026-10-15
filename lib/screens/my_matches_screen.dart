@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import '../l10n/strings.dart';
+import 'match_detail_screen.dart';
+import '../services/notification_service.dart';
+import '../services/trainer_service.dart';
 import '../utils/hour_utils.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/booking_service.dart';
@@ -9,6 +13,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:add_2_calendar/add_2_calendar.dart';
 import 'chat_screen.dart';
 import '../widgets/player_drawer.dart';
+import '../theme/app_theme.dart';
 
 class MyMatchesScreen extends StatefulWidget {
   const MyMatchesScreen({super.key});
@@ -100,13 +105,13 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF131A2A),
-        title: Text(title, style: const TextStyle(color: Colors.white)),
-        content: Text(message, style: const TextStyle(color: Colors.grey)),
+        backgroundColor: AppColors.card,
+        title: Text(title, style: TextStyle(color: AppColors.text)),
+        content: Text(message, style: TextStyle(color: AppColors.muted)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('OK', style: TextStyle(color: Color(0xFF00E5FF))),
+            child: Text('OK', style: TextStyle(color: AppColors.accent)),
           ),
         ],
       ),
@@ -143,7 +148,7 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
       final myLosses = data['myLosses'] ?? 0;
       return Text(
         'Scor raportat de adversar: $myWins - $myLosses (${myWins > myLosses ? 'A câștigat' : 'A pierdut'})',
-        style: const TextStyle(color: Colors.white70, fontSize: 13),
+        style: TextStyle(color: AppColors.text70, fontSize: 13),
       );
     } else {
       final List<dynamic> reportedMatches = data['reportedMatches'] ?? [];
@@ -152,7 +157,7 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
         children: [
           Text(
             'Total meciuri jucate: ${data['totalMatches'] ?? 0}',
-            style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.bold),
+            style: TextStyle(color: AppColors.text70, fontSize: 13, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 6),
           ...reportedMatches.map((m) {
@@ -162,7 +167,7 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
               padding: const EdgeInsets.only(bottom: 4),
               child: Text(
                 '• În echipă cu $partner: $outcome',
-                style: const TextStyle(color: Colors.white70, fontSize: 13),
+                style: TextStyle(color: AppColors.text70, fontSize: 13),
               ),
             );
           }),
@@ -211,6 +216,8 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
       // Câștigătorul se salvează și la meciurile amicale (doar punctele nu se modifică).
       String? matchWinnerUid;
       final List<String> matchWinnerUids = [];
+      // Rating înainte / după pentru fiecare jucător (alimentează evoluția din Statistici).
+      final Map<String, dynamic> ratingChanges = {};
 
       {
         if (reportType == '1v1') {
@@ -239,10 +246,15 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
             batch.update(FirebaseFirestore.instance.collection('users').doc(winnerUid), {
               'rating': winnerRating + winPoints,
             });
+            ratingChanges[winnerUid] = {'before': winnerRating, 'after': winnerRating + winPoints};
 
             batch.update(FirebaseFirestore.instance.collection('users').doc(loserUid), {
               'rating': (loserRating - losePoints < 0) ? 0 : loserRating - losePoints,
             });
+            ratingChanges[loserUid] = {
+              'before': loserRating,
+              'after': (loserRating - losePoints < 0) ? 0 : loserRating - losePoints,
+            };
             }
           }
         } else {
@@ -301,6 +313,7 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
               batch.update(FirebaseFirestore.instance.collection('users').doc(uidStr), {
                 'rating': rating + winPoints,
               });
+              ratingChanges[uidStr] = {'before': rating, 'after': rating + winPoints};
             } else if (wins < losses) {
               // Player lost more than they won overall
               final userDoc = await FirebaseFirestore.instance.collection('users').doc(uidStr).get();
@@ -309,6 +322,10 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
               batch.update(FirebaseFirestore.instance.collection('users').doc(uidStr), {
                 'rating': (rating - losePoints < 0) ? 0 : rating - losePoints,
               });
+              ratingChanges[uidStr] = {
+                'before': rating,
+                'after': (rating - losePoints < 0) ? 0 : rating - losePoints,
+              };
             }
           }
         }
@@ -318,6 +335,7 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
         'status': 'completed',
         if (matchWinnerUid != null) 'winnerUid': matchWinnerUid,
         if (matchWinnerUids.isNotEmpty) 'winnerUids': matchWinnerUids,
+        if (ratingChanges.isNotEmpty) 'ratingChanges': ratingChanges,
       });
 
       await batch.commit();
@@ -345,7 +363,18 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
 
   Future<void> _cancelMatch(String matchId) async {
     try {
-      await FirebaseFirestore.instance.collection('matches').doc(matchId).delete();
+      final ref = FirebaseFirestore.instance.collection('matches').doc(matchId);
+      final snap = await ref.get();
+      final matchData = snap.data();
+      await ref.delete();
+      if (matchData != null) {
+        // Ceilalți jucători și sala află (popup + email); sesiunea cu antrenor se anulează.
+        final me = FirebaseAuth.instance.currentUser;
+        await NotificationService.matchCancelled(matchId, matchData, byName: (matchData['hostUsername'] ?? me?.email ?? '').toString());
+        try {
+          await TrainerService.cancelForMatch(matchId);
+        } catch (_) {}
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Meci anulat cu succes!'), backgroundColor: Colors.green));
       }
@@ -372,7 +401,18 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
   Future<void> _withdraw(String matchId) async {
     final userUid = FirebaseAuth.instance.currentUser!.uid;
     try {
+      final before = (await FirebaseFirestore.instance.collection('matches').doc(matchId).get()).data();
       final result = await BookingService.withdrawFromMatch(matchId, userUid);
+      if (result == WithdrawResult.withdrawn && before != null) {
+        final String who = List<dynamic>.from(before['joinedPlayers'] ?? [])
+            .whereType<Map>()
+            .where((p) => p['uid'] == userUid)
+            .map((p) => (p['username'] ?? '').toString())
+            .firstWhere((_) => true, orElse: () => '');
+        final leftArgs = {...NotificationService.matchArgs(before), 'player': who};
+        await NotificationService.send(toUid: (before['hostUid'] ?? '').toString(), type: 'match_left', titleKey: 'n.left_title', bodyKey: 'n.left_body', args: leftArgs, matchId: matchId);
+        await NotificationService.send(toUid: (before['locationId'] ?? '').toString(), type: 'match_left', titleKey: 'n.left_title', bodyKey: 'n.left_body', args: leftArgs, matchId: matchId);
+      }
       if (!mounted) return;
       final String message;
       switch (result) {
@@ -399,16 +439,16 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          backgroundColor: const Color(0xFF131A2A),
-          title: const Text('Bilet Check-in', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          backgroundColor: AppColors.card,
+          title: Text('Bilet Check-in', style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('Prezintă acest cod QR la recepția sălii pentru a confirma check-in-ul.', style: TextStyle(color: Colors.grey, fontSize: 13), textAlign: TextAlign.center),
+              Text('Prezintă acest cod QR la recepția sălii pentru a confirma check-in-ul.', style: TextStyle(color: AppColors.muted, fontSize: 13), textAlign: TextAlign.center),
               const SizedBox(height: 20),
               Container(
                 padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(color: AppColors.text, borderRadius: BorderRadius.circular(12)),
                 // SizedBox fix: QrImageView folosește LayoutBuilder, care nu poate fi măsurat
                 // de AlertDialog (IntrinsicWidth) fără dimensiune fixă.
                 child: SizedBox(
@@ -422,25 +462,25 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
                 ),
               ),
               const SizedBox(height: 14),
-              const Text('Cod bilet', style: TextStyle(color: Colors.grey, fontSize: 12)),
+              Text('Cod bilet', style: TextStyle(color: AppColors.muted, fontSize: 12)),
               SelectableText(
                 CheckInService.formatShortCode(CheckInService.shortCode(matchId)),
-                style: const TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.bold, letterSpacing: 4),
+                style: TextStyle(color: AppColors.text, fontSize: 30, fontWeight: FontWeight.bold, letterSpacing: 4),
               ),
-              const Text(
+              Text(
                 'Nu merge scanarea? Spune acest cod sălii.',
-                style: TextStyle(color: Colors.grey, fontSize: 12),
+                style: TextStyle(color: AppColors.muted, fontSize: 12),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 14),
-              Text('${data['locationName'] ?? 'Sală'} - ${data['date'] ?? ''}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-              Text('${formatHour(data['startHour'])} - ${formatHour(data['endHour'])}', style: const TextStyle(color: Colors.grey)),
+              Text('${data['locationName'] ?? 'Sală'} - ${data['date'] ?? ''}', style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold)),
+              Text('${formatHour(data['startHour'])} - ${formatHour(data['endHour'])}', style: TextStyle(color: AppColors.muted)),
             ],
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Închide', style: TextStyle(color: Color(0xFF00E5FF))),
+              child: Text('Închide', style: TextStyle(color: AppColors.accent)),
             ),
           ],
         );
@@ -497,11 +537,11 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
     } catch (_) {}
 
     return Card(
-      color: const Color(0xFF131A2A),
+      color: AppColors.card,
       margin: const EdgeInsets.only(bottom: 16),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: const Color(0xFF00E5FF).withValues(alpha: 0.3)),
+        side: BorderSide(color: AppColors.accent.withValues(alpha: 0.3)),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -511,18 +551,48 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Expanded(child: Text('${data['locationName']} (${data['city']})', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white))),
+                Expanded(child: Text('${data['locationName']} (${data['city']})', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.text))),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(color: const Color(0xFF1E293B), borderRadius: BorderRadius.circular(8)),
-                  child: Text(data['visibility'] == 'private' ? 'Privat' : 'Public', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                  decoration: BoxDecoration(color: AppColors.card2, borderRadius: BorderRadius.circular(8)),
+                  child: Text(data['visibility'] == 'private' ? tr('cm.vis_private') : tr('cm.vis_public'), style: TextStyle(color: AppColors.muted, fontSize: 12)),
                 )
               ],
             ),
             const SizedBox(height: 8),
-            Text('${data['date']} | ${formatHour(data['startHour'])} - ${formatHour(data['endHour'])}', style: const TextStyle(color: Colors.grey)),
-            const SizedBox(height: 16),
-            const Text('Jucători la masă:', style: TextStyle(color: Colors.grey)),
+            Text('${data['date']} | ${formatHour(data['startHour'])} - ${formatHour(data['endHour'])}', style: TextStyle(color: AppColors.muted)),
+            Wrap(
+              spacing: 16,
+              children: [
+                TextButton.icon(
+                  style: TextButton.styleFrom(padding: EdgeInsets.zero, foregroundColor: AppColors.accent),
+                  icon: const Icon(Icons.confirmation_number_outlined, size: 18),
+                  label: Text(tr('mm.details')),
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => MatchDetailScreen(matchId: docId, mode: MatchDetailMode.player)),
+                  ),
+                ),
+                if (!isPast && players.length > 1)
+                  TextButton.icon(
+                    style: TextButton.styleFrom(padding: EdgeInsets.zero, foregroundColor: AppColors.accent),
+                    icon: const Icon(Icons.forum_outlined, size: 18),
+                    label: Text(tr('chat.open_btn')),
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ChatScreen(
+                          chatId: 'match_$docId',
+                          isMatchChat: true,
+                          matchTitle: '${data['locationName'] ?? ''} · ${data['date'] ?? ''}',
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(tr('mm.players_at_table'), style: TextStyle(color: AppColors.muted)),
             const SizedBox(height: 8),
             ...players.map((p) {
               final isMe = p['uid'] == currentUserUid;
@@ -533,14 +603,14 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
                     Icon(
                       p['role'] == 'host' ? Icons.star : Icons.person, 
                       size: 16, 
-                      color: p['role'] == 'host' ? Colors.yellow : Colors.grey
+                      color: p['role'] == 'host' ? Colors.yellow : AppColors.muted
                     ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         '${p['username']} (${p['level']})', 
                         style: TextStyle(
-                          color: isMe ? const Color(0xFF00E5FF) : Colors.white,
+                          color: isMe ? AppColors.accent : AppColors.text,
                           fontWeight: isMe ? FontWeight.bold : FontWeight.normal,
                         )
                       ),
@@ -548,7 +618,7 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
                     if (!isMe) ...[
                       // Chat button
                       IconButton(
-                        icon: const Icon(Icons.chat_bubble_outline, color: Color(0xFF00E5FF), size: 18),
+                        icon: Icon(Icons.chat_bubble_outline, color: AppColors.accent, size: 18),
                         tooltip: 'Trimite mesaj',
                         constraints: const BoxConstraints(),
                         padding: const EdgeInsets.all(4),
@@ -585,7 +655,14 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
                 child: Text('Mai sunt ${(data['maxPlayers'] ?? 2) - players.length} locuri libere...', style: const TextStyle(color: Colors.yellowAccent, fontSize: 12)),
               ),
             const SizedBox(height: 16),
-            if (isCompleted) ...[
+            if (data['status'] == 'cancelled') ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(8)),
+                child: Text(tr('mm.cancelled'), style: const TextStyle(color: Colors.redAccent)),
+              ),
+            ] else if (isCompleted) ...[
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(8),
@@ -614,18 +691,18 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
                     width: double.infinity,
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF00E5FF).withValues(alpha: 0.1),
+                      color: AppColors.accent.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.3)),
+                      border: Border.all(color: AppColors.accent.withValues(alpha: 0.3)),
                     ),
-                    child: const Row(
+                    child: Row(
                       children: [
-                        Icon(Icons.hourglass_empty, color: Color(0xFF00E5FF), size: 20),
+                        Icon(Icons.hourglass_empty, color: AppColors.accent, size: 20),
                         SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             'Scorul a fost raportat. Așteptăm confirmarea celorlalți jucători.',
-                            style: TextStyle(color: Color(0xFF00E5FF), fontSize: 13),
+                            style: TextStyle(color: AppColors.accent, fontSize: 13),
                           ),
                         ),
                       ],
@@ -689,7 +766,7 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
                     Expanded(
                       child: ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF00E5FF),
+                          backgroundColor: AppColors.accent,
                           foregroundColor: Colors.black,
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -714,7 +791,7 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
                       icon: const Icon(Icons.qr_code, color: Colors.black),
                       label: const Text('Check-in', style: TextStyle(color: Colors.black)),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF00E5FF),
+                        backgroundColor: AppColors.accent,
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
                     ),
@@ -723,10 +800,10 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: () => _addToCalendar(data),
-                      icon: const Icon(Icons.calendar_month, color: Colors.white),
-                      label: const Text('Calendar', style: TextStyle(color: Colors.white)),
+                      icon: Icon(Icons.calendar_month, color: AppColors.text),
+                      label: Text('Calendar', style: TextStyle(color: AppColors.text)),
                       style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: Colors.grey),
+                        side: BorderSide(color: AppColors.muted),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
                     ),
@@ -778,15 +855,15 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
         appBar: AppBar(
           leading: Builder(
             builder: (context) => IconButton(
-              icon: const Icon(Icons.menu, color: Color(0xFF00E5FF)),
+              icon: Icon(Icons.menu, color: AppColors.accent),
               onPressed: () {
                 Scaffold.of(context).openDrawer();
               },
             ),
           ),
           title: const Text('Meciurile Mele'),
-          bottom: const TabBar(
-            indicatorColor: Color(0xFF00E5FF),
+          bottom: TabBar(
+            indicatorColor: AppColors.accent,
             tabs: [
               Tab(text: 'Upcoming'),
               Tab(text: 'Past (De raportat)'),
@@ -804,7 +881,7 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
               return const Center(child: Text('Eroare la încărcare.', style: TextStyle(color: Colors.red)));
             }
             if (!snapshot.hasData) {
-              return const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)));
+              return Center(child: CircularProgressIndicator(color: AppColors.accent));
             }
 
             final docs = snapshot.data!.docs;
@@ -813,7 +890,8 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
 
             for (var doc in docs) {
               final data = doc.data() as Map<String, dynamic>;
-              if (_isPast(data)) {
+              // Meciurile anulate nu mai sunt „viitoare": le punem la Past, cu mențiune.
+              if (data['status'] == 'cancelled' || _isPast(data)) {
                 past.add(doc);
               } else {
                 upcoming.add(doc);
@@ -823,14 +901,14 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
             return TabBarView(
               children: [
                 upcoming.isEmpty
-                    ? const Center(child: Text('Niciun meci viitor.', style: TextStyle(color: Colors.grey)))
+                    ? Center(child: Text('Niciun meci viitor.', style: TextStyle(color: AppColors.muted)))
                     : ListView.builder(
                         padding: const EdgeInsets.all(16),
                         itemCount: upcoming.length,
                         itemBuilder: (context, index) => _buildMatchCard(upcoming[index].id, upcoming[index].data() as Map<String, dynamic>, false),
                       ),
                 past.isEmpty
-                    ? const Center(child: Text('Niciun meci trecut.', style: TextStyle(color: Colors.grey)))
+                    ? Center(child: Text('Niciun meci trecut.', style: TextStyle(color: AppColors.muted)))
                     : ListView.builder(
                         padding: const EdgeInsets.all(16),
                         itemCount: past.length,
@@ -963,14 +1041,14 @@ class _ReportResultDialogState extends State<_ReportResultDialog> {
     final otherPlayers = players.where((p) => p['uid'] != currentUserUid).toList();
 
     return AlertDialog(
-      backgroundColor: const Color(0xFF131A2A),
+      backgroundColor: AppColors.card,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: Color(0xFF00E5FF), width: 1),
+        side: BorderSide(color: AppColors.accent, width: 1),
       ),
       title: Text(
         is2v2 ? 'Raportare Meci 2v2' : 'Raportare Meci 1v1',
-        style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF00E5FF)),
+        style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.accent),
       ),
       content: SizedBox(
         width: MediaQuery.of(context).size.width * 0.85,
@@ -979,9 +1057,9 @@ class _ReportResultDialogState extends State<_ReportResultDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 'Câte meciuri ați jucat în total?',
-                style: TextStyle(color: Colors.white70, fontSize: 14),
+                style: TextStyle(color: AppColors.text70, fontSize: 14),
               ),
               const SizedBox(height: 8),
               Row(
@@ -992,15 +1070,15 @@ class _ReportResultDialogState extends State<_ReportResultDialog> {
                       min: 1,
                       max: 15,
                       divisions: 14,
-                      activeColor: const Color(0xFF00E5FF),
-                      inactiveColor: const Color(0xFF1E293B),
+                      activeColor: AppColors.accent,
+                      inactiveColor: AppColors.card2,
                       label: _totalMatches.toString(),
                       onChanged: (val) => _updateTotalMatches(val.round()),
                     ),
                   ),
                   Text(
                     _totalMatches.toString(),
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                    style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold, fontSize: 16),
                   ),
                 ],
               ),
@@ -1008,7 +1086,7 @@ class _ReportResultDialogState extends State<_ReportResultDialog> {
               if (!is2v2) ...[
                 Text(
                   'Meciuri câștigate de tine: $_myWins',
-                  style: const TextStyle(color: Colors.white70, fontSize: 14),
+                  style: TextStyle(color: AppColors.text70, fontSize: 14),
                 ),
                 Row(
                   children: [
@@ -1019,14 +1097,14 @@ class _ReportResultDialogState extends State<_ReportResultDialog> {
                         max: _totalMatches.toDouble(),
                         divisions: _totalMatches,
                         activeColor: Colors.greenAccent,
-                        inactiveColor: const Color(0xFF1E293B),
+                        inactiveColor: AppColors.card2,
                         label: _myWins.toString(),
                         onChanged: (val) => setState(() => _myWins = val.round()),
                       ),
                     ),
                     Text(
                       '${_totalMatches - _myWins} pierdute',
-                      style: const TextStyle(color: Colors.grey, fontSize: 14),
+                      style: TextStyle(color: AppColors.muted, fontSize: 14),
                     ),
                   ],
                 ),
@@ -1035,19 +1113,19 @@ class _ReportResultDialogState extends State<_ReportResultDialog> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF00E5FF).withValues(alpha: 0.1),
+                      color: AppColors.accent.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
                       'Scor raportat: $_myWins - ${_totalMatches - _myWins}',
-                      style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF00E5FF), fontSize: 16),
+                      style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.accent, fontSize: 16),
                     ),
                   ),
                 ),
               ] else ...[
-                const Text(
+                Text(
                   'Detalii pentru fiecare meci:',
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                  style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold, fontSize: 15),
                 ),
                 const SizedBox(height: 12),
                 ...List.generate(_totalMatches, (index) {
@@ -1057,24 +1135,24 @@ class _ReportResultDialogState extends State<_ReportResultDialog> {
                     margin: const EdgeInsets.only(bottom: 12),
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF1E293B),
+                      color: AppColors.card2,
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.2)),
+                      border: Border.all(color: AppColors.accent.withValues(alpha: 0.2)),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           'Meciul ${index + 1}',
-                          style: const TextStyle(color: Color(0xFF00E5FF), fontWeight: FontWeight.bold, fontSize: 13),
+                          style: TextStyle(color: AppColors.accent, fontWeight: FontWeight.bold, fontSize: 13),
                         ),
                         const SizedBox(height: 8),
-                        const Text('Partenerul tău:', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                        Text('Partenerul tău:', style: TextStyle(color: AppColors.muted, fontSize: 11)),
                         DropdownButton<String>(
                           value: match['partnerUid'],
                           isExpanded: true,
-                          dropdownColor: const Color(0xFF131A2A),
-                          style: const TextStyle(color: Colors.white),
+                          dropdownColor: AppColors.card,
+                          style: TextStyle(color: AppColors.text),
                           items: otherPlayers.map((p) {
                             return DropdownMenuItem<String>(
                               value: p['uid'],
@@ -1095,7 +1173,7 @@ class _ReportResultDialogState extends State<_ReportResultDialog> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text('Rezultat:', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                            Text('Rezultat:', style: TextStyle(color: AppColors.muted, fontSize: 12)),
                             Row(
                               children: [
                                 GestureDetector(
@@ -1107,7 +1185,7 @@ class _ReportResultDialogState extends State<_ReportResultDialog> {
                                       borderRadius: BorderRadius.circular(4),
                                       border: Border.all(color: Colors.green),
                                     ),
-                                    child: const Text('Câștigat', style: TextStyle(color: Colors.white, fontSize: 12)),
+                                    child: Text('Câștigat', style: TextStyle(color: AppColors.text, fontSize: 12)),
                                   ),
                                 ),
                                 const SizedBox(width: 8),
@@ -1120,7 +1198,7 @@ class _ReportResultDialogState extends State<_ReportResultDialog> {
                                       borderRadius: BorderRadius.circular(4),
                                       border: Border.all(color: Colors.red),
                                     ),
-                                    child: const Text('Pierdut', style: TextStyle(color: Colors.white, fontSize: 12)),
+                                    child: Text('Pierdut', style: TextStyle(color: AppColors.text, fontSize: 12)),
                                   ),
                                 ),
                               ],
@@ -1139,11 +1217,11 @@ class _ReportResultDialogState extends State<_ReportResultDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('RENUNȚĂ', style: TextStyle(color: Colors.grey)),
+          child: Text('RENUNȚĂ', style: TextStyle(color: AppColors.muted)),
         ),
         ElevatedButton(
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF00E5FF),
+            backgroundColor: AppColors.accent,
             foregroundColor: Colors.black,
           ),
           onPressed: _isSubmitting ? null : _submitReport,
@@ -1247,14 +1325,14 @@ class _VenueReviewDialogState extends State<_VenueReviewDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      backgroundColor: const Color(0xFF131A2A),
-      title: Text('Recenzie pentru ${widget.venueName}', style: const TextStyle(color: Colors.white, fontSize: 18)),
+      backgroundColor: AppColors.card,
+      title: Text('Recenzie pentru ${widget.venueName}', style: TextStyle(color: AppColors.text, fontSize: 18)),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Cum a fost experiența?', style: TextStyle(color: Colors.white70)),
+            Text('Cum a fost experiența?', style: TextStyle(color: AppColors.text70)),
             const SizedBox(height: 16),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -1273,12 +1351,12 @@ class _VenueReviewDialogState extends State<_VenueReviewDialog> {
             TextField(
               controller: _commentController,
               maxLines: 3,
-              style: const TextStyle(color: Colors.white),
+              style: TextStyle(color: AppColors.text),
               decoration: InputDecoration(
                 hintText: 'Scrie un comentariu (opțional)...',
-                hintStyle: const TextStyle(color: Colors.grey),
+                hintStyle: TextStyle(color: AppColors.muted),
                 filled: true,
-                fillColor: const Color(0xFF1E293B),
+                fillColor: AppColors.card2,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                   borderSide: BorderSide.none,
@@ -1291,10 +1369,10 @@ class _VenueReviewDialogState extends State<_VenueReviewDialog> {
       actions: [
         TextButton(
           onPressed: _isSubmitting ? null : () => Navigator.pop(context),
-          child: const Text('ANULEAZĂ', style: TextStyle(color: Colors.grey)),
+          child: Text('ANULEAZĂ', style: TextStyle(color: AppColors.muted)),
         ),
         ElevatedButton(
-          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00E5FF)),
+          style: ElevatedButton.styleFrom(backgroundColor: AppColors.accent),
           onPressed: _isSubmitting ? null : _submitReview,
           child: _isSubmitting
               ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2))
