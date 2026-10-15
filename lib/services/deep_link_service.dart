@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:app_links/app_links.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'share_service.dart';
 
 class DeepLinkService {
   DeepLinkService._();
@@ -29,6 +30,7 @@ class DeepLinkService {
 
   void _handleDeepLink(Uri uri) async {
     print('Received Deep Link: $uri');
+    ShareService.handleUri(uri); // link de partajare a unui meci
     
     // Example: pingpongplayhub://pos-success?matchId=123
     if (uri.scheme == 'pingpongplayhub' && uri.host == 'pos-success') {

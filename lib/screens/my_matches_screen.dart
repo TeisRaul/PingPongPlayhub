@@ -1,3 +1,6 @@
+import '../widgets/review_photos.dart';
+import '../widgets/reminder_editor.dart';
+import '../services/share_service.dart';
 import 'package:flutter/material.dart';
 import '../l10n/strings.dart';
 import 'match_detail_screen.dart';
@@ -573,6 +576,21 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
                     MaterialPageRoute(builder: (_) => MatchDetailScreen(matchId: docId, mode: MatchDetailMode.player)),
                   ),
                 ),
+                if (!isPast && data['status'] != 'cancelled' && data['status'] != 'completed') ...[
+                  TextButton.icon(
+                    style: TextButton.styleFrom(padding: EdgeInsets.zero, foregroundColor: AppColors.accent),
+                    icon: const Icon(Icons.notifications_active_outlined, size: 18),
+                    label: Text(tr('rem.btn')),
+                    onPressed: () => showMatchReminderDialog(context, docId, data),
+                  ),
+                  if (data['visibility'] != 'private')
+                    TextButton.icon(
+                      style: TextButton.styleFrom(padding: EdgeInsets.zero, foregroundColor: AppColors.accent),
+                      icon: const Icon(Icons.share_outlined, size: 18),
+                      label: Text(tr('share.btn')),
+                      onPressed: () => ShareService.shareMatch(context, docId, data),
+                    ),
+                ],
                 if (!isPast && players.length > 1)
                   TextButton.icon(
                     style: TextButton.styleFrom(padding: EdgeInsets.zero, foregroundColor: AppColors.accent),
@@ -1253,6 +1271,7 @@ class _VenueReviewDialogState extends State<_VenueReviewDialog> {
   int _rating = 5;
   final _commentController = TextEditingController();
   bool _isSubmitting = false;
+  List<String> _photos = [];
 
   @override
   void dispose() {
@@ -1298,6 +1317,7 @@ class _VenueReviewDialogState extends State<_VenueReviewDialog> {
           'authorAvatarUrl': avatarUrl,
           'rating': _rating,
           'comment': _commentController.text.trim(),
+          if (_photos.isNotEmpty) 'photos': _photos,
           'createdAt': FieldValue.serverTimestamp(),
         });
 
@@ -1362,6 +1382,12 @@ class _VenueReviewDialogState extends State<_VenueReviewDialog> {
                   borderSide: BorderSide.none,
                 ),
               ),
+            ),
+            const SizedBox(height: 12),
+            ReviewPhotoPicker(
+              photos: _photos,
+              enabled: !_isSubmitting,
+              onChanged: (v) => setState(() => _photos = v),
             ),
           ],
         ),

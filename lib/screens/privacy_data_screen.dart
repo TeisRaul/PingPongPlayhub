@@ -8,6 +8,7 @@ import '../services/account_service.dart';
 import '../services/push_service.dart';
 import '../theme/app_theme.dart';
 import 'login_screen.dart';
+import 'reminder_settings_screen.dart';
 
 /// "Date și cont": export de date și ștergerea contului (cerință GDPR / magazine de aplicații).
 class PrivacyDataScreen extends StatefulWidget {
@@ -112,6 +113,13 @@ class _PrivacyDataScreenState extends State<PrivacyDataScreen> {
               onChanged: _prefsLoading ? null : _togglePush,
               title: Text(tr('acct.push_title'), style: TextStyle(color: AppColors.text)),
               subtitle: Text(tr('acct.push_desc'), style: TextStyle(color: AppColors.muted, fontSize: 13)),
+            ),
+          if (_prefRef?.parent.id == 'users')
+            ListTile(
+              leading: Icon(Icons.alarm, color: AppColors.accent),
+              title: Text(tr('rem.title'), style: TextStyle(color: AppColors.text)),
+              trailing: Icon(Icons.chevron_right, color: AppColors.muted),
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ReminderSettingsScreen())),
             ),
           SwitchListTile(
             value: _emailOn,

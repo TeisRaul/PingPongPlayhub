@@ -244,18 +244,18 @@ class VenueTools {
     await ref.update({'blockedSlots': FieldValue.arrayRemove([slot.toMap()])});
   }
 
-  /// Mută o rezervare pe altă masă / alt interval și anunță jucătorii.
-  /// Verifică conflictele; întoarce un mesaj de eroare (sau null dacă a reușit).
-  static Future<String?> moveMatch({
+  /// Poate fi mutată [match] pe masa [newTableId] în [newStart]–[newEnd]? (logică pură, fără baza de date)
+  /// Întoarce 'conflict' (altă rezervare activă pe aceeași masă și sport), 'blocked' (interval blocat de sală)
+  /// sau null dacă mutarea e liberă. [dayMatches] = rezervările zilei respective.
+  static String? moveConflict({
     required Map<String, dynamic> match,
     required int newTableId,
     required double newStart,
     required double newEnd,
-    required String venueName,
     required Map<String, dynamic>? venueData,
     List<Map<String, dynamic>> dayMatches = const [],
-  }) async {
-    final String id = match['docId'].toString();
+  }) {
+    final String id = (match['docId'] ?? '').toString();
     final String dateStr = (match['date'] ?? '').toString();
     final String? sport = match['sport']?.toString();
 
@@ -270,6 +270,31 @@ class VenueTools {
     }
     final b = blockFor(venueData, dateStr, newStart, newEnd, sport: sport);
     if (b.allTables || b.tables.contains(newTableId)) return 'blocked';
+    return null;
+  }
+
+  /// Mută o rezervare pe altă masă / alt interval și anunță jucătorii.
+  /// Verifică conflictele; întoarce un mesaj de eroare (sau null dacă a reușit).
+  static Future<String?> moveMatch({
+    required Map<String, dynamic> match,
+    required int newTableId,
+    required double newStart,
+    required double newEnd,
+    required String venueName,
+    required Map<String, dynamic>? venueData,
+    List<Map<String, dynamic>> dayMatches = const [],
+  }) async {
+    final String id = match['docId'].toString();
+    final String dateStr = (match['date'] ?? '').toString();
+    final problem = moveConflict(
+      match: match,
+      newTableId: newTableId,
+      newStart: newStart,
+      newEnd: newEnd,
+      venueData: venueData,
+      dayMatches: dayMatches,
+    );
+    if (problem != null) return problem;
 
     await FirebaseFirestore.instance.collection('matches').doc(id).update({
       'tableId': newTableId,

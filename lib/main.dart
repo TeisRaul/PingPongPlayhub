@@ -10,6 +10,7 @@ import 'firebase_options.dart';
 
 import 'services/stripe_service.dart';
 import 'services/deep_link_service.dart';
+import 'services/share_service.dart';
 import 'widgets/notification_popups.dart';
 
 void main() async {
@@ -40,6 +41,7 @@ void main() async {
     }
   }
   
+  ShareService.captureInitialWebLink(); // link de meci deschis în browser
   DeepLinkService.instance.init();
   NotificationPopups.instance.init(); // popup în timp real pentru notificări noi
   

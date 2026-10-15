@@ -160,3 +160,6 @@ const vouchers = require("./vouchers");
 exports.checkVoucher = vouchers.checkVoucher;
 exports.redeemVoucher = vouchers.redeemVoucher;
 exports.releaseVoucher = vouchers.releaseVoucher;
+
+// Remindere înainte de meci, configurabile de jucător (vezi reminders.js; necesită Blaze)
+exports.sendMatchReminders = require("./reminders").sendMatchReminders;

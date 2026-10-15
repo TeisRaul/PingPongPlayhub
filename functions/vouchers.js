@@ -261,3 +261,6 @@ exports.releaseVoucher = onRequest({cors: true}, async (req, res) => {
     return res.status(500).json({error: "Internal error"});
   }
 });
+
+// Doar pentru teste automate (functions/test/vouchers.test.js).
+exports._test = {evaluate, normalizeCode, parseInput, round2};

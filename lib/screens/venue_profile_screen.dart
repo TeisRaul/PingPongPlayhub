@@ -1,3 +1,4 @@
+import '../widgets/review_photos.dart';
 import '../l10n/strings.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -704,6 +705,7 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
   Future<void> _showReviewDialog(String targetVenueId) async {
     final commentController = TextEditingController();
     double currentRating = 5.0;
+    List<String> photos = [];
 
     await showDialog(
       context: context,
@@ -745,6 +747,11 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
                       focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: AppColors.accent)),
                     ),
                   ),
+                  const SizedBox(height: 12),
+                  ReviewPhotoPicker(
+                    photos: photos,
+                    onChanged: (v) => setDialogState(() => photos = v),
+                  ),
                 ],
               ),
               actions: [
@@ -771,6 +778,7 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
                       'authorAvatarUrl': avatarUrl,
                       'rating': currentRating,
                       'comment': commentController.text.trim(),
+                      if (photos.isNotEmpty) 'photos': photos,
                       'createdAt': FieldValue.serverTimestamp(),
                     });
 
@@ -1549,6 +1557,8 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
                     const SizedBox(height: 8),
                     Text(comment, style: TextStyle(color: AppColors.text70, fontSize: 13)),
                   ],
+                  if (rData['photos'] is List && (rData['photos'] as List).isNotEmpty)
+                    ReviewPhotoStrip(photos: rData['photos'] as List),
                 ],
               ),
             );

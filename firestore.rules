@@ -207,6 +207,18 @@ service cloud.firestore {
     }
 
     // ---------- Prieteni ----------
+    // Reminder configurat de jucător pentru un meci anume: doc id = {matchId}_{uid}.
+    // `reminder_state` (ce s-a trimis deja) e doar al funcției, deci rămâne închis.
+    match /match_reminders/{reminderId} {
+      allow read, delete: if signedIn() && resource.data.get('uid', '') == uid();
+      allow create: if signedIn() &&
+        request.resource.data.get('uid', '') == uid() &&
+        reminderId == request.resource.data.get('matchId', '') + '_' + uid();
+      allow update: if signedIn() &&
+        resource.data.get('uid', '') == uid() &&
+        request.resource.data.get('uid', '') == uid();
+    }
+
     match /friend_requests/{requestId} {
       allow read: if signedIn() &&
         (resource.data.get('fromUid', '') == uid() || resource.data.get('toUid', '') == uid() || isAdmin());

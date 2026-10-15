@@ -27,6 +27,7 @@ import 'venue_calendar_screen.dart';
 import 'venue_mass_cancel_screen.dart';
 import 'venue_pricing_screen.dart';
 import 'venue_vouchers_screen.dart';
+import '../services/share_service.dart';
 import '../widgets/player_drawer.dart';
 import '../theme/app_theme.dart';
 
@@ -93,6 +94,8 @@ class _HomeScreenState extends State<HomeScreen> {
     AccountLookup.ensureForCurrentUser();
     PushService.instance.onLogin();
     _startNewsAutoScroll();
+    ShareService.homeReady = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) => ShareService.consumePending());
   }
 
   void _startNewsAutoScroll() {
@@ -114,6 +117,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    ShareService.homeReady = false;
     _newsTimer?.cancel();
     _newsScrollController.dispose();
     super.dispose();
