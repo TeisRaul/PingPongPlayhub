@@ -19,12 +19,13 @@
 const {onRequest} = require("firebase-functions/v2/https");
 const {defineSecret} = require("firebase-functions/params");
 const admin = require("firebase-admin");
+const bookings = require("./bookings");
 
 const STRIPE_SECRET_KEY = defineSecret("STRIPE_SECRET_KEY");
 const STRIPE_WEBHOOK_SECRET = defineSecret("STRIPE_WEBHOOK_SECRET");
 
 const SUBSCRIPTION_BANI = 10000; // 100 RON / lună
-const SITE = "https://pingpongplayhub.web.app";
+const SITE = "https://pingpongplayhub1.web.app";
 
 function getStripe() {
   return require("stripe")(STRIPE_SECRET_KEY.value());
@@ -191,6 +192,13 @@ exports.stripeWebhook = onRequest(
         } else if (event.type === "checkout.session.completed" &&
                    obj.mode === "subscription" && obj.subscription) {
           await syncSubscription(await stripe.subscriptions.retrieve(obj.subscription));
+        } else if (event.type === "checkout.session.completed" &&
+                   obj.mode === "payment" && obj.payment_status === "paid" && obj.payment_intent) {
+          // Rezervare / abonament de sală plătit pe web (Stripe Checkout).
+          await bookings.confirmPayment(stripe, await stripe.paymentIntents.retrieve(obj.payment_intent));
+        } else if (event.type === "payment_intent.succeeded") {
+          // Plată din aplicația de telefon (PaymentSheet) sau din Checkout.
+          await bookings.confirmPayment(stripe, obj);
         }
       } catch (e) {
         console.error("Webhook handler error:", e);

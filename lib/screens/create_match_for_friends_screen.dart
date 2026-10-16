@@ -21,6 +21,7 @@ import '../services/location_service.dart';
 import 'package:latlong2/latlong.dart' show LatLng;
 import '../widgets/voucher_field.dart';
 import '../services/voucher_service.dart';
+import '../services/card_booking_service.dart';
 import '../l10n/strings.dart';
 
 class CreateMatchForFriendsScreen extends StatefulWidget {
@@ -57,6 +58,8 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
   LatLng? _userPos; // locația utilizatorului (doar după ce a cerut sortarea după distanță)
   VoucherResult? _redeemedVoucher; // folosire rezervată pe server în timpul confirmării
   bool _bookingCreated = false;
+  // La plata cu cardul: ce mai e de făcut după ce plata reușește (invitații, închiderea ecranului).
+  Future<void> Function()? _pendingFinish;
   String? _overlappingTournament;
 
   List<Map<String, dynamic>> _venueCustomTables = [];
@@ -98,6 +101,8 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
 
   // Step 4: Plata
   String _paymentMethod = 'Cash la locație';
+  // Cine plătește: 'host' (eu tot) sau 'split' (împărțit la toate locurile).
+  String _payMode = 'host';
   bool _wantsInvoice = false;
   final _invoiceCompanyController = TextEditingController();
   final _invoiceCuiController = TextEditingController();
@@ -465,6 +470,20 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
 
   // --- Step 4 (Save) ---
   /// Prețul mesei pentru intervalul ales.
+  double _amountDue() {
+    final double a = _tablePrice() - _voucherDiscount;
+    return a < 0 ? 0 : a;
+  }
+
+  double get _splitShare => CardBookingService.previewShare(
+        price: _amountDue(),
+        seats: _maxPlayers,
+        card: _paymentMethod.contains('Card'),
+      );
+
+  bool get _splitTooSmall => _paymentMethod.contains('Card') && _splitShare < CardBookingService.minShare;
+  bool get _isSplit => _payMode == 'split' && _maxPlayers >= 2 && !_splitTooSmall;
+
   double _tablePrice() {
     if (_selectedLocation == null || _startHour == null || _endHour == null) return 0;
     if (_venueData != null) {
@@ -521,9 +540,9 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
     }
   }
 
-  Future<void> _createMatch() async {
+  Future<String?> _createMatch({bool holdForPayment = false}) async {
     final user = _currentUser;
-    if (user == null) return;
+    if (user == null) return null;
 
     setState(() => _isLoading = true);
     try {
@@ -590,8 +609,11 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
         'tableId': _selectedTable,
         'tableType': _selectedTableType,
         'paymentMethod': _paymentMethod,
-        'paymentSplit': 'Achitat integral',
-        'paymentStatus': _paymentMethod.contains('Card') ? 'confirmed' : 'pending',
+        // Plata împărțită: la card gazda plătește tot acum, ceilalți își plătesc partea când se alătură.
+        'paymentMode': _isSplit ? 'split' : 'host',
+        'paymentSplit': (_isSplit && !_paymentMethod.contains('Card')) ? 'Împărțit la jucători' : 'Achitat integral',
+        // La plata cu cardul, rezervarea așteaptă confirmarea Stripe (o face serverul, prin webhook).
+        'paymentStatus': holdForPayment ? 'awaiting_payment' : (_paymentMethod.contains('Card') ? 'confirmed' : 'pending'),
         'status': 'open',
         'price': totalAmount,
         if (_redeemedVoucher != null) 'voucherCode': _redeemedVoucher!.code,
@@ -620,37 +642,66 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
             ),
           );
         }
-        return;
+        return null;
       }
       _bookingCreated = true;
 
-      // Dispatch invitations to each invited friend in a batch
-      if (_invitedFriendUids.isNotEmpty) {
-        final batch = FirebaseFirestore.instance.batch();
-        for (var friendUid in _invitedFriendUids) {
-          final newNotificationRef = FirebaseFirestore.instance.collection('notifications').doc();
-          batch.set(newNotificationRef, {
-            'toUid': friendUid,
-            'fromUid': user.uid,
-            'fromUsername': username,
-            'fromAvatarUrl': avatarUrl,
-            'title': 'Invitație la meci',
-            'body': '$username te-a invitat la o partidă de Ping Pong la ${_selectedLocation!.name} pe data de ${DateFormat('dd MMM').format(_selectedDate)}.',
-            'type': 'match_invite',
-            'status': 'pending',
-            'matchId': newMatchId,
-            'timestamp': FieldValue.serverTimestamp(),
-          });
+      // Invitațiile și închiderea ecranului: imediat sau, la plata cu cardul, după ce plata a reușit.
+      Future<void> finishBooking() async {
+        if (_invitedFriendUids.isNotEmpty) {
+          final batch = FirebaseFirestore.instance.batch();
+          for (var friendUid in _invitedFriendUids) {
+            final newNotificationRef = FirebaseFirestore.instance.collection('notifications').doc();
+            batch.set(newNotificationRef, {
+              'toUid': friendUid,
+              'fromUid': user.uid,
+              'fromUsername': username,
+              'fromAvatarUrl': avatarUrl,
+              'title': 'Invitație la meci',
+              'body': '$username te-a invitat la o partidă de Ping Pong la ${_selectedLocation!.name} pe data de ${DateFormat('dd MMM').format(_selectedDate)}.',
+              'type': 'match_invite',
+              'status': 'pending',
+              'matchId': newMatchId,
+              'timestamp': FieldValue.serverTimestamp(),
+            });
+          }
+          await batch.commit();
         }
-        await batch.commit();
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Meci privat creat cu succes și invitațiile au fost trimise!'), backgroundColor: Colors.green),
+          );
+          Navigator.pop(context); // Go back to Friends Screen
+        }
       }
 
+      if (holdForPayment) {
+        _pendingFinish = finishBooking;
+        return newMatchId;
+      }
+      await finishBooking();
+      return newMatchId;
+    } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Meci privat creat cu succes și invitațiile au fost trimise!'), backgroundColor: Colors.green),
+          SnackBar(content: Text('Eroare: $e'), backgroundColor: Colors.redAccent),
         );
-        Navigator.pop(context); // Go back to Friends Screen
       }
+      return null;
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  /// Plata cu cardul a reușit: trimite invitațiile și închide ecranul.
+  Future<void> _finishPendingBooking() async {
+    final finish = _pendingFinish;
+    _pendingFinish = null;
+    if (finish == null) return;
+    setState(() => _isLoading = true);
+    try {
+      await finish();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -660,6 +711,15 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  /// Plata nu s-a făcut: rezervarea ținută pentru plată se șterge și masa se eliberează.
+  Future<void> _cancelHeldBooking(String matchId) async {
+    _pendingFinish = null;
+    _bookingCreated = false;
+    try {
+      await FirebaseFirestore.instance.collection('matches').doc(matchId).delete();
+    } catch (_) {}
   }
 
   int _parseTimeStr(String timeStr, int fallbackHour) {
@@ -711,19 +771,27 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
               final double amount = _tablePrice() - (_redeemedVoucher?.discount ?? 0);
 
               // O rezervare gratuită (cod de 100%) nu trece prin plata cu cardul.
-              final paymentSuccess = amount < 1
-                  ? true
-                  : await Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => PaymentScreen(
-                        amount: amount,
-                        venueId: _selectedLocation?.id ?? 'unknown',
-                        destinationAccountId: _selectedLocation?.stripeAccountId,
-                      )),
-                    );
-
-              if (paymentSuccess == true) {
+              if (amount < 1) {
                 await _createMatch();
+              } else {
+                // Întâi ținem masa, apoi plătim; plata o confirmă serverul (webhook Stripe).
+                final heldId = await _createMatch(holdForPayment: true);
+                if (heldId != null && mounted) {
+                  final paymentSuccess = await Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => PaymentScreen(
+                      amount: amount,
+                      venueId: _selectedLocation?.id ?? 'unknown',
+                      destinationAccountId: _selectedLocation?.stripeAccountId,
+                      purpose: {'kind': 'booking', 'matchId': heldId},
+                    )),
+                  );
+                  if (paymentSuccess == true) {
+                    await _finishPendingBooking();
+                  } else {
+                    await _cancelHeldBooking(heldId);
+                  }
+                }
               }
             } else {
               await _createMatch();
@@ -1279,6 +1347,41 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
                   groupValue: _paymentMethod,
                   onChanged: (val) => setState(() => _paymentMethod = val.toString()),
                 ),
+                if (_maxPlayers >= 2) ...[
+                  const SizedBox(height: 8),
+                  Text(tr('split.who_pays'), style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.muted)),
+                  RadioListTile<String>(
+                    title: Text(tr('split.host')),
+                    activeColor: AppColors.accent,
+                    value: 'host',
+                    groupValue: _payMode,
+                    onChanged: (val) => setState(() => _payMode = val ?? 'host'),
+                  ),
+                  RadioListTile<String>(
+                    title: Text(tr('split.split', {'n': '$_maxPlayers'})),
+                    subtitle: Text(
+                      _splitTooSmall ? tr('split.too_small') : tr('split.per_person', {'amount': _splitShare.toStringAsFixed(2)}),
+                      style: TextStyle(color: _splitTooSmall ? Colors.orange : AppColors.muted, fontSize: 12),
+                    ),
+                    activeColor: AppColors.accent,
+                    value: 'split',
+                    groupValue: _payMode,
+                    onChanged: _splitTooSmall ? null : (val) => setState(() => _payMode = val ?? 'host'),
+                  ),
+                  if (_isSplit)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Text(
+                        _paymentMethod.contains('Card')
+                            ? tr('split.card_info', {
+                                'total': (_amountDue() + CardBookingService.platformFee).toStringAsFixed(2),
+                                'amount': _splitShare.toStringAsFixed(2),
+                              })
+                            : tr('split.cash_info', {'amount': _splitShare.toStringAsFixed(2)}),
+                        style: TextStyle(color: AppColors.text70, fontSize: 13, height: 1.4),
+                      ),
+                    ),
+                ],
                 if (_venueData != null && _selectedLocation != null && _selectedLocation!.isPublic != true)
                   VoucherField(
                     venueId: _selectedLocation!.id,
@@ -1395,6 +1498,8 @@ class _CreateMatchForFriendsScreenState extends State<CreateMatchForFriendsScree
                       Divider(color: AppColors.muted),
                       _summaryRow(Icons.emoji_events, 'Tip Meci', _matchType),
                       _summaryRow(Icons.payment, 'Plată', _paymentMethod),
+                      if (_isSplit)
+                        _summaryRow(Icons.call_split, tr('split.sum'), tr('split.sum_val', {'amount': _splitShare.toStringAsFixed(2), 'n': '$_maxPlayers'})),
                       if (_voucherDiscount > 0)
                         _summaryRow(
                           Icons.confirmation_number_outlined,

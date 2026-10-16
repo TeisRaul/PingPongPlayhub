@@ -17,6 +17,8 @@ import 'package:add_2_calendar/add_2_calendar.dart';
 import 'chat_screen.dart';
 import '../widgets/player_drawer.dart';
 import '../theme/app_theme.dart';
+import '../services/card_booking_service.dart';
+import 'payment_screen.dart';
 
 class MyMatchesScreen extends StatefulWidget {
   const MyMatchesScreen({super.key});
@@ -364,7 +366,104 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
     }
   }
 
+  /// Rezervare plătită cu cardul: renunțarea / anularea trece prin server, care returnează banii prin Stripe.
+  /// Întoarce true dacă a tratat-o (rezervare cu cardul), false dacă e o rezervare obișnuită (cash).
+  Future<bool> _handleCardBooking(String matchId) async {
+    final snap = await FirebaseFirestore.instance.collection('matches').doc(matchId).get();
+    final data = snap.data();
+    if (data == null || !CardBookingService.isCardPaid(data)) return false;
+    final uid = FirebaseAuth.instance.currentUser!.uid;
+    final bool isHost = data['hostUid'] == uid;
+    final double mine = CardBookingService.paidBy(data, uid);
+    if (!mounted) return true;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.card,
+        title: Text(isHost ? tr('split.cancel_title') : tr('split.leave_title'), style: TextStyle(color: AppColors.text)),
+        content: Text(
+          isHost
+              ? tr('split.cancel_body')
+              : (mine > 0 ? tr('split.leave_body_paid', {'amount': mine.toStringAsFixed(2)}) : tr('split.leave_body')),
+          style: TextStyle(color: AppColors.text70, height: 1.4),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('split.keep'))),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(isHost ? tr('split.cancel_confirm') : tr('split.leave_confirm'), style: const TextStyle(color: Colors.redAccent)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return true;
+    try {
+      final refunded = await CardBookingService.cancel(matchId, isHost ? 'cancel' : 'leave');
+      if (isHost) {
+        try {
+          await TrainerService.cancelForMatch(matchId);
+        } catch (_) {}
+      }
+      if (mounted) {
+        final String msg = refunded > 0
+            ? tr('split.refunded', {'amount': refunded.toStringAsFixed(2)})
+            : (isHost ? tr('split.cancelled') : tr('split.left'));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.green));
+      }
+    } on CardBookingException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(e.alreadyStarted ? tr('split.err_started') : tr('split.err_cancel')),
+          backgroundColor: Colors.redAccent,
+        ));
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tr('split.err_cancel')), backgroundColor: Colors.redAccent));
+      }
+    }
+    return true;
+  }
+
+  /// Partea unui jucător la o rezervare împărțită (taxa e deja inclusă în parte).
+  Future<void> _payShare(String matchId, Map<String, dynamic> data) async {
+    final double share = CardBookingService.shareAmount(data);
+    final paid = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => PaymentScreen(
+        amount: share,
+        venueId: (data['locationId'] ?? '').toString(),
+        fee: 0,
+        purpose: {'kind': 'share', 'matchId': matchId},
+      )),
+    );
+    if (paid == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tr('split.share_done')), backgroundColor: Colors.green));
+    }
+  }
+
+  /// Rândul cu plata împărțită de pe cardul meciului.
+  String _splitLine(Map<String, dynamic> data, String? uid) {
+    final String share = CardBookingService.shareAmount(data).toStringAsFixed(2);
+    if (!CardBookingService.isCard(data)) return tr('split.line_cash', {'amount': share});
+    if (uid != null && uid == data['hostUid']) {
+      final int seats = ((data['maxPlayers'] as num?)?.toInt() ?? 2) - 1;
+      return tr('split.line_host', {
+        'amount': share,
+        'k': '${CardBookingService.sharesPaid(data)}',
+        'n': '$seats',
+      });
+    }
+    if (uid != null && CardBookingService.hasPaidShare(data, uid)) {
+      return tr('split.line_paid', {'amount': CardBookingService.paidBy(data, uid).toStringAsFixed(2)});
+    }
+    return tr('split.line_owe', {'amount': share});
+  }
+
   Future<void> _cancelMatch(String matchId) async {
+    try {
+      if (await _handleCardBooking(matchId)) return;
+    } catch (_) {}
     try {
       final ref = FirebaseFirestore.instance.collection('matches').doc(matchId);
       final snap = await ref.get();
@@ -403,6 +502,9 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
 
   Future<void> _withdraw(String matchId) async {
     final userUid = FirebaseAuth.instance.currentUser!.uid;
+    try {
+      if (await _handleCardBooking(matchId)) return;
+    } catch (_) {}
     try {
       final before = (await FirebaseFirestore.instance.collection('matches').doc(matchId).get()).data();
       final result = await BookingService.withdrawFromMatch(matchId, userUid);
@@ -564,6 +666,36 @@ class _MyMatchesScreenState extends State<MyMatchesScreen> {
             ),
             const SizedBox(height: 8),
             Text('${data['date']} | ${formatHour(data['startHour'])} - ${formatHour(data['endHour'])}', style: TextStyle(color: AppColors.muted)),
+            if (CardBookingService.isSplit(data) && data['status'] != 'cancelled' && data['paymentStatus'] != 'awaiting_payment') ...[
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Icon(Icons.call_split, size: 16, color: AppColors.accent),
+                  const SizedBox(width: 6),
+                  Expanded(child: Text(_splitLine(data, currentUserUid), style: TextStyle(color: AppColors.muted, fontSize: 13))),
+                ],
+              ),
+              if (!isPast && currentUserUid != null && CardBookingService.owesShare(data, currentUserUid))
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: ElevatedButton.icon(
+                    onPressed: () => _payShare(docId, data),
+                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.accent, foregroundColor: Colors.black),
+                    icon: const Icon(Icons.credit_card, size: 18),
+                    label: Text(tr('split.pay_share', {'amount': CardBookingService.shareAmount(data).toStringAsFixed(2)})),
+                  ),
+                ),
+            ],
+            if (data['paymentStatus'] == 'awaiting_payment') ...[
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Icon(Icons.hourglass_top, size: 16, color: AppColors.gold),
+                  const SizedBox(width: 6),
+                  Expanded(child: Text(tr('pay.awaiting'), style: TextStyle(color: AppColors.gold, fontSize: 13))),
+                ],
+              ),
+            ],
             Wrap(
               spacing: 16,
               children: [

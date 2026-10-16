@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../data/sports.dart';
 import '../l10n/strings.dart';
 import '../services/booking_service.dart';
 import '../services/notification_service.dart';
@@ -194,7 +195,7 @@ class _SharedMatchScreenState extends State<SharedMatchScreen> {
                 Text(m['city'].toString(), style: TextStyle(color: AppColors.muted)),
               const SizedBox(height: 10),
               _row(Icons.calendar_month, '${m['date'] ?? ''}  |  ${formatHour(m['startHour'])} - ${formatHour(m['endHour'])}'),
-              _row(Icons.sports_tennis, (m['sport'] ?? '-').toString()),
+              _row(Icons.sports_tennis, sportLabel((m['sport'] ?? '-').toString())),
               _row(Icons.person_outline, tr('share.host', {'name': (m['hostUsername'] ?? '-').toString()})),
               _row(Icons.groups_outlined, tr('share.players', {'n': '${players.length}', 'max': '$maxPlayers'})),
             ],

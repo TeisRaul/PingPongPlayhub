@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../data/sports.dart';
 import '../l10n/strings.dart';
+import '../screens/match_detail_screen.dart';
 import '../screens/shared_match_screen.dart';
 import '../utils/hour_utils.dart';
 import '../widgets/notification_popups.dart';
@@ -22,6 +24,9 @@ class ShareService {
   /// Meciul din link, de arătat imediat ce ecranul principal e gata (după login).
   static String? pendingMatchId;
 
+  /// Rezervarea proprie de deschis direct (cu biletul QR), ex. după întoarcerea de la plată: `/?booking=<id>`.
+  static String? pendingBookingId;
+
   /// `true` cât timp ecranul principal al jucătorului e deschis.
   static bool homeReady = false;
 
@@ -33,6 +38,8 @@ class ShareService {
     try {
       final id = Uri.base.queryParameters['match'];
       if (id != null && id.isNotEmpty) pendingMatchId = id;
+      final booking = Uri.base.queryParameters['booking'];
+      if (booking != null && booking.isNotEmpty) pendingBookingId = booking;
     } catch (_) {}
   }
 
@@ -49,6 +56,12 @@ class ShareService {
 
   /// Un link primit cât aplicația rulează deja.
   static void handleUri(Uri uri) {
+    final booking = uri.queryParameters['booking'];
+    if (booking != null && booking.isNotEmpty) {
+      pendingBookingId = booking;
+      if (homeReady) consumePending();
+      return;
+    }
     final id = matchIdFromUri(uri);
     if (id == null) return;
     pendingMatchId = id;
@@ -57,6 +70,15 @@ class ShareService {
 
   /// Deschide meciul reținut, dacă există și jucătorul e logat.
   static void consumePending() {
+    final booking = pendingBookingId;
+    if (booking != null && FirebaseAuth.instance.currentUser != null) {
+      final nav = appNavigatorKey.currentState;
+      if (nav != null) {
+        pendingBookingId = null;
+        nav.push(MaterialPageRoute(builder: (_) => MatchDetailScreen(matchId: booking, mode: MatchDetailMode.player)));
+        return;
+      }
+    }
     final id = pendingMatchId;
     if (id == null || FirebaseAuth.instance.currentUser == null) return;
     final nav = appNavigatorKey.currentState;
@@ -67,7 +89,7 @@ class ShareService {
 
   static String shareText(String matchId, Map<String, dynamic> m) {
     return tr('share.text', {
-      'sport': (m['sport'] ?? '').toString(),
+      'sport': sportLabel((m['sport'] ?? '').toString()),
       'venue': (m['locationName'] ?? '').toString(),
       'date': (m['date'] ?? '').toString(),
       'time': '${formatHour(m['startHour'])} - ${formatHour(m['endHour'])}',

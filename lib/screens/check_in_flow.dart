@@ -54,7 +54,8 @@ class CheckInFlow {
       final data = result.data!;
       final price = (data['price'] as num?)?.toDouble() ?? 0.0;
       final paymentMethod = (data['paymentMethod'] ?? 'Cash la locație').toString();
-      final isPaid = paymentMethod.contains('Card') || data['paymentStatus'] == 'confirmed';
+      // „În așteptarea plății" = plata cu cardul nu e încă confirmată de Stripe.
+      final isPaid = (paymentMethod.contains('Card') && data['paymentStatus'] != 'awaiting_payment') || data['paymentStatus'] == 'confirmed';
       final busy = result.tableLikelyBusy;
 
       if (!context.mounted) return;

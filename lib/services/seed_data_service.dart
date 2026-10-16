@@ -156,7 +156,6 @@ class SeedDataService {
         'email': fakerObj.internet.email(),
         'role': 'player',
         'isSeed': true,
-      'isSeed': true,
         'rating': random.nextInt(1500) + 500, // 500 - 2000
         'isTrainer': isTrainer,
         'trainerPrice': isTrainer ? (random.nextInt(100) + 50).toDouble() : null,

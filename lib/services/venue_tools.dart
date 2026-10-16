@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../utils/hour_utils.dart';
 import 'notification_service.dart';
+import 'card_booking_service.dart';
 
 /// Un interval în care sala nu primește rezervări (mentenanță, eveniment privat etc.).
 /// Se salvează în `venues/{id}.blockedSlots`.
@@ -194,7 +195,6 @@ class VenueTools {
       final String id = m['docId'].toString();
       final String paymentMethod = (m['paymentMethod'] ?? '').toString();
       final String paymentStatus = (m['paymentStatus'] ?? '').toString();
-      final double price = (m['price'] as num?)?.toDouble() ?? 0.0;
       final updates = <String, dynamic>{
         'status': 'cancelled',
         'cancelledBy': 'venue',
@@ -202,11 +202,15 @@ class VenueTools {
         if (massCancel) 'massCancel': true,
       };
       if (paymentMethod.contains('Card') && paymentStatus == 'confirmed') {
-        updates['paymentStatus'] = 'refunded';
-        updates['refundedAmount'] = price;
+        // Plătită cu cardul: întâi notăm motivul, apoi serverul anulează și returnează banii prin Stripe
+        // (anunțul cu motivul îl trimitem mai jos, deci serverul nu mai trimite unul).
+        updates.remove('status');
+        await FirebaseFirestore.instance.collection('matches').doc(id).update(updates);
+        await CardBookingService.cancel(id, 'cancel', silent: true);
         refunded++;
+      } else {
+        await FirebaseFirestore.instance.collection('matches').doc(id).update(updates);
       }
-      await FirebaseFirestore.instance.collection('matches').doc(id).update(updates);
       cancelled++;
 
       final args = {

@@ -27,6 +27,8 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
   bool _isLoading = false;
+  // La pornire verificăm dacă există deja o sesiune (ex. după reîncărcarea paginii sau întoarcerea de la plată).
+  bool _checkingSession = true;
 
   void _onLangChanged() {
     if (mounted) setState(() {});
@@ -36,6 +38,34 @@ class _LoginScreenState extends State<LoginScreen> {
   void initState() {
     super.initState();
     AppLocales.current.addListener(_onLangChanged);
+    _restoreSession();
+  }
+
+  /// Firebase păstrează autentificarea (pe web, în browser). Dacă utilizatorul e deja logat și are
+  /// profil (jucător sau sală), intră direct în aplicație, fără să se logheze din nou.
+  Future<void> _restoreSession() async {
+    try {
+      User? user = FirebaseAuth.instance.currentUser;
+      user ??= await FirebaseAuth.instance
+          .authStateChanges()
+          .first
+          .timeout(const Duration(seconds: 5), onTimeout: () => null);
+      if (user != null) {
+        final db = FirebaseFirestore.instance;
+        final results = await Future.wait([
+          db.collection('users').doc(user.uid).get(),
+          db.collection('venues').doc(user.uid).get(),
+        ]);
+        if (results.any((d) => d.exists)) {
+          if (!mounted) return;
+          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomeScreen()));
+          return;
+        }
+      }
+    } catch (_) {
+      // Fără rețea sau altă eroare: arătăm formularul de autentificare.
+    }
+    if (mounted) setState(() => _checkingSession = false);
   }
 
   @override
@@ -274,6 +304,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_checkingSession) {
+      return Scaffold(body: Center(child: CircularProgressIndicator(color: AppColors.accent)));
+    }
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(

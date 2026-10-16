@@ -6,11 +6,13 @@ Proiect personal, construit cu **Flutter** și **Firebase**; plățile merg prin
 
 ## Capturi de ecran
 
-<!-- Adaugă imaginile în docs/screenshots/ și șterge marcajele de comentariu de mai jos.
-
-| Panou jucător | Căutare săli | Rezervare | Meciurile mele |
+| Panou jucător | Rezervare | Meciurile mele | Remindere |
 |---|---|---|---|
-| ![](docs/screenshots/dashboard.png) | ![](docs/screenshots/search.png) | ![](docs/screenshots/booking.png) | ![](docs/screenshots/my-matches.png) |
+| <img src="docs/screenshots/dashboard.png" width="200"> | <img src="docs/screenshots/booking.png" width="200"> | <img src="docs/screenshots/my-matches.png" width="200"> | <img src="docs/screenshots/reminders.png" width="200"> |
+
+Video scurt de prezentare: [`docs/demo.mp4`](docs/demo.mp4) (scenariul pentru un demo cu ecranul înregistrat: [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md)).
+
+<!-- Capturi pentru partea de sală (de adăugat din contul unei săli) în docs/screenshots/:
 
 | Calendar sală | Prețuri și reduceri | Vouchere | Raport venituri |
 |---|---|---|---|

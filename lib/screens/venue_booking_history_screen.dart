@@ -214,7 +214,7 @@ class _VenueBookingHistoryScreenState extends State<VenueBookingHistoryScreen> {
                     final String paymentMethod = data['paymentMethod'] ?? 'Cash la locație';
                     final String paymentStatus = data['paymentStatus'] ?? 'pending';
                     final bool isCard = paymentMethod.contains('Card');
-                    final bool isPaid = isCard || paymentStatus == 'confirmed';
+                    final bool isPaid = (isCard && paymentStatus != 'awaiting_payment') || paymentStatus == 'confirmed';
                     final double price = (data['price'] as num?)?.toDouble() ?? 0.0;
 
                     Color statusColor = AppColors.muted;

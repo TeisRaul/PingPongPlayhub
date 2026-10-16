@@ -121,10 +121,17 @@ service cloud.firestore {
       allow read: if signedIn();
 
       // Jucătorul creează pentru el; sala poate crea rezervări offline (locationId = uid sală).
+      // Un jucător nu-și poate marca singur rezervarea „plătită cu cardul": plata o confirmă serverul
+      // (webhook Stripe). Excepție: rezervarea gratuită (cod de reducere 100%, preț 0).
       allow create: if signedIn() &&
-        (request.resource.data.get('hostUid', '') == uid() ||
+        (isAdmin() ||
          request.resource.data.get('locationId', '') == uid() ||
-         isAdmin());
+         (request.resource.data.get('hostUid', '') == uid() &&
+          !request.resource.data.keys().hasAny(['cardPayments', 'hostReimbursed', 'hostReimbursedAmount',
+                                                 'stripePaymentIntentId', 'paidAmount', 'shareAmount']) &&
+          !(request.resource.data.get('paymentMethod', '').matches('.*Card.*') &&
+            request.resource.data.get('paymentStatus', '') == 'confirmed' &&
+            request.resource.data.get('price', 0) >= 1)));
 
       allow update: if signedIn() && (
         isAdmin() ||
@@ -133,16 +140,22 @@ service cloud.firestore {
         // Gazda / participanții: fără câmpurile de plată.
         ((resource.data.get('hostUid', '') == uid() ||
           uid() in resource.data.get('joinedUids', [])) &&
-         !changed().hasAny(['paymentStatus', 'paymentMethod', 'paymentSplit', 'price', 'refundedAmount', 'barOrderItems', 'extraServices', 'invoiceData', 'locationId'])) ||
+         !changed().hasAny(['paymentStatus', 'paymentMethod', 'paymentSplit', 'price', 'refundedAmount', 'barOrderItems', 'extraServices', 'invoiceData', 'locationId',
+                            'paymentMode', 'shareAmount', 'cardPayments', 'hostReimbursed', 'hostReimbursedAmount',
+                            'stripePaymentIntentId', 'paidAmount', 'paymentIntentId', 'checkoutSessionId'])) ||
         // Alt jucător care se alătură la masă.
         changed().hasOnly(['joinedPlayers', 'joinedUids', 'status', 'joinRequestUids'])
       );
 
+      // O rezervare plătită cu cardul nu se șterge din aplicație: se anulează prin funcția
+      // cancelCardBooking, care returnează și banii.
       allow delete: if signedIn() &&
         (isAdmin() ||
-         resource.data.get('hostUid', '') == uid() ||
-         resource.data.get('locationId', '') == uid() ||
-         uid() in resource.data.get('joinedUids', []));
+         (!(resource.data.get('paymentStatus', '') == 'confirmed' &&
+            resource.data.get('paymentMethod', '').matches('.*Card.*')) &&
+          (resource.data.get('hostUid', '') == uid() ||
+           resource.data.get('locationId', '') == uid() ||
+           uid() in resource.data.get('joinedUids', []))));
     }
 
     // ---------- Notificări ----------

@@ -5,6 +5,7 @@ import '../../utils/hour_utils.dart';
 import '../check_in_flow.dart';
 import '../match_detail_screen.dart';
 import '../../theme/app_theme.dart';
+import '../../services/card_booking_service.dart';
 
 class AdminMatchesListScreen extends StatefulWidget {
   final String? initialSearchQuery;
@@ -324,10 +325,16 @@ class _AdminMatchesListScreenState extends State<AdminMatchesListScreen> {
                 try {
                   final mRef = FirebaseFirestore.instance.collection('matches').doc(matchId);
                   final mData = (await mRef.get()).data();
-                  await mRef.update({
-                    'status': 'cancelled',
-                    'cancellationReason': reasonController.text.trim(),
-                  });
+                  if (mData != null && CardBookingService.isCardPaid(mData)) {
+                    // Plătită cu cardul: motivul se notează, apoi serverul anulează și returnează banii.
+                    await mRef.update({'cancellationReason': reasonController.text.trim()});
+                    await CardBookingService.cancel(matchId, 'cancel', silent: true);
+                  } else {
+                    await mRef.update({
+                      'status': 'cancelled',
+                      'cancellationReason': reasonController.text.trim(),
+                    });
+                  }
                   if (mData != null) {
                     // Jucătorii și sala află că meciul a fost anulat de administrator (popup + email).
                     await NotificationService.matchCancelled(matchId, mData, byName: 'Playhub');

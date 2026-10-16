@@ -297,6 +297,8 @@ class _FindMatchTabState extends State<FindMatchTab> {
                 final data = doc.data() as Map<String, dynamic>;
                 
                 if (data['visibility'] == 'private') return false;
+                // Rezervare încă neplătită (plata cu cardul în curs): nu apare încă la căutare.
+                if (data['paymentStatus'] == 'awaiting_payment') return false;
                 if (data['status'] == 'matched' || data['status'] == 'completed' || data['status'] == 'cancelled') return false;
 
                 // Verificare trecut
@@ -401,7 +403,7 @@ class _FindMatchTabState extends State<FindMatchTab> {
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
-                                  '${data['locationName']} (${data['city']}) • ${data['sport'] != null ? data['sport'].toString().toUpperCase() : 'PING PONG'}',
+                                  '${data['locationName']} (${data['city']}) • ${sportLabel((data['sport'] ?? 'ping_pong').toString())}',
                                   style: TextStyle(color: AppColors.text),
                                 ),
                               ),

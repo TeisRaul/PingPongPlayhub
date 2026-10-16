@@ -30,6 +30,7 @@ import 'venue_vouchers_screen.dart';
 import '../services/share_service.dart';
 import '../widgets/player_drawer.dart';
 import '../theme/app_theme.dart';
+import '../services/card_booking_service.dart';
 
 class ParallelogramClipper extends CustomClipper<Path> {
   @override
@@ -323,7 +324,6 @@ class _HomeScreenState extends State<HomeScreen> {
     final String venueName = userData!['venueName'] ?? 'Sală';
     final String date = matchData['date'] ?? '';
     final double startHour = hourValue(matchData['startHour']);
-    final List<dynamic> joinedUids = matchData['joinedUids'] ?? [];
 
     if (mounted) {
       showDialog(
@@ -357,18 +357,17 @@ class _HomeScreenState extends State<HomeScreen> {
                   // 1. Update match status and handle refund in Firestore
                   final String paymentMethod = matchData['paymentMethod'] ?? '';
                   final String paymentStatus = matchData['paymentStatus'] ?? '';
-                  final double price = (matchData['price'] as num?)?.toDouble() ?? 0.0;
                   
                   Map<String, dynamic> updates = {
                     'status': 'cancelled',
                   };
 
                   if (paymentMethod.contains('Card') && paymentStatus == 'confirmed') {
-                    updates['paymentStatus'] = 'refunded';
-                    updates['refundedAmount'] = price;
+                    // Plătită cu cardul: serverul anulează și returnează banii prin Stripe.
+                    await CardBookingService.cancel(matchId, 'cancel', silent: true);
+                  } else {
+                    await FirebaseFirestore.instance.collection('matches').doc(matchId).update(updates);
                   }
-
-                  await FirebaseFirestore.instance.collection('matches').doc(matchId).update(updates);
                   try {
                     await TrainerService.cancelForMatch(matchId);
                   } catch (e) {
@@ -1800,7 +1799,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         final bool isCard = payment.contains('Card');
 
                         final String paymentStatus = data['paymentStatus'] ?? 'pending';
-                        final bool isPaid = isCard || paymentStatus == 'confirmed';
+                        final bool isPaid = (isCard && paymentStatus != 'awaiting_payment') || paymentStatus == 'confirmed';
                         final double price = (data['price'] as num?)?.toDouble() ?? 0.0;
                         
                         final bool canConfirmCash = !isPaid && !isCard && status != 'cancelled';

@@ -679,26 +679,21 @@ class _VenueProfileScreenState extends State<VenueProfileScreen> {
           amount: amount,
           venueId: targetVenueId,
           destinationAccountId: data['stripeAccountId'],
+          // Abonamentul îl înregistrează serverul după confirmarea Stripe (users/{uid}/subscriptions),
+          // deci rămâne valabil chiar dacă aplicația se închide imediat după plată.
+          purpose: {
+            'kind': 'pass',
+            'passType': (data['subscriptionType'] ?? '').toString(),
+            'passEntries': (data['subscriptionEntries'] ?? '').toString(),
+          },
         ),
       ),
     );
 
-    if (success == true) {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user != null) {
-        await FirebaseFirestore.instance.collection('users').doc(user.uid).collection('subscriptions').add({
-          'venueId': targetVenueId,
-          'type': data['subscriptionType'],
-          'entries': data['subscriptionEntries'],
-          'price': amount,
-          'purchasedAt': FieldValue.serverTimestamp(),
-        });
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Abonament achiziționat cu succes!'), backgroundColor: Colors.green),
-          );
-        }
-      }
+    if (success == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Abonament achiziționat cu succes!'), backgroundColor: Colors.green),
+      );
     }
   }
 

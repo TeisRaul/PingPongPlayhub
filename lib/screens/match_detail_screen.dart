@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../data/sports.dart';
 import '../l10n/strings.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -67,7 +68,8 @@ class MatchDetailScreen extends StatelessWidget {
     final waiting = data['waiting'] == true;
     final players = (data['joinedPlayers'] as List?) ?? [];
     final payment = (data['paymentMethod'] ?? 'Cash la locație').toString();
-    final isPaid = payment.contains('Card') || data['paymentStatus'] == 'confirmed';
+    // „În așteptarea plății" = plata cu cardul nu e încă confirmată de Stripe.
+    final isPaid = (payment.contains('Card') && data['paymentStatus'] != 'awaiting_payment') || data['paymentStatus'] == 'confirmed';
     final price = (data['price'] as num?)?.toDouble() ?? 0.0;
 
     return ListView(
@@ -83,7 +85,7 @@ class MatchDetailScreen extends StatelessWidget {
           const SizedBox(height: 8),
           _row(Icons.calendar_month, '${data['date'] ?? ''}  |  ${formatHour(data['startHour'])} - ${formatHour(data['endHour'])}'),
           _row(Icons.table_restaurant, 'Masa ${data['tableId'] ?? '-'}', color: _cyan, bold: true),
-          _row(Icons.sports_tennis, (data['sport'] ?? '-').toString()),
+          _row(Icons.sports_tennis, sportLabel((data['sport'] ?? 'ping_pong').toString())),
           _row(Icons.person_outline, 'Gazdă: ${data['hostUsername'] ?? '-'}'),
         ]),
         const SizedBox(height: 12),

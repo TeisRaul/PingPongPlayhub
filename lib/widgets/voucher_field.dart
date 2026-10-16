@@ -89,7 +89,7 @@ class _VoucherFieldState extends State<VoucherField> {
               children: [
                 Expanded(
                   child: Text(
-                    tr('vc.applied', {'code': applied!.code, 'amount': applied.discount.toStringAsFixed(applied.discount % 1 == 0 ? 0 : 2)}),
+                    tr('vc.applied', {'code': applied.code, 'amount': applied.discount.toStringAsFixed(applied.discount % 1 == 0 ? 0 : 2)}),
                     style: TextStyle(color: AppColors.good, fontWeight: FontWeight.w600),
                   ),
                 ),

@@ -26,6 +26,8 @@ import '../services/location_service.dart';
 import 'package:latlong2/latlong.dart' show LatLng;
 import '../widgets/voucher_field.dart';
 import '../services/voucher_service.dart';
+import '../services/card_booking_service.dart';
+import 'match_detail_screen.dart';
 
 class CreateMatchTab extends StatefulWidget {
   final String? preselectedCity;
@@ -114,6 +116,8 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
 
   // Step 3: Plata
   String _paymentMethod = 'Cash la locație';
+  // Cine plătește: 'host' (gazda tot) sau 'split' (împărțit la toate locurile).
+  String _payMode = 'host';
   bool _wantsInvoice = false;
   bool _recurring = false; // repetă rezervarea în fiecare săptămână
   VoucherResult? _voucher; // cod de reducere aplicat (previzualizare)
@@ -121,6 +125,8 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
   LatLng? _userPos; // locația utilizatorului (doar după ce a cerut sortarea după distanță)
   VoucherResult? _redeemedVoucher; // folosire rezervată pe server în timpul confirmării
   bool _bookingCreated = false;
+  // La plata cu cardul: ce mai e de făcut după ce plata reușește (notificări, antrenor, factură).
+  Future<void> Function()? _pendingFinish;
   int _recurringWeeks = 4;
   final _invoiceCompanyController = TextEditingController();
   final _invoiceCuiController = TextEditingController();
@@ -800,6 +806,82 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
     return null;
   }
 
+  /// Totalul rezervării (masă + extra + bar - reducere), la fel ca suma plătită cu cardul.
+  double _amountDue() {
+    double amount = _tablePrice() - _voucherDiscount;
+    if (_selectedLocation != null) {
+      for (var service in _selectedLocation!.extraServices) {
+        final int count = _selectedExtraServices[service['name']] ?? 0;
+        if (count > 0) amount += count * (service['price'] as num).toDouble();
+      }
+    }
+    for (var item in _barInventory) {
+      final int count = _selectedBarItems[item['id']] ?? 0;
+      if (count > 0) amount += count * (item['price'] as num).toDouble();
+    }
+    return amount < 0 ? 0 : amount;
+  }
+
+  bool get _splitAllowed => !_needsTrainer && _maxPlayers >= 2;
+  bool get _isSplit => _payMode == 'split' && _splitAllowed;
+
+  double get _splitShare => CardBookingService.previewShare(
+        price: _amountDue(),
+        seats: _maxPlayers,
+        card: _paymentMethod.contains('Card'),
+      );
+
+  /// Plata împărțită cu cardul are nevoie de minimum 2 RON de persoană (limita Stripe).
+  bool get _splitTooSmall => _paymentMethod.contains('Card') && _splitShare < CardBookingService.minShare;
+
+  Widget _buildPayModeOptions() {
+    final bool card = _paymentMethod.contains('Card');
+    final String share = _splitShare.toStringAsFixed(2);
+    final String total = (_amountDue() + (card ? CardBookingService.platformFee : 0)).toStringAsFixed(2);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 8),
+        Text(tr('split.who_pays'), style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.muted)),
+        RadioListTile<String>(
+          title: Text(tr('split.host')),
+          activeColor: AppColors.accent,
+          value: 'host',
+          groupValue: _payMode,
+          onChanged: (val) => setState(() => _payMode = val ?? 'host'),
+        ),
+        RadioListTile<String>(
+          title: Text(tr('split.split', {'n': '$_maxPlayers'})),
+          subtitle: Text(
+            _splitTooSmall ? tr('split.too_small') : tr('split.per_person', {'amount': share}),
+            style: TextStyle(color: _splitTooSmall ? Colors.orange : AppColors.muted, fontSize: 12),
+          ),
+          activeColor: AppColors.accent,
+          value: 'split',
+          groupValue: _payMode,
+          onChanged: _splitTooSmall ? null : (val) => setState(() => _payMode = val ?? 'host'),
+        ),
+        if (_isSplit && !_splitTooSmall)
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.only(top: 4, bottom: 8),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.card2,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppColors.accent.withValues(alpha: 0.3)),
+            ),
+            child: Text(
+              card
+                  ? tr('split.card_info', {'total': total, 'amount': share})
+                  : tr('split.cash_info', {'amount': share}),
+              style: TextStyle(color: AppColors.text, fontSize: 13, height: 1.4),
+            ),
+          ),
+      ],
+    );
+  }
+
   /// Prețul mesei (fără extra / bar) pentru intervalul ales.
   double _tablePrice() {
     if (_selectedLocation == null || _startHour == null || _endHour == null) return 0;
@@ -857,17 +939,17 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
     }
   }
 
-  Future<void> _createMatch() async {
+  Future<String?> _createMatch({bool holdForPayment = false}) async {
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
+    if (user == null) return null;
 
     if (_needsTrainer && (_selectedTrainer == null || !_trainerAvailable(_selectedTrainer!))) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tr('tr.pick_required')), backgroundColor: Colors.redAccent));
-      return;
+      return null;
     }
     if (_venueHasRules && !_rulesAccepted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tr('spec.rules_required')), backgroundColor: Colors.redAccent));
-      return;
+      return null;
     }
 
     setState(() => _isLoading = true);
@@ -1003,8 +1085,12 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
         'tableId': _selectedTable,
         'tableType': _selectedTableType,
         'paymentMethod': _paymentMethod,
-        'paymentSplit': 'Achitat integral',
-        'paymentStatus': _paymentMethod.contains('Card') ? 'confirmed' : 'pending',
+        // Plata împărțită: la card gazda plătește tot acum, iar ceilalți își plătesc partea când se alătură;
+        // la cash fiecare își dă partea la sală.
+        'paymentMode': (_isSplit && !_splitTooSmall) ? 'split' : 'host',
+        'paymentSplit': (_isSplit && !_splitTooSmall && !_paymentMethod.contains('Card')) ? 'Împărțit la jucători' : 'Achitat integral',
+        // La plata cu cardul, rezervarea așteaptă confirmarea Stripe (o face serverul, prin webhook).
+        'paymentStatus': holdForPayment ? 'awaiting_payment' : (_paymentMethod.contains('Card') ? 'confirmed' : 'pending'),
         'status': lobbyPlayers.length >= effectiveMax ? 'matched' : 'open',
         'price': totalAmount,
         'extraServices': _selectedExtraServices,
@@ -1035,136 +1121,172 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
             ),
           );
         }
-        return;
+        return null;
       }
 
       _bookingCreated = true;
 
-      // Notificări (popup + email): sala primește rezervarea nouă, gazda confirmarea.
-      final bookingArgs = {...NotificationService.matchArgs(matchData), 'player': username};
-      await NotificationService.send(
-        toUid: _selectedLocation!.id,
-        type: 'booking_new',
-        titleKey: 'n.booking_venue_title',
-        bodyKey: 'n.booking_venue_body',
-        args: bookingArgs,
-        matchId: newMatchId,
-      );
-      await NotificationService.send(
-        toUid: user.uid,
-        allowSelf: true,
-        type: 'booking_confirmed',
-        titleKey: 'n.booking_host_title',
-        bodyKey: 'n.booking_host_body',
-        args: bookingArgs,
-        matchId: newMatchId,
-      );
-
-      if (_recurring && !_paymentMethod.contains('Card') && !_needsTrainer) {
-        await _createRecurring(matchData, newMatchId, baseAmount);
-      }
-
-      if (_needsTrainer && _selectedTrainer != null) {
-        try {
-          await TrainerService.requestSession(
-            trainer: _selectedTrainer!,
+      // Restul (notificări, antrenor, factură, resetarea formularului): imediat sau, la plata
+      // cu cardul, abia după ce plata a reușit (rezervarea e deja ținută pentru jucător).
+      Future<void> finishBooking() async {
+        // Notificări (popup + email): sala primește rezervarea nouă, gazda confirmarea.
+        final bookingArgs = {...NotificationService.matchArgs(matchData), 'player': username};
+        // La plata cu cardul le trimite serverul, când Stripe confirmă plata (ajung și dacă aplicația s-a închis).
+        if (!holdForPayment) {
+          await NotificationService.send(
+            toUid: _selectedLocation!.id,
+            type: 'booking_new',
+            titleKey: 'n.booking_venue_title',
+            bodyKey: 'n.booking_venue_body',
+            args: bookingArgs,
             matchId: newMatchId,
-            locationId: _selectedLocation!.id,
-            locationName: _selectedLocation!.name,
-            sport: _selectedSport,
-            date: _selectedDate,
-            startHour: _startHour!.toInt(),
-            endHour: _endHour!.toInt(),
-            plan: _trainerPlan,
-            persons: _trainerPersons,
-            group: [
-              for (final p in lobbyPlayers.skip(1)) {'uid': (p['uid'] ?? '').toString(), 'name': (p['username'] ?? '').toString()},
-            ],
           );
-          // Prietenii adăugați în lobby află imediat (popup + email).
-          for (final p in lobbyPlayers.skip(1)) {
-            await NotificationService.send(
-              toUid: (p['uid'] ?? '').toString(),
-              type: 'lobby_added',
-              titleKey: 'n.lobby_added_title',
-              bodyKey: 'n.lobby_added_body',
-              args: {...bookingArgs, 'host': username, 'trainer': _selectedTrainer!.name},
+          await NotificationService.send(
+            toUid: user.uid,
+            allowSelf: true,
+            type: 'booking_confirmed',
+            titleKey: 'n.booking_host_title',
+            bodyKey: 'n.booking_host_body',
+            args: bookingArgs,
+            matchId: newMatchId,
+          );
+        }
+
+        if (_recurring && !_paymentMethod.contains('Card') && !_needsTrainer) {
+          await _createRecurring(matchData, newMatchId, baseAmount);
+        }
+
+        if (_needsTrainer && _selectedTrainer != null) {
+          try {
+            await TrainerService.requestSession(
+              trainer: _selectedTrainer!,
               matchId: newMatchId,
+              locationId: _selectedLocation!.id,
+              locationName: _selectedLocation!.name,
+              sport: _selectedSport,
+              date: _selectedDate,
+              startHour: _startHour!.toInt(),
+              endHour: _endHour!.toInt(),
+              plan: _trainerPlan,
+              persons: _trainerPersons,
+              group: [
+                for (final p in lobbyPlayers.skip(1)) {'uid': (p['uid'] ?? '').toString(), 'name': (p['username'] ?? '').toString()},
+              ],
             );
-          }
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(tr('tr.requested', {'name': _selectedTrainer!.name})), backgroundColor: Colors.green),
-            );
-          }
-        } catch (e) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(tr('tr.err_request', {'error': '$e'})), backgroundColor: Colors.orange),
-            );
+            // Prietenii adăugați în lobby află imediat (popup + email).
+            for (final p in lobbyPlayers.skip(1)) {
+              await NotificationService.send(
+                toUid: (p['uid'] ?? '').toString(),
+                type: 'lobby_added',
+                titleKey: 'n.lobby_added_title',
+                bodyKey: 'n.lobby_added_body',
+                args: {...bookingArgs, 'host': username, 'trainer': _selectedTrainer!.name},
+                matchId: newMatchId,
+              );
+            }
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text(tr('tr.requested', {'name': _selectedTrainer!.name})), backgroundColor: Colors.green),
+              );
+            }
+          } catch (e) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text(tr('tr.err_request', {'error': '$e'})), backgroundColor: Colors.orange),
+              );
+            }
           }
         }
-      }
 
-      if (_wantsInvoice && mounted) {
-        try {
-          await InvoiceService.generateAndShareInvoice(
-            matchId: newMatchId,
-            amount: totalAmount,
-            venueName: _selectedLocation!.name,
-            date: DateFormat('yyyy-MM-dd').format(_selectedDate),
-            time: '${_startHour!.toString().padLeft(2, '0')}:00 - ${_endHour!.toString().padLeft(2, '0')}:00',
-            companyName: _invoiceCompanyController.text.trim(),
-            cui: _invoiceCuiController.text.trim(),
-            regCom: _invoiceRegController.text.trim(),
-            address: _invoiceAddressController.text.trim(),
-            email: _invoiceEmailController.text.trim(),
+        if (_wantsInvoice && mounted) {
+          try {
+            await InvoiceService.generateAndShareInvoice(
+              matchId: newMatchId,
+              amount: totalAmount,
+              venueName: _selectedLocation!.name,
+              date: DateFormat('yyyy-MM-dd').format(_selectedDate),
+              time: '${_startHour!.toString().padLeft(2, '0')}:00 - ${_endHour!.toString().padLeft(2, '0')}:00',
+              companyName: _invoiceCompanyController.text.trim(),
+              cui: _invoiceCuiController.text.trim(),
+              regCom: _invoiceRegController.text.trim(),
+              address: _invoiceAddressController.text.trim(),
+              email: _invoiceEmailController.text.trim(),
+            );
+          } catch (e) {
+            debugPrint('Eroare generare factură: $e');
+          }
+        }
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(tr('cm.created')), backgroundColor: Colors.green),
           );
-        } catch (e) {
-          debugPrint('Eroare generare factură: $e');
+          // Reset form
+          setState(() {
+            _currentStep = 0;
+            _selectedCity = null;
+            _selectedLocation = null;
+            _selectedTableType = null;
+            _startHour = null;
+            _endHour = null;
+            _selectedHours.clear();
+            _selectedTable = null;
+            _maxPlayers = 2;
+            _visibility = 'Public';
+            _matchType = 'Competitiv';
+          _payMode = 'host';
+            _requireApproval = true;
+            _rulesAccepted = false;
+            _selectedExtraServices.clear();
+            _wantsInvoice = false;
+            _invoiceCompanyController.clear();
+            _invoiceCuiController.clear();
+            _invoiceRegController.clear();
+            _invoiceAddressController.clear();
+            _invoiceEmailController.clear();
+            _barInventory.clear();
+            _selectedBarItems.clear();
+            _trainers = [];
+            _selectedTrainer = null;
+            _needsTrainer = false;
+            _trainerPlan = 'session';
+            _trainerPersons = 1;
+            _trainerLock = true;
+            _trainerFriendUids.clear();
+            _recurring = false;
+            _recurringWeeks = 4;
+            _voucher = null;
+          });
         }
       }
 
+      if (holdForPayment) {
+        _pendingFinish = finishBooking;
+        return newMatchId;
+      }
+      await finishBooking();
+      return newMatchId;
+    } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(tr('cm.created')), backgroundColor: Colors.green),
+          SnackBar(content: Text(tr('cm.err_create', {'error': '$e'})), backgroundColor: Colors.red),
         );
-        // Reset form
-        setState(() {
-          _currentStep = 0;
-          _selectedCity = null;
-          _selectedLocation = null;
-          _selectedTableType = null;
-          _startHour = null;
-          _endHour = null;
-          _selectedHours.clear();
-          _selectedTable = null;
-          _maxPlayers = 2;
-          _visibility = 'Public';
-          _matchType = 'Competitiv';
-          _requireApproval = true;
-          _rulesAccepted = false;
-          _selectedExtraServices.clear();
-          _wantsInvoice = false;
-          _invoiceCompanyController.clear();
-          _invoiceCuiController.clear();
-          _invoiceRegController.clear();
-          _invoiceAddressController.clear();
-          _invoiceEmailController.clear();
-          _barInventory.clear();
-          _selectedBarItems.clear();
-          _trainers = [];
-          _selectedTrainer = null;
-          _needsTrainer = false;
-          _trainerPlan = 'session';
-          _trainerPersons = 1;
-          _trainerLock = true;
-          _trainerFriendUids.clear();
-          _recurring = false;
-          _recurringWeeks = 4;
-          _voucher = null;
-        });
       }
+      return null;
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  /// Plata cu cardul a reușit: notificări, antrenor, factură și resetarea formularului.
+  /// (Rezervarea devine „plătită" pe server, prin webhook-ul Stripe, chiar dacă aplicația se închide.)
+  Future<void> _finishPendingBooking() async {
+    final finish = _pendingFinish;
+    _pendingFinish = null;
+    if (finish == null) return;
+    setState(() => _isLoading = true);
+    try {
+      await finish();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1173,6 +1295,18 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  /// Plata nu s-a făcut: rezervarea ținută pentru plată se șterge și masa se eliberează.
+  /// Dacă jucătorul a plătit totuși, serverul rambursează automat plata.
+  Future<void> _cancelHeldBooking(String matchId) async {
+    _pendingFinish = null;
+    _bookingCreated = false;
+    try {
+      await FirebaseFirestore.instance.collection('matches').doc(matchId).delete();
+    } catch (_) {
+      // Dacă nu reușește acum, funcția releaseUnpaidHolds o eliberează oricum.
     }
   }
 
@@ -1431,19 +1565,35 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
               }
 
               // O rezervare gratuită (cod de 100%) nu trece prin plata cu cardul.
-              final paymentSuccess = amount < 1
-                  ? true
-                  : await Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => PaymentScreen(
-                        amount: amount,
-                        venueId: _selectedLocation!.id,
-                        destinationAccountId: _selectedLocation!.stripeAccountId,
-                      )),
-                    );
-
-              if (paymentSuccess == true) {
+              if (amount < 1) {
                 await _createMatch();
+              } else {
+                // Întâi ținem masa (rezervare „în așteptarea plății"), apoi plătim. Plata o confirmă
+                // serverul, deci rezervarea rămâne valabilă chiar dacă aplicația se închide după plată.
+                final heldId = await _createMatch(holdForPayment: true);
+                if (heldId != null && mounted) {
+                  final paymentSuccess = await Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => PaymentScreen(
+                      amount: amount,
+                      venueId: _selectedLocation!.id,
+                      destinationAccountId: _selectedLocation!.stripeAccountId,
+                      purpose: {'kind': 'booking', 'matchId': heldId},
+                    )),
+                  );
+                  if (paymentSuccess == true) {
+                    await _finishPendingBooking();
+                    // Arătăm direct rezervarea, cu biletul QR pentru check-in.
+                    if (mounted) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => MatchDetailScreen(matchId: heldId, mode: MatchDetailMode.player)),
+                      );
+                    }
+                  } else {
+                    await _cancelHeldBooking(heldId);
+                  }
+                }
               }
             } else {
               await _createMatch();
@@ -2201,6 +2351,7 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
                     _recurring = false; // plata cu cardul e pe o singură rezervare
                   }),
                 ),
+                if (_splitAllowed) _buildPayModeOptions(),
                 if (_venueData != null && _selectedLocation != null && _selectedLocation!.isPublic != true)
                   VoucherField(
                     venueId: _selectedLocation!.id,
@@ -2317,6 +2468,11 @@ class _CreateMatchTabState extends State<CreateMatchTab> {
                   Divider(color: AppColors.muted),
                   _summaryRow(Icons.emoji_events, tr('cm.match_type'), _matchType == 'Amical' ? tr('match.friendly') : tr('match.competitive')),
                   _summaryRow(Icons.payment, tr('cm.sum_payment'), _paymentMethod.contains('Card') ? tr('cm.pay_card_short') : tr('cm.pay_cash')),
+                  if (_isSplit && !_splitTooSmall)
+                    _summaryRow(Icons.call_split, tr('split.sum'), tr('split.sum_val', {'amount': _splitShare.toStringAsFixed(2), 'n': '$_maxPlayers'})),
+                  if (_paymentMethod.contains('Card') && _amountDue() >= 1)
+                    _summaryRow(Icons.credit_card, tr('split.pay_now'),
+                        tr('split.pay_now_val', {'amount': (_amountDue() + CardBookingService.platformFee).toStringAsFixed(2)})),
                   if (_recurring && !_paymentMethod.contains('Card') && !_needsTrainer)
                     _summaryRow(Icons.event_repeat, tr('rec.sum'), tr('rec.sum_val', {'n': '$_recurringWeeks'})),
                   if (_voucherDiscount > 0)

@@ -135,7 +135,7 @@ class _VenueMassCancelScreenState extends State<VenueMassCancelScreen> {
         title: Text(list.isEmpty ? 'Blochezi intervalul?' : 'Anulezi ${list.length} rezervări?', style: TextStyle(color: AppColors.text)),
         content: Text(
           [
-            if (list.isNotEmpty) 'Jucătorii înscriși vor fi notificați${refunds > 0 ? ', iar $refunds plăți cu cardul vor fi marcate ca rambursate' : ''}.',
+            if (list.isNotEmpty) 'Jucătorii înscriși vor fi notificați${refunds > 0 ? ', iar $refunds plăți cu cardul vor fi rambursate automat pe cardul jucătorilor' : ''}.',
             if (_block) 'Intervalul va fi blocat pentru rezervări noi.',
             'Acțiunea nu poate fi anulată.',
           ].join('\n\n'),
@@ -181,7 +181,7 @@ class _VenueMassCancelScreenState extends State<VenueMassCancelScreen> {
       _snack(
         res.cancelled == 0
             ? 'Interval blocat.'
-            : '${res.cancelled} rezervări anulate, ${res.notified} notificări trimise${res.refunded > 0 ? ', ${res.refunded} rambursări marcate' : ''}.',
+            : '${res.cancelled} rezervări anulate, ${res.notified} notificări trimise${res.refunded > 0 ? ', ${res.refunded} plăți cu cardul rambursate' : ''}.',
         Colors.green,
       );
     } catch (e) {
@@ -412,7 +412,7 @@ class _VenueMassCancelScreenState extends State<VenueMassCancelScreen> {
                             ),
                             subtitle: Text(
                               '${m['hostUsername'] ?? '-'} · masa ${m['tableId'] ?? '-'} · ${sportLabel((m['sport'] ?? 'ping_pong').toString())}'
-                              '${(m['paymentMethod'] ?? '').toString().contains('Card') && m['paymentStatus'] == 'confirmed' ? ' · plătit cu cardul (rambursare)' : ''}',
+                              '${(m['paymentMethod'] ?? '').toString().contains('Card') && m['paymentStatus'] == 'confirmed' ? ' · plătit cu cardul (se returnează banii)' : ''}',
                               style: TextStyle(color: AppColors.text54, fontSize: 12),
                             ),
                           ),

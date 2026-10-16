@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Playhub</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+           background: #0b0f17; color: #e8edf5; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    .card { max-width: 420px; margin: 16px; padding: 32px 28px; background: #141b26; border: 1px solid #1f2a3a;
+            border-radius: 18px; text-align: center; }
+    .icon { width: 64px; height: 64px; margin: 0 auto 16px; border-radius: 50%; display: flex; align-items: center;
+            justify-content: center; font-size: 34px; }
+    .ok .icon { background: rgba(0, 229, 255, .12); color: #00e5ff; }
+    .no .icon { background: rgba(255, 99, 99, .12); color: #ff6b6b; }
+    h1 { font-size: 22px; margin: 0 0 10px; }
+    p { margin: 0; color: #9aa6b8; line-height: 1.5; }
+    button { margin-top: 24px; padding: 12px 22px; border: 0; border-radius: 12px; background: #00e5ff; color: #000;
+             font-weight: 700; font-size: 15px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div class="card" id="card">
+    <div class="icon" id="icon"></div>
+    <h1 id="title"></h1>
+    <p id="text"></p>
+    <button id="close" type="button"></button>
+  </div>
+  <script>
+    var T = {
+      ro: { okT: 'Plata a reușit', okP: 'Rezervarea ta e confirmată. Te poți întoarce în Playhub.',
+            noT: 'Plata a fost anulată', noP: 'Nu s-a încasat nimic. Te poți întoarce în Playhub ca să încerci din nou.', btn: 'Înapoi în Playhub', view: 'Vezi rezervarea și biletul QR' },
+      en: { okT: 'Payment successful', okP: 'Your booking is confirmed. You can go back to Playhub.',
+            noT: 'Payment cancelled', noP: 'Nothing was charged. Go back to Playhub to try again.', btn: 'Back to Playhub', view: 'View booking and QR ticket' },
+      fr: { okT: 'Paiement réussi', okP: 'Ta réservation est confirmée. Tu peux revenir sur Playhub.',
+            noT: 'Paiement annulé', noP: 'Rien n’a été débité. Reviens sur Playhub pour réessayer.', btn: 'Retour sur Playhub', view: 'Voir la réservation et le billet QR' },
+      es: { okT: 'Pago realizado', okP: 'Tu reserva está confirmada. Puedes volver a Playhub.',
+            noT: 'Pago cancelado', noP: 'No se ha cobrado nada. Vuelve a Playhub para intentarlo de nuevo.', btn: 'Volver a Playhub', view: 'Ver la reserva y la entrada QR' },
+      hu: { okT: 'Sikeres fizetés', okP: 'A foglalásod megerősítve. Visszatérhetsz a Playhubba.',
+            noT: 'A fizetés megszakadt', noP: 'Nem történt terhelés. Térj vissza a Playhubba, és próbáld újra.', btn: 'Vissza a Playhubba', view: 'Foglalás és QR-jegy megtekintése' }
+    };
+    var lang = (navigator.language || 'ro').slice(0, 2).toLowerCase();
+    var t = T[lang] || T.ro;
+    var params = new URLSearchParams(location.search);
+    var ok = params.get('status') === 'ok';
+    var match = (params.get('match') || '').replace(/[^A-Za-z0-9_-]/g, '');
+    document.documentElement.lang = T[lang] ? lang : 'ro';
+    document.getElementById('card').className = 'card ' + (ok ? 'ok' : 'no');
+    document.getElementById('icon').textContent = ok ? '✓' : '✕';
+    document.getElementById('title').textContent = ok ? t.okT : t.noT;
+    document.getElementById('text').textContent = ok ? t.okP : t.noP;
+    var btn = document.getElementById('close');
+    // După plată te ducem direct la rezervare (cu biletul QR); sesiunea din aplicație se păstrează.
+    btn.textContent = ok && match ? t.view : t.btn;
+    btn.onclick = function () {
+      location.href = ok && match ? '/?booking=' + encodeURIComponent(match) : '/';
+    };
+  </script>
+</body>
+</html>

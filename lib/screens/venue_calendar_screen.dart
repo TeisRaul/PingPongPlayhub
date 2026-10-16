@@ -111,7 +111,8 @@ class _VenueCalendarScreenState extends State<VenueCalendarScreen> {
       _matches.where((m) => (m['sport'] ?? 'ping_pong') == _sport).toList();
 
   Color _matchColor(Map<String, dynamic> m) {
-    final paid = m['paymentStatus'] == 'confirmed' || m['paymentStatus'] == 'paid' || m['paymentSplit'] == 'Achitat integral';
+    final paid = m['paymentStatus'] != 'awaiting_payment' &&
+        (m['paymentStatus'] == 'confirmed' || m['paymentStatus'] == 'paid' || m['paymentSplit'] == 'Achitat integral');
     if (m['status'] == 'open' && !paid) return Colors.orange;
     return paid ? Colors.green : AppColors.accent;
   }

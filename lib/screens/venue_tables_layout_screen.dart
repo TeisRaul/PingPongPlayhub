@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../widgets/player_drawer.dart';
 import '../utils/level_utils.dart';
 import '../theme/app_theme.dart';
+import '../services/card_booking_service.dart';
 
 
 class VenueTablesLayoutScreen extends StatefulWidget {
@@ -861,18 +862,17 @@ class _VenueTablesLayoutScreenState extends State<VenueTablesLayoutScreen> {
     try {
       final String paymentMethod = matchData['paymentMethod'] ?? '';
       final String paymentStatus = matchData['paymentStatus'] ?? '';
-      final double price = (matchData['price'] as num?)?.toDouble() ?? 0.0;
       
       Map<String, dynamic> updates = {
         'status': 'cancelled',
       };
 
       if (paymentMethod.contains('Card') && paymentStatus == 'confirmed') {
-        updates['paymentStatus'] = 'refunded';
-        updates['refundedAmount'] = price;
+        // Plătită cu cardul: serverul anulează, returnează banii prin Stripe și anunță jucătorii.
+        await CardBookingService.cancel(matchId, 'cancel');
+      } else {
+        await FirebaseFirestore.instance.collection('matches').doc(matchId).update(updates);
       }
-
-      await FirebaseFirestore.instance.collection('matches').doc(matchId).update(updates);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Rezervarea a fost anulată.'), backgroundColor: Colors.orange),
       );
